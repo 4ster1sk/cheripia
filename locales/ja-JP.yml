@@ -3737,6 +3737,14 @@ _reversi:
   remoteVersionUnknownCaption: "対応していない可能性があります"
   remoteVersionBad: "リモートサーバーのバージョンが非互換です"
 
+_mahjong:
+  mahjong: "麻雀"
+  joinRoom: "ルームに参加"
+  createRoom: "ルームを作成"
+  ready: "準備完了"
+  cancelReady: "準備を再開"
+  leave: "退室"
+
 _offlineScreen:
   title: "オフライン - サーバーに接続できません"
   header: "サーバーに接続できません"

@@ -22,7 +22,7 @@
 		"packages/misskey-js/generator",
 		"packages/misskey-reversi",
 		"packages/misskey-bubble-game",
-		"packages-private/*"
+		"packages/misskey-mahjong"
 	],
 	"private": true,
 	"scripts": {

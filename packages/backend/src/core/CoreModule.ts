@@ -82,7 +82,7 @@ import { ChannelFollowingService } from './ChannelFollowingService.js';
 import { ChatService } from './ChatService.js';
 import { RegistryApiService } from './RegistryApiService.js';
 import { ReversiService } from './ReversiService.js';
-import { PageService } from './PageService.js';
+import { MahjongService } from './MahjongService.js';
 
 import { ChartLoggerService } from './chart/ChartLoggerService.js';
 import FederationChart from './chart/charts/federation.js';
@@ -247,7 +247,7 @@ const $ChannelMutingService: Provider = { provide: 'ChannelMutingService', useEx
 const $ChatService: Provider = { provide: 'ChatService', useExisting: ChatService };
 const $RegistryApiService: Provider = { provide: 'RegistryApiService', useExisting: RegistryApiService };
 const $ReversiService: Provider = { provide: 'ReversiService', useExisting: ReversiService };
-const $PageService: Provider = { provide: 'PageService', useExisting: PageService };
+const $MahjongService: Provider = { provide: 'MahjongService', useExisting: MahjongService };
 
 const $ChartLoggerService: Provider = { provide: 'ChartLoggerService', useExisting: ChartLoggerService };
 const $FederationChart: Provider = { provide: 'FederationChart', useExisting: FederationChart };
@@ -412,8 +412,7 @@ const $ApClipService: Provider = { provide: 'ApClipService', useExisting: ApClip
 		ChatService,
 		RegistryApiService,
 		ReversiService,
-		PageService,
-		NoteHistorySerivce,
+		MahjongService,
 
 		ChartLoggerService,
 		FederationChart,
@@ -576,7 +575,7 @@ const $ApClipService: Provider = { provide: 'ApClipService', useExisting: ApClip
 		$ChatService,
 		$RegistryApiService,
 		$ReversiService,
-		$PageService,
+		$MahjongService,
 
 		$ChartLoggerService,
 		$FederationChart,
@@ -739,8 +738,7 @@ const $ApClipService: Provider = { provide: 'ApClipService', useExisting: ApClip
 		ChatService,
 		RegistryApiService,
 		ReversiService,
-		PageService,
-		NoteHistorySerivce,
+		MahjongService,
 
 		FederationChart,
 		NotesChart,
@@ -902,7 +900,7 @@ const $ApClipService: Provider = { provide: 'ApClipService', useExisting: ApClip
 		$ChatService,
 		$RegistryApiService,
 		$ReversiService,
-		$PageService,
+		$MahjongService,
 
 		$FederationChart,
 		$NotesChart,

@@ -61,23 +61,8 @@ import {
 	packedRoleSchema,
 } from '@/models/json-schema/role.js';
 import { packedAdSchema } from '@/models/json-schema/ad.js';
-import { packedReversiGameDetailedSchema, packedReversiGameLiteSchema } from '@/models/json-schema/reversi-game.js';
-import {
-	packedMetaDetailedOnlySchema,
-	packedMetaDetailedSchema,
-	packedMetaLiteSchema,
-	packedMetaClientOptionsSchema,
-} from '@/models/json-schema/meta.js';
-import { packedUserWebhookSchema } from '@/models/json-schema/user-webhook.js';
-import { packedSystemWebhookSchema } from '@/models/json-schema/system-webhook.js';
-import { packedAbuseReportNotificationRecipientSchema } from '@/models/json-schema/abuse-report-notification-recipient.js';
-import { packedChatMessageSchema, packedChatMessageLiteSchema, packedChatMessageLiteForRoomSchema, packedChatMessageLiteFor1on1Schema } from '@/models/json-schema/chat-message.js';
-import { packedChatRoomSchema } from '@/models/json-schema/chat-room.js';
-import { packedChatRoomInvitationSchema } from '@/models/json-schema/chat-room-invitation.js';
-import { packedChatRoomMembershipSchema } from '@/models/json-schema/chat-room-membership.js';
-import { packedAchievementNameSchema, packedAchievementSchema } from '@/models/json-schema/achievement.js';
-import { packedNoteDraftSchema } from '@/models/json-schema/note-draft.js';
-import { packedNoteHistorySchema } from '@/models/json-schema/note-history.js';
+import { packedReversiGameLiteSchema, packedReversiGameDetailedSchema } from '@/models/json-schema/reversi-game.js';
+import { packedMahjongRoomDetailedSchema } from '@/models/json-schema/mahjong-room.js';
 
 export const refs = {
 	UserLite: packedUserLiteSchema,
@@ -138,21 +123,7 @@ export const refs = {
 	RolePolicies: packedRolePoliciesSchema,
 	ReversiGameLite: packedReversiGameLiteSchema,
 	ReversiGameDetailed: packedReversiGameDetailedSchema,
-	MetaLite: packedMetaLiteSchema,
-	MetaDetailedOnly: packedMetaDetailedOnlySchema,
-	MetaDetailed: packedMetaDetailedSchema,
-	MetaClientOptions: packedMetaClientOptionsSchema,
-	UserWebhook: packedUserWebhookSchema,
-	SystemWebhook: packedSystemWebhookSchema,
-	AbuseReportNotificationRecipient: packedAbuseReportNotificationRecipientSchema,
-	ChatMessage: packedChatMessageSchema,
-	ChatMessageLite: packedChatMessageLiteSchema,
-	ChatMessageLiteFor1on1: packedChatMessageLiteFor1on1Schema,
-	ChatMessageLiteForRoom: packedChatMessageLiteForRoomSchema,
-	ChatRoom: packedChatRoomSchema,
-	ChatRoomInvitation: packedChatRoomInvitationSchema,
-	ChatRoomMembership: packedChatRoomMembershipSchema,
-	NoteHistory: packedNoteHistorySchema,
+	MahjongRoomDetailed: packedMahjongRoomDetailedSchema,
 };
 
 export type Packed<x extends keyof typeof refs> = SchemaType<typeof refs[x]>;

@@ -6,6 +6,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import * as Redis from 'ioredis';
 import * as Reversi from 'misskey-reversi';
+import * as Mahjong from 'misskey-mahjong';
 import type { MiChannel } from '@/models/Channel.js';
 import type { MiUser } from '@/models/User.js';
 import type { MiAnnouncement } from '@/models/Announcement.js';
@@ -239,6 +240,28 @@ export interface ReversiGameEventTypes {
 		reaction: string;
 	};
 }
+
+export interface MahjongRoomEventTypes {
+	changeReadyStates: {
+		user1: boolean;
+		user2: boolean;
+		user3: boolean;
+		user4: boolean;
+	};
+	tsumo: {
+		house: Mahjong.Engine.House;
+		tile: Mahjong.Engine.Tile;
+	};
+	dahai: {
+		house: Mahjong.Engine.House;
+		tile: Mahjong.Engine.Tile;
+	};
+	dahaiAndTsumo: {
+		house: Mahjong.Engine.House;
+		dahaiTile: Mahjong.Engine.Tile;
+		tsumoTile: Mahjong.Engine.Tile;
+	};
+}
 //#endregion
 
 // 辞書(interface or type)から{ type, body }ユニオンを定義
@@ -367,6 +390,10 @@ export type GlobalEvents = {
 		name: `reversiGameStream:${MiReversiGame['id']}`;
 		payload: EventTypesToEventPayload<ReversiGameEventTypes>;
 	};
+	mahjongRoom: {
+		name: `mahjongRoomStream:${string}`;
+		payload: EventUnionFromDictionary<SerializedAll<MahjongRoomEventTypes>>;
+	};
 };
 
 // API event definitions
@@ -483,5 +510,10 @@ export class GlobalEventService {
 	@bindThis
 	public publishReversiGameStream<K extends keyof ReversiGameEventTypes>(gameId: MiReversiGame['id'], type: K, value?: ReversiGameEventTypes[K]): void {
 		this.publish(`reversiGameStream:${gameId}`, type, typeof value === 'undefined' ? null : value);
+	}
+
+	@bindThis
+	public publishMahjongRoomStream<K extends keyof MahjongRoomEventTypes>(roomId: string, type: K, value?: MahjongRoomEventTypes[K]): void {
+		this.publish(`mahjongRoomStream:${roomId}`, type, typeof value === 'undefined' ? null : value);
 	}
 }

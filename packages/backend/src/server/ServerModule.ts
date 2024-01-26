@@ -31,28 +31,23 @@ import { UrlPreviewService } from './web/UrlPreviewService.js';
 import { ClientLoggerService } from './web/ClientLoggerService.js';
 import { OAuth2ProviderService } from './oauth/OAuth2ProviderService.js';
 
-import { MainChannel } from './api/stream/channels/main.js';
-import { AdminChannel } from './api/stream/channels/admin.js';
-import { AntennaChannel } from './api/stream/channels/antenna.js';
-import { ChannelChannel } from './api/stream/channels/channel.js';
-import { ClipChannel } from './api/stream/channels/clip.js';
-import { DriveChannel } from './api/stream/channels/drive.js';
-import { GlobalTimelineChannel } from './api/stream/channels/global-timeline.js';
-import { HashtagChannel } from './api/stream/channels/hashtag.js';
-import { HomeTimelineChannel } from './api/stream/channels/home-timeline.js';
-import { HybridTimelineChannel } from './api/stream/channels/hybrid-timeline.js';
-import { LocalTimelineChannel } from './api/stream/channels/local-timeline.js';
-import { QueueStatsChannel } from './api/stream/channels/queue-stats.js';
-import { ServerStatsChannel } from './api/stream/channels/server-stats.js';
-import { UserListChannel } from './api/stream/channels/user-list.js';
-import { RoleTimelineChannel } from './api/stream/channels/role-timeline.js';
-import { ChatUserChannel } from './api/stream/channels/chat-user.js';
-import { ChatRoomChannel } from './api/stream/channels/chat-room.js';
-import { ReversiChannel } from './api/stream/channels/reversi.js';
-import { ReversiGameChannel } from './api/stream/channels/reversi-game.js';
-import { NoteStreamingHidingService } from './api/stream/NoteStreamingHidingService.js';
-import { SigninWithPasskeyApiService } from './api/SigninWithPasskeyApiService.js';
-import { BubbleTimelineChannel } from './api/stream/channels/bubble-timeline.js';
+import { MainChannelService } from './api/stream/channels/main.js';
+import { AdminChannelService } from './api/stream/channels/admin.js';
+import { AntennaChannelService } from './api/stream/channels/antenna.js';
+import { ChannelChannelService } from './api/stream/channels/channel.js';
+import { DriveChannelService } from './api/stream/channels/drive.js';
+import { GlobalTimelineChannelService } from './api/stream/channels/global-timeline.js';
+import { HashtagChannelService } from './api/stream/channels/hashtag.js';
+import { HomeTimelineChannelService } from './api/stream/channels/home-timeline.js';
+import { HybridTimelineChannelService } from './api/stream/channels/hybrid-timeline.js';
+import { LocalTimelineChannelService } from './api/stream/channels/local-timeline.js';
+import { QueueStatsChannelService } from './api/stream/channels/queue-stats.js';
+import { ServerStatsChannelService } from './api/stream/channels/server-stats.js';
+import { UserListChannelService } from './api/stream/channels/user-list.js';
+import { RoleTimelineChannelService } from './api/stream/channels/role-timeline.js';
+import { ReversiChannelService } from './api/stream/channels/reversi.js';
+import { ReversiGameChannelService } from './api/stream/channels/reversi-game.js';
+import { MahjongRoomChannelService } from './api/stream/channels/mahjong-room.js';
 
 @Module({
 	imports: [
@@ -83,26 +78,23 @@ import { BubbleTimelineChannel } from './api/stream/channels/bubble-timeline.js'
 		SigninService,
 		SignupApiService,
 		StreamingApiServerService,
-		MainChannel,
-		AdminChannel,
-		AntennaChannel,
-		ChannelChannel,
-		ClipChannel,
-		DriveChannel,
-		GlobalTimelineChannel,
-		HashtagChannel,
-		RoleTimelineChannel,
-		ChatUserChannel,
-		ChatRoomChannel,
-		ReversiChannel,
-		ReversiGameChannel,
-		HomeTimelineChannel,
-		HybridTimelineChannel,
-		LocalTimelineChannel,
-		QueueStatsChannel,
-		ServerStatsChannel,
-		UserListChannel,
-		NoteStreamingHidingService,
+		MainChannelService,
+		AdminChannelService,
+		AntennaChannelService,
+		ChannelChannelService,
+		DriveChannelService,
+		GlobalTimelineChannelService,
+		HashtagChannelService,
+		RoleTimelineChannelService,
+		ReversiChannelService,
+		ReversiGameChannelService,
+		MahjongRoomChannelService,
+		HomeTimelineChannelService,
+		HybridTimelineChannelService,
+		LocalTimelineChannelService,
+		QueueStatsChannelService,
+		ServerStatsChannelService,
+		UserListChannelService,
 		OpenApiServerService,
 		OAuth2ProviderService,
 		BubbleTimelineChannel,

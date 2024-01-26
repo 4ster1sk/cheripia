@@ -1,3 +1,8 @@
+/*
+ * version: 2024.2.0-beta.7
+ * generatedAt: 2024-01-26T05:23:04.909Z
+ */
+
 import type {
 	EmptyRequest,
 	EmptyResponse,
@@ -736,9 +741,32 @@ import type {
 	UsersTranslateRequest,
 	UsersTranslateResponse,
 	UsersUpdateMemoRequest,
-	V2AdminEmojiListRequest,
-	V2AdminEmojiListResponse,
-	VerifyEmailRequest,
+	FetchRssRequest,
+	FetchRssResponse,
+	FetchExternalResourcesRequest,
+	FetchExternalResourcesResponse,
+	RetentionResponse,
+	BubbleGameRegisterRequest,
+	BubbleGameRegisterResponse,
+	BubbleGameRankingRequest,
+	BubbleGameRankingResponse,
+	ReversiCancelMatchRequest,
+	ReversiCancelMatchResponse,
+	ReversiGamesRequest,
+	ReversiGamesResponse,
+	ReversiMatchRequest,
+	ReversiMatchResponse,
+	ReversiInvitationsResponse,
+	ReversiShowGameRequest,
+	ReversiShowGameResponse,
+	ReversiSurrenderRequest,
+	ReversiVerifyRequest,
+	ReversiVerifyResponse,
+	MahjongCreateRoomResponse,
+	MahjongJoinRoomRequest,
+	MahjongJoinRoomResponse,
+	MahjongShowRoomRequest,
+	MahjongShowRoomResponse,
 } from './entities.js';
 
 export type Endpoints = {
@@ -1228,13 +1256,19 @@ export type Endpoints = {
 	'users/stats': { req: UsersStatsRequest; res: UsersStatsResponse };
 	'users/translate': { req: UsersTranslateRequest; res: UsersTranslateResponse };
 	'users/update-memo': { req: UsersUpdateMemoRequest; res: EmptyResponse };
-	'v2/admin/emoji/list': { req: V2AdminEmojiListRequest; res: V2AdminEmojiListResponse };
-	'verify-email': { req: VerifyEmailRequest; res: EmptyResponse };
-};
-
-/**
- * NOTE: The content-type for all endpoints not listed here is application/json.
- */
-export const endpointReqTypes = {
-	'drive/files/create': 'multipart/form-data',
-} as const satisfies { [K in keyof Endpoints]?: 'multipart/form-data'; };
+	'fetch-rss': { req: FetchRssRequest; res: FetchRssResponse };
+	'fetch-external-resources': { req: FetchExternalResourcesRequest; res: FetchExternalResourcesResponse };
+	'retention': { req: EmptyRequest; res: RetentionResponse };
+	'bubble-game/register': { req: BubbleGameRegisterRequest; res: BubbleGameRegisterResponse };
+	'bubble-game/ranking': { req: BubbleGameRankingRequest; res: BubbleGameRankingResponse };
+	'reversi/cancel-match': { req: ReversiCancelMatchRequest; res: ReversiCancelMatchResponse };
+	'reversi/games': { req: ReversiGamesRequest; res: ReversiGamesResponse };
+	'reversi/match': { req: ReversiMatchRequest; res: ReversiMatchResponse };
+	'reversi/invitations': { req: EmptyRequest; res: ReversiInvitationsResponse };
+	'reversi/show-game': { req: ReversiShowGameRequest; res: ReversiShowGameResponse };
+	'reversi/surrender': { req: ReversiSurrenderRequest; res: EmptyResponse };
+	'reversi/verify': { req: ReversiVerifyRequest; res: ReversiVerifyResponse };
+	'mahjong/create-room': { req: EmptyRequest; res: MahjongCreateRoomResponse };
+	'mahjong/join-room': { req: MahjongJoinRoomRequest; res: MahjongJoinRoomResponse };
+	'mahjong/show-room': { req: MahjongShowRoomRequest; res: MahjongShowRoomResponse };
+}

@@ -1,3 +1,8 @@
+/*
+ * version: 2024.2.0-beta.7
+ * generatedAt: 2024-01-26T05:23:04.907Z
+ */
+
 import { components } from './types.js';
 export type Error = components['schemas']['Error'];
 export type UserLite = components['schemas']['UserLite'];
@@ -57,18 +62,4 @@ export type Role = components['schemas']['Role'];
 export type RolePolicies = components['schemas']['RolePolicies'];
 export type ReversiGameLite = components['schemas']['ReversiGameLite'];
 export type ReversiGameDetailed = components['schemas']['ReversiGameDetailed'];
-export type MetaLite = components['schemas']['MetaLite'];
-export type MetaDetailedOnly = components['schemas']['MetaDetailedOnly'];
-export type MetaDetailed = components['schemas']['MetaDetailed'];
-export type MetaClientOptions = components['schemas']['MetaClientOptions'];
-export type UserWebhook = components['schemas']['UserWebhook'];
-export type SystemWebhook = components['schemas']['SystemWebhook'];
-export type AbuseReportNotificationRecipient = components['schemas']['AbuseReportNotificationRecipient'];
-export type ChatMessage = components['schemas']['ChatMessage'];
-export type ChatMessageLite = components['schemas']['ChatMessageLite'];
-export type ChatMessageLiteFor1on1 = components['schemas']['ChatMessageLiteFor1on1'];
-export type ChatMessageLiteForRoom = components['schemas']['ChatMessageLiteForRoom'];
-export type ChatRoom = components['schemas']['ChatRoom'];
-export type ChatRoomInvitation = components['schemas']['ChatRoomInvitation'];
-export type ChatRoomMembership = components['schemas']['ChatRoomMembership'];
-export type NoteHistory = components['schemas']['NoteHistory'];
+export type MahjongRoomDetailed = components['schemas']['MahjongRoomDetailed'];
