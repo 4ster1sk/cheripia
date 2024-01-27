@@ -213,7 +213,7 @@ try {
 		stderr: process.stderr,
 	});
 
-await execa('pnpm', ['--filter', 'misskey-mahjong', 'build'], {
+await execa('pnpm', ['--filter', 'misskey-mahjong', 'build:tsc'], {
 	cwd: _dirname + '/../',
 	stdout: process.stdout,
 	stderr: process.stderr,

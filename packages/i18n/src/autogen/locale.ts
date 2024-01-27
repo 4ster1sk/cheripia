@@ -14147,6 +14147,10 @@ export interface Locale extends ILocale {
          * 退室
          */
         "leave": string;
+        /**
+         * CPUを追加
+         */
+        "addCpu": string;
     };
     "_offlineScreen": {
         /**
