@@ -242,6 +242,10 @@ export interface ReversiGameEventTypes {
 }
 
 export interface MahjongRoomEventTypes {
+	joined: {
+		index: number;
+		user: Packed<'UserLite'>;
+	};
 	changeReadyStates: {
 		user1: boolean;
 		user2: boolean;
