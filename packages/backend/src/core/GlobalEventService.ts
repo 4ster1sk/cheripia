@@ -273,6 +273,8 @@ export interface MahjongRoomEventTypes {
 		target: Mahjong.Common.House;
 		tile: Mahjong.Common.Tile;
 	};
+	endKyoku: {
+	};
 }
 //#endregion
 
