@@ -273,6 +273,12 @@ export interface MahjongRoomEventTypes {
 		callee: Mahjong.Common.House;
 		tile: Mahjong.Common.Tile;
 	};
+	kanned: {
+		caller: Mahjong.Common.House;
+		callee: Mahjong.Common.House;
+		tile: Mahjong.Common.Tile;
+		rinsyan: Mahjong.Common.Tile;
+	};
 	ronned: {
 	};
 	hora: {
