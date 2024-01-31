@@ -281,7 +281,7 @@ export interface MahjongRoomEventTypes {
 	};
 	ronned: {
 	};
-	hora: {
+	tsumoHora: {
 	};
 }
 //#endregion
