@@ -14391,9 +14391,9 @@ export interface Locale extends ILocale {
              */
             "churen": string;
             /**
-             * 純正九連宝灯
+             * 九連宝灯九面待
              */
-            "pure-churen": string;
+            "churen-9": string;
             /**
              * 天和
              */
