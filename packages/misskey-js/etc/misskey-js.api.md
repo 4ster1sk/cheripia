@@ -2304,7 +2304,6 @@ declare namespace entities {
         InviteListRequest,
         InviteListResponse,
         MahjongCancelMatchRequest,
-        MahjongCancelMatchResponse,
         MahjongCreateRoomResponse,
         MahjongGamesRequest,
         MahjongGamesResponse,
@@ -3230,9 +3229,6 @@ type IWebhooksUpdateRequest = operations['i___webhooks___update']['requestBody']
 
 // @public (undocumented)
 type MahjongCancelMatchRequest = operations['mahjong___cancel-match']['requestBody']['content']['application/json'];
-
-// @public (undocumented)
-type MahjongCancelMatchResponse = operations['mahjong___cancel-match']['responses']['200']['content']['application/json'];
 
 // @public (undocumented)
 type MahjongCreateRoomResponse = operations['mahjong___create-room']['responses']['200']['content']['application/json'];
