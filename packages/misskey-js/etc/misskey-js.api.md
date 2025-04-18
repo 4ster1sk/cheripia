@@ -2198,6 +2198,17 @@ declare namespace entities {
         InviteLimitResponse,
         InviteListRequest,
         InviteListResponse,
+        MahjongCancelMatchRequest,
+        MahjongCancelMatchResponse,
+        MahjongCreateRoomResponse,
+        MahjongGamesRequest,
+        MahjongGamesResponse,
+        MahjongJoinRoomRequest,
+        MahjongJoinRoomResponse,
+        MahjongShowRoomRequest,
+        MahjongShowRoomResponse,
+        MahjongVerifyRequest,
+        MahjongVerifyResponse,
         MetaRequest,
         MetaResponse,
         MiauthGenTokenRequest,
@@ -3113,22 +3124,40 @@ type IWebhooksTestRequest = operations['i___webhooks___test']['requestBody']['co
 type IWebhooksUpdateRequest = operations['i___webhooks___update']['requestBody']['content']['application/json'];
 
 // @public (undocumented)
-type MahjongCreateRoomResponse = operations['mahjong/create-room']['responses']['200']['content']['application/json'];
+type MahjongCancelMatchRequest = operations['mahjong___cancel-match']['requestBody']['content']['application/json'];
 
 // @public (undocumented)
-type MahjongJoinRoomRequest = operations['mahjong/join-room']['requestBody']['content']['application/json'];
+type MahjongCancelMatchResponse = operations['mahjong___cancel-match']['responses']['200']['content']['application/json'];
 
 // @public (undocumented)
-type MahjongJoinRoomResponse = operations['mahjong/join-room']['responses']['200']['content']['application/json'];
+type MahjongCreateRoomResponse = operations['mahjong___create-room']['responses']['200']['content']['application/json'];
+
+// @public (undocumented)
+type MahjongGamesRequest = operations['mahjong___games']['requestBody']['content']['application/json'];
+
+// @public (undocumented)
+type MahjongGamesResponse = operations['mahjong___games']['responses']['200']['content']['application/json'];
+
+// @public (undocumented)
+type MahjongJoinRoomRequest = operations['mahjong___join-room']['requestBody']['content']['application/json'];
+
+// @public (undocumented)
+type MahjongJoinRoomResponse = operations['mahjong___join-room']['responses']['200']['content']['application/json'];
 
 // @public (undocumented)
 type MahjongRoomDetailed = components['schemas']['MahjongRoomDetailed'];
 
 // @public (undocumented)
-type MahjongShowRoomRequest = operations['mahjong/show-room']['requestBody']['content']['application/json'];
+type MahjongShowRoomRequest = operations['mahjong___show-room']['requestBody']['content']['application/json'];
 
 // @public (undocumented)
-type MahjongShowRoomResponse = operations['mahjong/show-room']['responses']['200']['content']['application/json'];
+type MahjongShowRoomResponse = operations['mahjong___show-room']['responses']['200']['content']['application/json'];
+
+// @public (undocumented)
+type MahjongVerifyRequest = operations['mahjong___verify']['requestBody']['content']['application/json'];
+
+// @public (undocumented)
+type MahjongVerifyResponse = operations['mahjong___verify']['responses']['200']['content']['application/json'];
 
 // @public (undocumented)
 type MeDetailed = components['schemas']['MeDetailed'];
