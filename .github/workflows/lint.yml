@@ -15,6 +15,7 @@ on:
       - packages/sw/**
       - packages/misskey-js/**
       - packages/misskey-bubble-game/**
+      - packages/misskey-mahjong/**
       - packages/misskey-reversi/**
       - packages/shared/eslint.config.js
       - scripts/check-dts*.mjs
@@ -33,6 +34,7 @@ on:
       - packages/sw/**
       - packages/misskey-js/**
       - packages/misskey-bubble-game/**
+      - packages/misskey-mahjong/**
       - packages/misskey-reversi/**
       - packages/shared/eslint.config.js
       - scripts/check-dts*.mjs
@@ -70,6 +72,7 @@ jobs:
         - sw
         - misskey-js
         - misskey-bubble-game
+        - misskey-mahjong
         - misskey-reversi
     env:
       eslint-cache-version: v1
@@ -117,7 +120,10 @@ jobs:
         node-version-file: '.node-version'
         cache: 'pnpm'
     - run: pnpm i --frozen-lockfile
-    - run: pnpm --filter "${{ matrix.workspace }}^..." run build
+    - run: pnpm --filter misskey-js run build
+      if: ${{ matrix.workspace == 'backend' || matrix.workspace == 'sw' }}
+    - run: pnpm --filter misskey-mahjong --filter misskey-reversi run build
+      if: ${{ matrix.workspace == 'backend' }}
     - run: pnpm --filter ${{ matrix.workspace }} run typecheck
 
   check-dts:
