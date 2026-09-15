@@ -335,14 +335,25 @@ export class ApInboxService {
 			return 'skip: room not found';
 		}
 
-		// Delete the invitation
+		// Only a genuine locally-owned room may gain members via Accept.
+		// A copy of a remote room is owned by the remote inviter; letting an
+		// arbitrary remote actor join it here would bypass the owner's Invite.
+		const owner = await this.usersRepository.findOneBy({ id: room.ownerId });
+		if (!owner || !this.userEntityService.isLocalUser(owner)) {
+			return 'skip: room is not locally owned';
+		}
+
+		// The acceptor must have been invited. Without this check any signed
+		// remote actor can join an arbitrary local room by sending
+		// Accept(Invite(roomId)) without ever receiving an invitation.
 		const invitation = await this.chatRoomInvitationsRepository.findOneBy({
 			roomId,
 			userId: actor.id,
 		});
-		if (invitation) {
-			await this.chatRoomInvitationsRepository.delete(invitation.id);
+		if (!invitation) {
+			return 'skip: invitation not found';
 		}
+		await this.chatRoomInvitationsRepository.delete(invitation.id);
 
 		// Check if already a member
 		const existingMembership = await this.chatService.isRoomMember(room, actor.id);
