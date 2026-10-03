@@ -1,5 +1,5 @@
 {
-	"name": "yojo-art",
+	"name": "Cheripia",
 	"dockerComposeFile": "compose.yml",
 	"service": "app",
 	"workspaceFolder": "/workspace",

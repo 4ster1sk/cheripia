@@ -19,7 +19,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<div style="font-size: 0.8em;">Misskey {{ basedMisskeyVersion }}</div>
 		</div>
 		<div v-if="isBeta" :class="$style.beta">{{ i18n.ts.thankYouForTestingBeta }}</div>
-		<MkButton rounded full @click="whatIsNewYojo">{{ i18n.ts.whatIsNew }}</MkButton>
+		<MkButton rounded full @click="whatIsNewCheripia">{{ i18n.ts.whatIsNew }}</MkButton>
 		<MkButton :class="$style.gotIt" primary rounded full @click="close">{{ i18n.ts.gotIt }}</MkButton>
 	</div>
 </MkModal>
@@ -29,7 +29,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 		<div :class="$style.title" style="margin: 0 0 1.5em; font-weight: normal;">{{ i18n.ts.whatIsNew }}</div>
 		<MkButton rounded full @click="whatIsNewMisskey">Misskey</MkButton>
 		<MkButton rounded full style="margin: 8px 0 0;" @click="whatIsNewCherryPick">CherryPick</MkButton>
-		<MkButton rounded full style="margin: 8px 0 0;" @click="whatIsNewYojo">yojo-art</MkButton>
+		<MkButton rounded full style="margin: 8px 0 0;" @click="whatIsNewCheripia">Cheripia</MkButton>
 		<MkButton :class="$style.gotIt" primary rounded full @click="close">{{ i18n.ts.ok }}</MkButton>
 	</div>
 </MkModal>
@@ -69,9 +69,9 @@ function whatIsNewCherryPick() {
 	window.open(`https://github.com/kokonect-link/cherrypick/blob/develop/CHANGELOG_CHERRYPICK.md#${basedCherrypickVersion.replace(/\./g, '')}`, '_blank');
 }
 
-function whatIsNewYojo() {
+function whatIsNewCheripia() {
 	// modal.value?.close();
-	window.open(`https://github.com/yojo-art/cherrypick/blob/develop/CHANGELOG_YOJO.md#${version.replace(/\./g, '')}`, '_blank');
+	window.open(`https://github.com/cheripia-dev/cheripia/blob/develop/CHANGELOG_CHERIPIA.md#${version.replace(/\./g, '')}`, '_blank');
 }
 
 const close = async () => {

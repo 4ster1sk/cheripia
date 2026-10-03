@@ -1,6 +1,6 @@
 services:
   web:
-    image: ghcr.io/yojo-art/cherrypick:latest
+    image: ghcr.io/cheripia-dev/cheripia:latest
     restart: always
     links:
       - db

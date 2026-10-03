@@ -14,12 +14,12 @@ export function genOpenapiSpec(config: Config, includeSelfRef = false) {
 
 		info: {
 			version: `${config.version} (${config.basedCherrypickVersion}) (${config.basedMisskeyVersion})`,
-			title: 'yojo-art API',
+			title: 'Cheripia API',
 		},
 
 		externalDocs: {
 			description: 'Repository',
-			url: 'https://github.com/yojo-art/cherrypick',
+			url: 'https://github.com/cheripia-dev/cheripia',
 		},
 
 		servers: [{
@@ -98,7 +98,7 @@ export function genOpenapiSpec(config: Config, includeSelfRef = false) {
 			description: desc,
 			externalDocs: {
 				description: 'Source code',
-				url: `https://github.com/yojo-art/cherrypick/blob/develop/packages/backend/src/server/api/endpoints/${endpoint.name}.ts`,
+				url: `https://github.com/cheripia-dev/cheripia/blob/develop/packages/backend/src/server/api/endpoints/${endpoint.name}.ts`,
 			},
 			...(endpoint.meta.tags ? {
 				tags: [endpoint.meta.tags[0]],

@@ -22,7 +22,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 	<FormSection>
 		<div class="_gaps_m">
 			<MkKeyValue :copy="`${version} (${gitHash})`">
-				<template #key>yojo-art</template>
+				<template #key>Cheripia</template>
 				<template #value>{{ version }} <span style="font-size: 11px; opacity: 0.5;">({{ gitHash.substring(0, 8) }})</span></template>
 			</MkKeyValue>
 			<div v-html="i18n.tsx.poweredByMisskeyDescription({ name: instance.name ?? host })">

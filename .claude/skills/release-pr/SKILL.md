@@ -1,17 +1,17 @@
 ---
 name: release-pr
-description: yojo-art のリリース用PRを作成・レビューするときなどに使用する。
+description: Cheripia のリリース用PRを作成・レビューするときなどに使用する。
 ---
 
 # release-pr
 
-yojo-art/cherrypick のリリース用 PR を作成・レビューするときに使うスキル。  
+cheripia-dev/cheripia のリリース用 PR を作成・レビューするときに使うスキル。  
 過去のリリース PR (#988, #1031, #1112, #1121, #1235) の実績と現在のリポジトリ状態に基づく。
 
 ## リポジトリ状態（参考）
 
 - ルート `package.json`
-  - `name`: `yojo-art`
+  - `name`: `cheripia`
   - `version`: `1.8.2`
   - `basedCherrypickVersion`: `4.17.0`
   - `basedMisskeyVersion`: `2025.12.2`
@@ -19,7 +19,7 @@ yojo-art/cherrypick のリリース用 PR を作成・レビューするとき�
 - SDK パッケージ
   - 現在: `packages/misskey-js/package.json`（`name: misskey-js`, `version: 1.8.2`）
   - 1.7.x 系では `packages/cherrypick-js/package.json`（`name: cherrypick-js`）を更新していた
-- 更新対象の CHANGELOG: **`CHANGELOG_YOJO.md`**（`CHANGELOG.md` や `CHANGELOG_CHERRYPICK.md` は触らない）
+- 更新対象の CHANGELOG: **`CHANGELOG_CHERIPIA.md`**（`CHANGELOG.md` や `CHANGELOG_CHERRYPICK.md` は触らない）
 
 ## このスキルの役割
 1. **/release-prのみで実行されたときは、どのPR番号をレビューするのかユーザーに質問すること。**
@@ -34,7 +34,7 @@ yojo-art/cherrypick のリリース用 PR を作成・レビューするとき�
 2. **バージョンを決める**
    - ルート `package.json` の `version` と、SDK パッケージの `version` を同じ値に更新する
    - `basedCherrypickVersion` / `basedMisskeyVersion` / `codename` は上流マージが無ければ変更しない
-3. **`CHANGELOG_YOJO.md` に新しいバージョンブロックを追加**
+3. **`CHANGELOG_CHERIPIA.md` に新しいバージョンブロックを追加**
    - ファイルの先頭に挿入する
    - 空でも `### General` / `### Client` / `### Server` は必ず置く
    - 必要に応じて `### Others` を追加
@@ -48,10 +48,10 @@ yojo-art/cherrypick のリリース用 PR を作成・レビューするとき�
    - 該当バージョンのマイルストーンを設定する
 6. **最終チェック**
    - ルートと SDK パッケージの `version` が一致している
-   - `CHANGELOG_YOJO.md` の日付・リンク・Prefix が規約通り
+   - `CHANGELOG_CHERIPIA.md` の日付・リンク・Prefix が規約通り
    - 他の CHANGELOG ファイルや locale ファイルを誤って変更していない
 
-## CHANGELOG_YOJO.md の書式（過去の傾向）
+## CHANGELOG_CHERIPIA.md の書式（過去の傾向）
 
 ```markdown
 ## x.y.z
@@ -64,7 +64,7 @@ YYYY-MM-DD
 ### General
 
 ### Client
-- Fix: ... [#123](https://github.com/yojo-art/cherrypick/pull/123)
+- Fix: ... [#123](https://github.com/cheripia-dev/cheripia/pull/123)
 
 ### Server
 - Fix: セキュリティに関する修正 (Cherry-picked from misskey YYYY.M.P)
@@ -76,6 +76,6 @@ YYYY-MM-DD
 - `Cherrypick ...` / `Misskey ...` は行末に 2 つのスペースを入れて改行する
 - セクションは `General` / `Client` / `Server` / `Others`
 - 各エントリの Prefix: `Feat:` / `Enhance:` / `Change:` / `Fix:` / `Remove:`
-- 変更元 PR があれば `[#num](https://github.com/yojo-art/cherrypick/pull/num)` でリンクする
+- 変更元 PR があれば `[#num](https://github.com/cheripia-dev/cheripia/pull/num)` でリンクする
 - サブ項目は 2 スペースまたはタブでインデントする
 - セキュリティ修正は `Fix: セキュリティに関する修正 (Cherry-picked from misskey ...)` の形

@@ -11,8 +11,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<div v-panel class="about">
 					<div ref="containerEl" class="container" :class="{ playing: easterEggEngine != null }">
 						<img src="/client-assets/about-icon.png" alt="" class="icon" draggable="false" @load="iconLoaded" @click="gravity"/>
-						<div class="cherrypick">yojo-art</div>
-						<div class="version" @click="whatIsNewYojo">v{{ version }} <span class="commit-hash" @click.stop="openCommitPage('yojo-art/cherrypick', gitHash)">({{ gitHash.substring(0, 8) }})</span></div>
+						<div class="cherrypick">Cheripia</div>
+						<div class="version" @click="whatIsNewCheripia">v{{ version }} <span class="commit-hash" @click.stop="openCommitPage('cheripia-dev/cheripia', gitHash)">({{ gitHash.substring(0, 8) }})</span></div>
 						<div class="version" style="font-size: 11px;" @click="whatIsNewCherryPick">v{{ basedCherrypickVersion }} (Based on CherryPick)</div>
 						<div class="version" style="font-size: 11px;" @click="whatIsNewMisskey">v{{ basedMisskeyVersion }} (Based on Misskey)</div>
 						<span v-for="emoji in easterEggEmojis" :key="emoji.id" class="emoji" :data-physics-x="emoji.left" :data-physics-y="emoji.top" :class="{ _physics_circle_: !emoji.emoji.startsWith(':') }">
@@ -39,17 +39,12 @@ SPDX-License-Identifier: AGPL-3.0-only
 					</div>
 				</FormSection>
 				<FormSection>
-					<template #label>yojo-art</template>
+					<template #label>Cheripia</template>
 					<div class="_gaps_s">
-						<FormLink to="https://github.com/yojo-art/cherrypick" external>
+						<FormLink to="https://github.com/cheripia-dev/cheripia" external>
 							<template #icon><i class="ti ti-code"></i></template>
 							{{ i18n.ts._aboutMisskey.source }} ({{ i18n.ts._aboutMisskey.original }})
 							<template #suffix>GitHub</template>
-						</FormLink>
-						<FormLink to="https://yojo-art.fanbox.cc/" external>
-							<template #icon><i class="ti ti-pig-money"></i></template>
-							{{ i18n.ts._aboutMisskey._yojoArt.donate }}
-							<template #suffix>Pixiv Fanbox</template>
 						</FormLink>
 					</div>
 				</FormSection>
@@ -102,7 +97,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 						</FormLink>
 					</div>
 				</FormSection>
-				<FormSection v-if="instance.repositoryUrl !== 'https://github.com/yojo-art/cherrypick'">
+				<FormSection v-if="instance.repositoryUrl !== 'https://github.com/cheripia-dev/cheripia'">
 					<div class="_gaps_s">
 						<MkInfo>
 							{{ i18n.tsx._aboutMisskey.thisIsModifiedVersion({ name: instance.name ?? host }) }}
@@ -128,7 +123,15 @@ SPDX-License-Identifier: AGPL-3.0-only
 							<img src="https://avatars.githubusercontent.com/u/98575220?v=4" :class="$style.contributorAvatar">
 							<span :class="$style.contributorUsername">@kozakura913
 								<span :class="$style.contributorClient">
-									<span :class="$style.cherry">yojo</span><span :class="$style.pick">-art</span>
+									<span :class="$style.cherry">Cheripia</span>
+								</span>
+							</span>
+						</a>
+						<a href="https://github.com/4sterisk" target="_blank" :class="$style.contributor">
+							<img src="https://avatars.githubusercontent.com/u/146138447?v=4" :class="$style.contributorAvatar">
+							<span :class="$style.contributorUsername">@4sterisk
+								<span :class="$style.contributorClient">
+									<span :class="$style.cherry">Cheripia</span>
 								</span>
 							</span>
 						</a>
@@ -215,16 +218,16 @@ SPDX-License-Identifier: AGPL-3.0-only
 				</FormSection>
 				<FormSection>
 					<template #label><Mfm text="$[jelly ❤]"/> {{ i18n.ts._aboutMisskey.patrons }}</template>
-					<p style="font-weight: bold">yojo-art</p>
+					<!---<p style="font-weight: bold">Cheripia</p>
 					<div :class="$style.patronsWithIcon">
-						<div v-for="patron in patronsWithIconWithYojoArt" :class="$style.patronWithIcon">
+						<div v-for="patron in patronsWithIconWithCheripia" :class="$style.patronWithIcon">
 							<img :src="patron.icon" :class="$style.patronIcon">
 							<span :class="$style.patronName">{{ patron.name }}</span>
 						</div>
 					</div>
 					<div style="margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); grid-gap: 12px;">
-						<div v-for="patron in patronsWithYojoArt" :key="patron">{{ patron }}</div>
-					</div>
+						<div v-for="patron in patronsWithCheripia" :key="patron">{{ patron }}</div>
+					</div>-->
 					<p style="font-weight: bold;">
 						<span style="color: var(--CP-cherry);">Cherry</span>
 						<span style="color: var(--CP-pick);">Pick</span>
@@ -275,7 +278,7 @@ import { prefer } from '@/preferences.js';
 import { donateCherryPick } from '@/utility/donate-cherrypick.js';
 import { openCommitPage } from '@/utility/fetch-releases.js';
 
-const patronsWithIconWithYojoArt: { name: string; icon: string }[] = [];
+const patronsWithIconWithCheripia: { name: string; icon: string }[] = [];
 
 const patronsWithIconWithCherryPick = [{
 	name: 'Etone Sabasappugawa',
@@ -440,8 +443,8 @@ const patronsWithIconWithMisskey = [{
 	icon: 'https://assets.misskey-hub.net/patrons/962ff1d2f3d040ed8973b62bbff84391.jpg',
 }];
 
-const patronsWithYojoArt = [
-	'しろは',
+const patronsWithCheripia = [
+	'',
 ];
 
 const patronsWithCherryPick = [
@@ -578,9 +581,9 @@ const easterEggEmojis = ref<{
 const easterEggEngine = ref<{ stop: () => void } | null>(null);
 const containerEl = useTemplateRef('containerEl');
 
-const whatIsNewYojo = () => {
+const whatIsNewCheripia = () => {
 	// modal.value?.close();
-	window.open(`https://github.com/yojo-art/cherrypick/blob/develop/CHANGELOG_YOJO.md#${version.replace(/\./g, '')}`, '_blank');
+	window.open(`https://github.com/cheripia-dev/cheripia/blob/develop/CHANGELOG_CHERIPIA.md#${version.replace(/\./g, '')}`, '_blank');
 };
 const whatIsNewCherryPick = () => {
 	// modal.value?.close();

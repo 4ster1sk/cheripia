@@ -71,16 +71,16 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<template #caption><SearchText>{{ i18n.ts.makeExplorableDescription }}</SearchText></template>
 			</MkSwitch>
 		</SearchMarker>
-		<SearchMarker :keywords="['indexable','index','search','yojo-art']">
+		<SearchMarker :keywords="['indexable','index','search','cheripia']">
 			<MkSwitch v-model="isIndexable" @update:modelValue="save()">
-				<template #label><SearchLabel>{{ i18n.ts.makeIndexable }}</SearchLabel><span class="_beta">yojo-art</span></template>
+				<template #label><SearchLabel>{{ i18n.ts.makeIndexable }}</SearchLabel><span class="_beta">Cheripia</span></template>
 				<template #caption><SearchKeyword>{{ i18n.ts.makeIndexableDescription }}</SearchKeyword></template>
 			</MkSwitch>
 		</SearchMarker>
 
-		<SearchMarker :keywords="['searchable','index','search','yojo-art']">
+		<SearchMarker :keywords="['searchable','index','search','cheripia']">
 			<MkSelect v-model="searchableBy" :items="searchableByDef" @update:modelValue="save()">
-				<template #label><SearchLabel>{{ i18n.ts._searchbility.tooltip }}</SearchLabel><span class="_beta" style="vertical-align: middle;">yojo-art</span><SearchLabel></SearchLabel></template>
+				<template #label><SearchLabel>{{ i18n.ts._searchbility.tooltip }}</SearchLabel><span class="_beta" style="vertical-align: middle;">Cheripia</span><SearchLabel></SearchLabel></template>
 				<template #caption><SearchKeyword>{{ i18n.ts.makeSearchableByDescription }}</SearchKeyword></template>
 			</MkSelect>
 		</SearchMarker>

@@ -16,11 +16,11 @@ export const openCommitPage = (repo: string, hash: string) => {
 export async function fetchCherrypickReleases(): Promise<boolean> {
 	try {
 		const meta = await misskeyApi('admin/meta');
-		const response = await window.fetch('https://api.github.com/repos/yojo-art/cherrypick/releases');
+		const response = await window.fetch('https://api.github.com/repos/cheripia-dev/cheripia/releases');
 		const releasesData = await response.json();
 
 		if (!Array.isArray(releasesData) || releasesData.length === 0) {
-			console.warn('No yojo-art releases found.');
+			console.warn('No Cheripia releases found.');
 			return false;
 		}
 
@@ -29,7 +29,7 @@ export async function fetchCherrypickReleases(): Promise<boolean> {
 			: releasesData.filter((x: any) => !x.prerelease)[0];
 
 		if (!latestRelease || !latestRelease.tag_name || typeof latestRelease.tag_name !== 'string') {
-			console.warn('Invalid latest yojo-art release:', latestRelease);
+			console.warn('Invalid latest Cheripia release:', latestRelease);
 			return false;
 		}
 
@@ -38,7 +38,7 @@ export async function fetchCherrypickReleases(): Promise<boolean> {
 			compareVersions(<string>meta.skipCherryPickVersion || version, latestRelease.tag_name) < 0
 		);
 	} catch (error) {
-		console.error('Failed to fetch yojo-art releases:', error);
+		console.error('Failed to fetch Cheripia releases:', error);
 		return false;
 	}
 }

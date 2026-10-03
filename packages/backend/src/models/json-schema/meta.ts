@@ -64,12 +64,12 @@ export const packedMetaLiteSchema = {
 		repositoryUrl: {
 			type: 'string',
 			optional: false, nullable: true,
-			default: 'https://github.com/yojo-art/cherrypick',
+			default: 'https://github.com/cheripia-dev/cheripia',
 		},
 		feedbackUrl: {
 			type: 'string',
 			optional: false, nullable: true,
-			default: 'https://github.com/yojo-art/cherrypick/issues/new',
+			default: 'https://github.com/cheripia-dev/cheripia/issues/new',
 		},
 		statusUrl: {
 			type: 'string',

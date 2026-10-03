@@ -19,7 +19,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<div style="font-size: 0.8em;">Misskey {{ basedMisskeyVersion }}</div>
 		</div>
 		<div v-if="isBeta" :class="$style.beta">{{ i18n.ts.thankYouForTestingBeta }}</div>
-		<MkButton rounded full @click="whatIsNewYojo">{{ i18n.ts.whatIsNew }}</MkButton>
+		<MkButton rounded full @click="whatIsNewCheripia">{{ i18n.ts.whatIsNew }}</MkButton>
 		<MkButton :class="$style.gotIt" primary rounded full @click="close">{{ i18n.ts.gotIt }}</MkButton>
 	</div>
 </MkModal>
@@ -53,9 +53,9 @@ const modal = useTemplateRef('modal');
 
 const isBeta = version.includes('-beta') || version.includes('-alpha') || version.includes('-rc');
 
-const whatIsNewYojo = () => {
+const whatIsNewCheripia = () => {
 	// modal.value?.close();
-	window.open(`https://github.com/yojo-art/cherrypick/blob/develop/CHANGELOG_YOJO.md#${version.replace(/\./g, '')}`, '_blank');
+	window.open(`https://github.com/cheripia-dev/cheripia/blob/develop/CHANGELOG_CHERIPIA.md#${version.replace(/\./g, '')}`, '_blank');
 };
 /**
  * function whatIsNewMisskey() {

@@ -41,7 +41,7 @@ import { chooseDriveFile } from '@/utility/drive.js';
 
 const text = ref('');
 const flag = ref(true);
-const mfm = ref(`Hello world! This is an @example mention. BTW you are @${$i ? $i.username : 'guest'}.\nAlso, here is ${config.url} and [example link](${config.url}). for more details, see https://example.com.\nAs you know #yojo-art is open-source software.`);
+const mfm = ref(`Hello world! This is an @example mention. BTW you are @${$i ? $i.username : 'guest'}.\nAlso, here is ${config.url} and [example link](${config.url}). for more details, see https://example.com.\nAs you know #Cheripia is open-source software.`);
 
 const openDialog = async () => {
 	await os.alert({

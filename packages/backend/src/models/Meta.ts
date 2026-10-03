@@ -446,14 +446,14 @@ export class MiMeta {
 
 	@Column('varchar', {
 		length: 1024,
-		default: 'https://github.com/yojo-art/cherrypick',
+		default: 'https://github.com/cheripia-dev/cheripia',
 		nullable: true,
 	})
 	public repositoryUrl: string | null;
 
 	@Column('varchar', {
 		length: 1024,
-		default: 'https://github.com/yojo-art/cherrypick/issues/new',
+		default: 'https://github.com/cheripia-dev/cheripia/issues/new',
 		nullable: true,
 	})
 	public feedbackUrl: string | null;

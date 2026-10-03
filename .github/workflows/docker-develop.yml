@@ -20,7 +20,7 @@ jobs:
         platform:
           - linux/amd64
           - linux/arm64
-    if: github.repository == 'yojo-art/cherrypick'
+    if: github.repository == 'cheripia-dev/cheripia'
     steps:
       - name: Free Disk Space
         uses: jlumbroso/free-disk-space@main

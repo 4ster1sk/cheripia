@@ -64,7 +64,7 @@ function createCloudLogPayload(record: LogRecord): CloudLogPayload {
 
 /**
  * 正規化済みのログをGoogle Cloud Loggingへ出力するための出力先です。
- * yojo-art 独自機能として、コンソール出力とは別にCloud Loggingへも送信します。
+ * Cheripia 独自機能として、コンソール出力とは別にCloud Loggingへも送信します。
  * 送信の成行は保持し、終了前のflushとcloseで送信漏れと失敗の握り潰しを防ぎます。
  */
 export class CloudLoggingBackend implements LogBackend {

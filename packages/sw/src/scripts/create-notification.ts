@@ -349,7 +349,7 @@ export async function createEmptyNotification(): Promise<void> {
 	await globalThis.registration.showNotification(
 		(new URL(origin)).host,
 		{
-			body: `yojo-art v${_VERSION_}`,
+			body: `Cheripia v${_VERSION_}`,
 			silent: true,
 			badge: iconUrl('null'),
 			tag: 'read_notification',

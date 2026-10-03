@@ -634,12 +634,12 @@ describe('FileServerService', () => {
 			expect(res.headers['content-security-policy']).toBe('default-src \'none\'; img-src \'self\'; media-src \'self\'; style-src \'unsafe-inline\'');
 		});
 
-		test('GET /proxy/:url* yojo-art User-Agent を拒否する', async () => {
+		test('GET /proxy/:url* Cheripia User-Agent を拒否する', async () => {
 			const res = await fastify.inject({
 				method: 'GET',
 				url: '/proxy/any?url=https%3A%2F%2Fexample.com%2Fimg.png',
 				headers: {
-					'user-agent': 'yojo-art/1.0',
+					'user-agent': 'Cheripia/1.0',
 				},
 			});
 

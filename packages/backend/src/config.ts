@@ -405,7 +405,7 @@ export function loadConfig(): Config {
 		videoThumbnailGenerator: config.videoThumbnailGenerator ?
 			config.videoThumbnailGenerator.endsWith('/') ? config.videoThumbnailGenerator.substring(0, config.videoThumbnailGenerator.length - 1) : config.videoThumbnailGenerator
 			: null,
-		userAgent: `yojo-art/${version} (${config.url})`,
+		userAgent: `Cheripia/${version} (${config.url})`,
 		frontendManifestExists: frontendManifestExists,
 		frontendEmbedManifestExists: frontendEmbedManifestExists,
 		rootDir,

@@ -138,7 +138,7 @@ export class AvatarDecorationService implements OnApplicationShutdown {
 		const showUserApiUrl = `${userHostUrl}/api/users/show`;
 
 		//TODO kmyblue互換方式の機能対応表現を使うようにする
-		if (!instance || !['yojo-art', 'misskey', 'cherrypick', 'sharkey'].includes(<string>instance.softwareName)) return 'ok';
+		if (!instance || !['cheripia', 'yojo-art', 'misskey', 'cherrypick', 'sharkey'].includes(<string>instance.softwareName)) return 'ok';
 
 		const res = await this.httpRequestService.send(showUserApiUrl, {
 			method: 'POST',
@@ -285,7 +285,7 @@ export class AvatarDecorationService implements OnApplicationShutdown {
 		const instance = await this.instancesRepository.findOneBy({ host: decoration.host });
 		if (!instance) return null;
 
-		if (!['yojo-art', 'misskey', 'cherrypick', 'sharkey'].includes(<string>instance.softwareName)) {
+		if (!['cheripia', 'yojo-art', 'misskey', 'cherrypick', 'sharkey'].includes(<string>instance.softwareName)) {
 			return null;
 		}
 

@@ -15,7 +15,7 @@ Issueを作成する前に、以下をご確認ください:
 - 重複を防ぐため、既に同様の内容のIssueが作成されていないか検索してから新しいIssueを作ってください。
 - Issueを質問に使わないでください。
 	- Issueは、要望、提案、問題の報告にのみ使用してください。
-	- 質問は、[GitHub Discussions](https://github.com/yojo-art/cherrypick/discussions)でお願いします。
+	- 質問は、[GitHub Discussions](https://github.com/cheripia-dev/cheripia/discussions)でお願いします。
 
 ## PRの作成
 PRを作成する前に、以下をご確認ください:

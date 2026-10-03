@@ -252,7 +252,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 						<SearchMarker :keywords="['file', 'grid', 'layout', 'timeline', 'tl']">
 							<MkPreferenceContainer k="gridLayoutMediaTimeline">
 								<MkSwitch v-model="gridLayoutMediaTimeline">
-									<template #label><SearchLabel>{{ i18n.ts.gridLayoutMediaTimeline }}</SearchLabel> <span class="_beta">yojo-art</span></template>
+									<template #label><SearchLabel>{{ i18n.ts.gridLayoutMediaTimeline }}</SearchLabel> <span class="_beta">Cheripia</span></template>
 									<template #caption><SearchKeyword>{{ i18n.ts.gridLayoutMediaTimelineDescription }}</SearchKeyword></template>
 								</MkSwitch>
 							</MkPreferenceContainer>
@@ -613,17 +613,17 @@ SPDX-License-Identifier: AGPL-3.0-only
 									</MkPreferenceContainer>
 								</SearchMarker>
 
-								<SearchMarker :keywords="['check', 'multiple', 'renote', 'yojo-art']">
+								<SearchMarker :keywords="['check', 'multiple', 'renote', 'cheripia']">
 									<MkPreferenceContainer k="checkMultipleRenote">
 										<MkSwitch v-model="checkMultipleRenote">
-											<template #label><SearchLabel>{{ i18n.ts.showMultipleRenoteWarning }}</SearchLabel> <span class="_beta" style="vertical-align: middle;">yojo-art</span></template>
+											<template #label><SearchLabel>{{ i18n.ts.showMultipleRenoteWarning }}</SearchLabel> <span class="_beta" style="vertical-align: middle;">Cheripia</span></template>
 										</MkSwitch>
 									</MkPreferenceContainer>
 								</SearchMarker>
-								<SearchMarker :keywords="['check', 'dialog', 'reaction', 'yojo-art']">
+								<SearchMarker :keywords="['check', 'dialog', 'reaction', 'cheripia']">
 									<MkPreferenceContainer k="checkReactionDialog">
 										<MkSwitch v-model="checkReactionDialog">
-											<template #label><SearchLabel>{{ i18n.ts.showReactionCheckDialog }}</SearchLabel> <span class="_beta" style="vertical-align: middle;">yojo-art</span></template>
+											<template #label><SearchLabel>{{ i18n.ts.showReactionCheckDialog }}</SearchLabel> <span class="_beta" style="vertical-align: middle;">Cheripia</span></template>
 										</MkSwitch>
 									</MkPreferenceContainer>
 								</SearchMarker>
@@ -773,10 +773,10 @@ SPDX-License-Identifier: AGPL-3.0-only
 								</SearchMarker>
 							</MkDisableSection>
 
-							<SearchMarker :keywords="['show','hide','form','hashtag', 'yojo-art']">
+							<SearchMarker :keywords="['show','hide','form','hashtag', 'cheripia']">
 								<MkPreferenceContainer k="hideTagUiTags">
 									<MkSwitch v-model="hideTagUiTags">
-										<template #label><SearchLabel>{{ i18n.ts.hideTagUiTag }}</SearchLabel> <span class="_beta" style="vertical-align: middle;">yojo-art</span></template>
+										<template #label><SearchLabel>{{ i18n.ts.hideTagUiTag }}</SearchLabel> <span class="_beta" style="vertical-align: middle;">Cheripia</span></template>
 										<template #caption>{{ i18n.ts.hideTagUiTagDescription }}</template>
 									</MkSwitch>
 								</MkPreferenceContainer>
@@ -896,7 +896,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 										<template #label>
 											<SearchLabel>{{ i18n.ts.useGroupedNoteNotifications }}</SearchLabel> <span
 												class="_beta"
-											>yojo-art</span>
+											>Cheripia</span>
 										</template>
 									</MkSwitch>
 								</MkPreferenceContainer>

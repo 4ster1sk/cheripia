@@ -55,13 +55,13 @@ body:
         Examples:
           * Model and OS of the device(s): MacBook Pro (14inch, 2021), macOS Ventura 13.4
           * Browser: Chrome 113.0.5672.126
-          * Server URL: yojo-art.example.com
-          * yojo-art: 1.x.x (Misskey: 2026.x.x)
+          * Server URL: cheripia.example.com
+          * Cheripia: 1.x.x (Misskey: 2026.x.x)
       value: |
         * Model and OS of the device(s):
         * Browser:
         * Server URL:
-        * yojo-art:
+        * Cheripia:
       render: markdown
     validations:
       required: false
@@ -75,15 +75,15 @@ body:
         If you are using a managed service, put that after the version.
 
         Examples:
-          * Installation Method or Hosting Service: docker compose, k8s/docker, systemd, "yojo-art install shell script", development environment
-          * yojo-art: 1.x.x (Misskey: 2026.x.x)
+          * Installation Method or Hosting Service: docker compose, k8s/docker, systemd, "Cheripia install shell script", development environment
+          * Cheripia: 1.x.x (Misskey: 2026.x.x)
           * Node: 20.x.x
           * PostgreSQL: 18.x.x
           * Redis: 7.x.x
           * OS and Architecture: Ubuntu 24.04.2 LTS aarch64
       value: |
         * Installation Method or Hosting Service:
-        * yojo-art:
+        * Cheripia:
         * Node:
         * PostgreSQL:
         * Redis:

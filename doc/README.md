@@ -1,5 +1,5 @@
-このフォークの変更の詳細は[CHENGELOG_YOJO](../CHANGELOG_YOJO.md)と[CHANGELOG_engawa](../CHANGELOG_engawa.md)を参照
-## yojo-art/cherrypickの独自機能
+このフォークの変更の詳細は[CHANGELOG_CHERIPIA](../CHANGELOG_CHERIPIA.md)と[CHANGELOG_engawa](../CHANGELOG_engawa.md)を参照
+## cheripia-dev/cheripiaの独自機能
 - リモートユーザー(Misskey)のクリップを見る機能
   - 公開クリップ、公開投稿のみ
 - マスコットウィジェット
@@ -11,7 +11,7 @@
   - ファイルが添付された投稿のみのタイムライン
 - リバーシの連合
   - リモートユーザーとリバーシで対戦できます
-  - 対戦相手のいるサーバーも yojo-art互換の実装がされている必要があります
+  - 対戦相手のいるサーバーも Cheripia互換の実装がされている必要があります
 - リモートユーザーのOutboxから投稿を取得する機能
 - 高度な検索
   - 通常の検索に加えて以下の条件が指定できます
@@ -23,9 +23,9 @@
   - 引用ノート除外
 - 通知の個別削除
 - toot:indexable対応
-  - リモートのMastodonやyojo-artの検索許可の設定がローカルで反映されます
+  - リモートのMastodonやCheripiaの検索許可の設定がローカルで反映されます
 - fedibird:searchableBy
-  - リモートのFedibirdやyojo-artの検索許可範囲の設定がローカルで反映されます
+  - リモートのFedibirdやCheripiaの検索許可範囲の設定がローカルで反映されます
 
 
 ## 削除された機能
