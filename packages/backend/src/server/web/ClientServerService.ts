@@ -156,7 +156,7 @@ export class ClientServerService {
 			'background_color': '#95e3e8',
 			// 空文字列の場合右辺を使いたいため
 			// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-			'theme_color': this.meta.themeColor || '#ffa9c3',
+			'theme_color': this.meta.themeColor || '#ffccd8',
 			'icons': [{
 				// 空文字列の場合右辺を使いたいため
 				// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
@@ -464,7 +464,13 @@ export class ClientServerService {
 				requireSigninToViewContents: false,
 			});
 
-			return user && (await this.feedService.packFeed(user));
+			if (user == null) return null;
+
+			if (this.meta.ugcVisibilityForVisitor === 'none' || (this.meta.ugcVisibilityForVisitor === 'local' && user.host != null)) {
+				return null;
+			}
+
+			return await this.feedService.packFeed(user);
 		};
 
 		// Atom

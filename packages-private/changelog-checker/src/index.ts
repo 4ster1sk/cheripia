@@ -17,13 +17,13 @@ function abort(message?: string) {
 }
 
 function main() {
-	if (!fs.existsSync('./CHANGELOG_YOJO-base.md') || !fs.existsSync('./CHANGELOG_YOJO-head.md')) {
-		abort('CHANGELOG_YOJO-base.md or CHANGELOG_YOJO-head.md is missing.');
+	if (!fs.existsSync('./CHANGELOG_CHERIPIA-base.md') || !fs.existsSync('./CHANGELOG_CHERIPIA-head.md')) {
+		abort('CHANGELOG_CHERIPIA-base.md or CHANGELOG_CHERIPIA-head.md is missing.');
 		return;
 	}
 
-	const base = parseChangeLog('./CHANGELOG_YOJO-base.md');
-	const head = parseChangeLog('./CHANGELOG_YOJO-head.md');
+	const base = parseChangeLog('./CHANGELOG_CHERIPIA-base.md');
+	const head = parseChangeLog('./CHANGELOG_CHERIPIA-head.md');
 
 	const result = (base.length < head.length)
 		? checkNewRelease(base, head)

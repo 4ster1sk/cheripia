@@ -23,7 +23,7 @@ const nodeinfo_homepage = 'https://misskey-hub.net';
 @Injectable()
 export class NodeinfoServerService {
 	//semverに従って割り当てる
-	static reversiVersion = '1.1.0-yojo';
+	static reversiVersion = '1.1.0-cheripia';
 	constructor(
 		@Inject(DI.config)
 		private config: Config,
@@ -81,7 +81,7 @@ export class NodeinfoServerService {
 					 * ソフトウェアの名前を変更すると、一部の独自機能が使用できなくなったり、CherryPickとして認識されないなどの不利益が発生する場合があります。
 					 * フォーク開発者はこの点に注意して修正を行ってください。
 					 */
-					name: 'yojo-art',
+					name: 'cheripia',
 					version: this.config.version,
 					basedMisskeyVersion: this.config.basedMisskeyVersion,
 					basedCherrypickVersion: this.config.basedCherrypickVersion,

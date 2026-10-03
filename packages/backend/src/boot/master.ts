@@ -22,41 +22,39 @@ import { installShutdownSignalHandlers } from './shutdown-handler.js';
 const logger = new Logger('core', 'cyan');
 const bootLogger = logger.createSubLogger('boot', 'magenta');
 
-const themeColor = chalk.hex('#ffa9c3');
+const themeColor = chalk.hex('#ffccd8');
 
 /** 起動時の案内を、選択されたログ形式に合わせて出力します。 */
 function greet(props: { version: string; format: LogFormat, basedCherrypickVersion: string, basedMisskeyVersion: string }) {
 	if (!envOption.quiet && props.format === 'json') {
 		// JSONモードでは生のコンソール出力を避け、各案内を1件ずつ構造化ログにします。
-		bootLogger.info('Welcome to yojo-art!');
-		bootLogger.info(`yojo-art v${props.version}`, null, true);
+		bootLogger.info('Welcome to Cheripia!');
+		bootLogger.info(`Cheripia v${props.version}`, null, true);
 		bootLogger.info(`Based on Cherrypick v${props.basedCherrypickVersion}`, null, true);
 		bootLogger.info(`Based on Misskey v${props.basedMisskeyVersion}`, null, true);
-		bootLogger.info('yojo-art is an open-source decentralized microblogging platform.');
-		bootLogger.info('If you like yojo-art, please consider donating to support dev. https://yojo-art.fanbox.cc/');
+		bootLogger.info('Cheripia is an open-source decentralized microblogging platform.');
 		return;
 	}
 
 	if (!envOption.quiet) {
-		//#region yojo-art logo
-		console.log(chalk.hex('#ffa9c3').bold('             _       ') + chalk.hex('#95e3e8').bold('                 _   '));
-		console.log(chalk.hex('#ffa9c3').bold(' _   _  ___ (_) ___  ') + chalk.hex('#95e3e8').bold('       __ _ _ __| |_ '));
-		console.log(chalk.hex('#ffa9c3').bold('| | | |/ _ \\| |/ _ \\ ') + chalk.hex('#95e3e8').bold('_____ / _` | \'__| __|'));
-		console.log(chalk.hex('#ffa9c3').bold('| |_| | (_) | | (_) |') + chalk.hex('#95e3e8').bold('_____| (_| | |  | |_ '));
-		console.log(chalk.hex('#ffa9c3').bold(' \\__, |\\___// |\\___/ ') + chalk.hex('#95e3e8').bold('      \\__,_|_|   \\__|'));
-		console.log(chalk.hex('#ffa9c3').bold(' |___/    |__/       ') + chalk.hex('#95e3e8').bold('                     '));
+		//#region Cheripia logo
+		console.log(chalk.hex('#ffccd8').bold('  ____ _               _       _       '));
+		console.log(chalk.hex('#ffccd8').bold(' / ___| |__   ___ _ __(_)_ __ (_) __ _ '));
+		console.log(chalk.hex('#ffccd8').bold('| |   | \'_ \\ / _ \\ \'__| | \'_ \\| |/ _` |'));
+		console.log(chalk.hex('#ffccd8').bold('| |___| | | |  __/ |  | | |_) | | (_| |'));
+		console.log(chalk.hex('#ffccd8').bold(' \\____|_| |_|\\___|_|  |_| .__/|_|\\__,_|'));
+		console.log(chalk.hex('#ffccd8').bold('                        |_|            '));
 		//#endregion
 
-		console.log(chalk.hex('#ffa9c3').bold(' yojo') + chalk.hex('#98e2cf').bold('-') + chalk.hex('#95e3e8').bold('art') + (' is an open-source decentralized microblogging platform based from') + (chalk.hex('#9ec23f').bold(' Misskey') + (' and') + chalk.hex('#ffa9c3').bold(' Cherry') + chalk.hex('#95e3e8').bold('Pick') + '.'));
-		console.log(chalk.hex('#ffbb00')(' If you like ') + chalk.hex('#ffa9c3').bold(' yojo') + chalk.hex('#98e2cf').bold('-') + chalk.hex('#95e3e8').bold('art') + chalk.hex('#ffbb00')(', please donate to support development. https://yojo-art.fanbox.cc/'));
-		// console.log(chalk.hex('#ffa9c3').bold(' KOKO') + chalk.hex('#95e3e8').bold('NECT') + chalk.hex('#ffa9c3')(' with') + chalk.hex('#95e3e8').bold(' NoriDev.'));
+		console.log(chalk.hex('#ffccd8').bold(' Cheripia') + (' is an open-source decentralized microblogging platform based from') + (chalk.hex('#9ec23f').bold(' Misskey') + (' and') + chalk.hex('#ffccd8').bold(' Cherry') + chalk.hex('#95e3e8').bold('Pick') + '.'));
+		// console.log(chalk.hex('#573d45').bold(' KOKO') + chalk.hex('#95e3e8').bold('NECT') + chalk.hex('#ffccd8')(' with') + chalk.hex('#95e3e8').bold(' NoriDev.'));
 
 		console.log('');
 		console.log(chalkTemplate`--- ${os.hostname()} {gray (PID: ${process.pid.toString()})} ---`);
 	}
 
-	bootLogger.info('Welcome to yojo-art!');
-	bootLogger.info(`yojo-art v${props.version}`, null, true);
+	bootLogger.info('Welcome to Cheripia!');
+	bootLogger.info(`Cheripia v${props.version}`, null, true);
 	bootLogger.info(`Based on Cherrypick v${props.basedCherrypickVersion}`, null, true);
 	bootLogger.info(`Based on Misskey v${props.basedMisskeyVersion}`, null, true);
 }
@@ -83,7 +81,7 @@ export async function masterMain() {
 		process.exit(1);
 	}
 
-	bootLogger.succ(chalk.hex('#ffa9c3')('Cherry') + chalk.hex('#95e3e8')('Pick') + (' initialized'));
+	bootLogger.succ(chalk.hex('#ffccd8')('Cheripia') + (' initialized'));
 
 	initExtraThreadPool(config);
 

@@ -1,6 +1,6 @@
 ---
 name: release-pr
-description: yojo-art のリリース用PRを作成・レビューするときなどに使用する。
+description: Cheripia のリリース用PRを作成・レビューするときなどに使用する。
 ---
 
 # release-pr

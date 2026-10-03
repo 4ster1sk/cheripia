@@ -35,7 +35,7 @@ import { initTelemetry } from '@/telemetry.js';
 import { popup } from '@/os.js';
 
 export async function common(createVue: () => Promise<App<Element>>) {
-	console.info(`yojo-art v${version}`);
+	console.info(`Cheripia v${version}`);
 
 	if (_DEV_) {
 		console.warn('Development mode!!!');

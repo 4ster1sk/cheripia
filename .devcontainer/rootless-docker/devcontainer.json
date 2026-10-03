@@ -1,5 +1,5 @@
 {
-	"name": "yojo-art (rootless Docker)",
+	"name": "Cheripia (rootless Docker)",
 	"dockerComposeFile": "../compose.yml",
 	"service": "app",
 	"workspaceFolder": "/workspace",

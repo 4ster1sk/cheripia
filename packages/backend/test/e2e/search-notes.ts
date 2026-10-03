@@ -62,9 +62,9 @@ describeOpenSearchE2E('検索', () => {
 		await api('mute/create', { userId: aliceMuting.id }, alice);
 		blockingNote = await post(aliceBlocking, { text: 'blocking' });
 		mutingNote = await post(aliceMuting, { text: 'muting' });
-		const sensitive1 = await uploadUrl(bob, 'https://raw.githubusercontent.com/yojo-art/cherrypick/develop/packages/backend/test/resources/192.jpg');
-		const sensitive2 = await uploadUrl(bob, 'https://raw.githubusercontent.com/yojo-art/cherrypick/develop/packages/backend/test/resources/192.png');
-		const notSensitive = await uploadUrl(bob, 'https://raw.githubusercontent.com/yojo-art/cherrypick/develop/packages/backend/test/resources/rotate.jpg');
+		const sensitive1 = await uploadUrl(bob, 'https://raw.githubusercontent.com/cheripia-dev/cheripia/develop/packages/backend/test/resources/192.jpg');
+		const sensitive2 = await uploadUrl(bob, 'https://raw.githubusercontent.com/cheripia-dev/cheripia/develop/packages/backend/test/resources/192.png');
+		const notSensitive = await uploadUrl(bob, 'https://raw.githubusercontent.com/cheripia-dev/cheripia/develop/packages/backend/test/resources/rotate.jpg');
 		sensitive1Id = sensitive1.id;
 		sensitive2Id = sensitive2.id;
 

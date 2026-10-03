@@ -302,7 +302,7 @@ export interface Locale extends ILocale {
      */
     "welcome": string;
     /**
-     * yojo-artへの移行が完了しました！
+     * Cheripiaへの移行が完了しました！
      */
     "cherrypickMigrated": string;
     /**
@@ -410,11 +410,11 @@ export interface Locale extends ILocale {
      */
     "enableReceivePrerelease": string;
     /**
-     * ベータ版のyojo-artを利用しています！
+     * ベータ版のCheripiaを利用しています！
      */
     "youAreRunningBetaClient": string;
     /**
-     * yojo-artアップデート
+     * Cheripiaアップデート
      */
     "cherrypickUpdate": string;
     /**
@@ -572,14 +572,14 @@ export interface Locale extends ILocale {
      */
     "headlineMisskey": string;
     /**
-     * ようこそ！yojo-artは、オープンソースの分散型マイクロブログサービスです。
+     * ようこそ！Cheripiaは、オープンソースの分散型マイクロブログサービスです。
      * 「ノート」を作成して、いま起こっていることを共有したり、あなたについて皆に発信しよう📡
      * 「リアクション」機能で、皆のノートに素早く反応を追加することもできます👍
      * 新しい世界を探検しよう🚀
      */
     "introMisskey": string;
     /**
-     * {name}は、オープンソースのプラットフォーム<b>yojo-art</b>のサーバーのひとつです。
+     * {name}は、オープンソースのプラットフォーム<b>Cheripia</b>のサーバーのひとつです。
      */
     "poweredByMisskeyDescription": ParameterizedString<"name">;
     /**
@@ -615,8 +615,8 @@ export interface Locale extends ILocale {
      */
     "initialPasswordIsIncorrect": string;
     /**
-     * yojo-artを自分でインストールした場合は、設定ファイルに入力したパスワードを使用してください。
-     * yojo-artのホスティングサービスなどを使用している場合は、提供されたパスワードを使用してください。
+     * Cheripiaを自分でインストールした場合は、設定ファイルに入力したパスワードを使用してください。
+     * Cheripiaのホスティングサービスなどを使用している場合は、提供されたパスワードを使用してください。
      * パスワードを設定していない場合は、空欄にしたまま続行してください。
      */
     "initialPasswordForSetupDescription": string;
@@ -2449,7 +2449,7 @@ export interface Locale extends ILocale {
      */
     "about": string;
     /**
-     * yojo-artについて
+     * Cheripiaについて
      */
     "aboutMisskey": string;
     /**
@@ -3141,7 +3141,7 @@ export interface Locale extends ILocale {
      */
     "scratchpad": string;
     /**
-     * スクラッチパッドは、AiScriptの実験環境を提供します。yojo-artと対話するコードの記述、実行、結果の確認ができます。
+     * スクラッチパッドは、AiScriptの実験環境を提供します。Cheripiaと対話するコードの記述、実行、結果の確認ができます。
      */
     "scratchpadDescription": string;
     /**
@@ -3745,7 +3745,7 @@ export interface Locale extends ILocale {
      */
     "private": string;
     /**
-     * yojo-artは有志によって様々な言語に翻訳されています。{link}で翻訳に協力できます。
+     * Cheripiaは有志によって様々な言語に翻訳されています。{link}で翻訳に協力できます。
      */
     "i18nInfo": ParameterizedString<"link">;
     /**
@@ -3999,7 +3999,7 @@ export interface Locale extends ILocale {
      */
     "sendErrorReports": string;
     /**
-     * オンにすると、問題が発生したときにエラーの詳細情報がyojo-artに共有され、ソフトウェアの品質向上に役立てることができます。エラー情報には、OSのバージョン、ブラウザの種類、行動履歴などが含まれます。
+     * オンにすると、問題が発生したときにエラーの詳細情報がCheripiaに共有され、ソフトウェアの品質向上に役立てることができます。エラー情報には、OSのバージョン、ブラウザの種類、行動履歴などが含まれます。
      */
     "sendErrorReportsDescription": string;
     /**
@@ -4383,7 +4383,7 @@ export interface Locale extends ILocale {
      */
     "learnMore": string;
     /**
-     * yojo-artが更新されました！
+     * Cheripiaが更新されました！
      */
     "misskeyUpdated": string;
     /**
@@ -4951,11 +4951,11 @@ export interface Locale extends ILocale {
      */
     "remindMeLater": string;
     /**
-     * yojo-artを気に入っていただけましたか？
+     * Cheripiaを気に入っていただけましたか？
      */
     "didYouLikeMisskey": string;
     /**
-     * yojo-artは{host}が使用している無料のソフトウェアです。これからも開発を続けられるように、ぜひ寄付をお願いします！
+     * Cheripiaは{host}が使用している無料のソフトウェアです。これからも開発を続けられるように、ぜひ寄付をお願いします！
      */
     "pleaseDonate": ParameterizedString<"host">;
     /**
@@ -5499,7 +5499,7 @@ export interface Locale extends ILocale {
      */
     "later": string;
     /**
-     * yojo-artへ
+     * Cheripiaへ
      */
     "goToMisskey": string;
     /**
@@ -5767,7 +5767,7 @@ export interface Locale extends ILocale {
      */
     "repositoryUrl": string;
     /**
-     * ソースコードが公開されているリポジトリがある場合、そのURLを記入します。yojo-artを現状のまま（ソースコードにいかなる変更も加えずに）使用している場合は https://github.com/yojo-art/cherrypick と記入します。
+     * ソースコードが公開されているリポジトリがある場合、そのURLを記入します。Cheripiaを現状のまま（ソースコードにいかなる変更も加えずに）使用している場合は https://github.com/cheripia-dev/cheripia と記入します。
      */
     "repositoryUrlDescription": string;
     /**
@@ -7810,7 +7810,7 @@ export interface Locale extends ILocale {
          */
         "haveFun": ParameterizedString<"name">;
         /**
-         * このまま{name}(yojo-art)の使い方についてのチュートリアルに進むこともできますが、ここで中断してすぐに使い始めることもできます。
+         * このまま{name}(Cheripia)の使い方についてのチュートリアルに進むこともできますが、ここで中断してすぐに使い始めることもできます。
          */
         "youCanContinueTutorial": ParameterizedString<"name">;
         /**
@@ -7853,7 +7853,7 @@ export interface Locale extends ILocale {
              */
             "title": string;
             /**
-             * ここでは、yojo-artの基本的な使い方や機能を確認できます。
+             * ここでは、Cheripiaの基本的な使い方や機能を確認できます。
              */
             "description": string;
         };
@@ -7863,7 +7863,7 @@ export interface Locale extends ILocale {
              */
             "title": string;
             /**
-             * yojo-artでの投稿は「ノート」と呼びます。ノートはタイムラインに時系列で並んでいて、リアルタイムで更新されていきます。
+             * Cheripiaでの投稿は「ノート」と呼びます。ノートはタイムラインに時系列で並んでいて、リアルタイムで更新されていきます。
              */
             "description": string;
             /**
@@ -7923,7 +7923,7 @@ export interface Locale extends ILocale {
              */
             "title": string;
             /**
-             * yojo-artには、使い方に応じて複数のタイムラインが用意されています（サーバーによってはいずれかが無効になっていることがあります）。
+             * Cheripiaには、使い方に応じて複数のタイムラインが用意されています（サーバーによってはいずれかが無効になっていることがあります）。
              */
             "description1": string;
             /**
@@ -7965,7 +7965,7 @@ export interface Locale extends ILocale {
              */
             "title": string;
             /**
-             * yojo-artにノートを投稿する際には、様々なオプションの設定が可能です。投稿フォームはこのようになっています。
+             * Cheripiaにノートを投稿する際には、様々なオプションの設定が可能です。投稿フォームはこのようになっています。
              */
             "description1": string;
             "_visibility": {
@@ -8095,7 +8095,7 @@ export interface Locale extends ILocale {
              */
             "title": string;
             /**
-             * ここで紹介した機能はほんの一部にすぎません。yojo-artの使い方をより詳しく知るには、{link}をご覧ください。
+             * ここで紹介した機能はほんの一部にすぎません。Cheripiaの使い方をより詳しく知るには、{link}をご覧ください。
              */
             "description": ParameterizedString<"link">;
         };
@@ -8450,7 +8450,7 @@ export interface Locale extends ILocale {
          * フォロワーの移行は自動ですが、フォローの移行は手動で行う必要があります。移行前にこのアカウントでフォローエクスポートし、移行後すぐに移行先アカウントでインポートを行なってください。
          * リスト・ミュート・ブロックについても同様ですので、手動で移行する必要があります。
          *
-         * （この説明はこのサーバー（yojo-art）の仕様です。Mastodonなどの他のActivityPubソフトウェアでは挙動が異なる場合があります。）
+         * （この説明はこのサーバー（Cheripia）の仕様です。Mastodonなどの他のActivityPubソフトウェアでは挙動が異なる場合があります。）
          */
         "moveAccountDescription": string;
         /**
@@ -8498,7 +8498,7 @@ export interface Locale extends ILocale {
                  */
                 "description": string;
                 /**
-                 * 良いyojo-artライフを！
+                 * 良いCheripiaライフを！
                  */
                 "flavor": string;
             };
@@ -8822,7 +8822,7 @@ export interface Locale extends ILocale {
                  */
                 "description": string;
                 /**
-                 * yojo-artを使ってくれてありがとう！
+                 * Cheripiaを使ってくれてありがとう！
                  */
                 "flavor": string;
             };
@@ -9056,7 +9056,7 @@ export interface Locale extends ILocale {
             };
             "_client60min": {
                 /**
-                 * yojo-artの見すぎ
+                 * Cheripiaの見すぎ
                  */
                 "title": string;
                 /**
@@ -9320,7 +9320,7 @@ export interface Locale extends ILocale {
             };
             "_tutorialCompleted": {
                 /**
-                 * yojo-art初心者講座 修了証
+                 * Cheripia初心者講座 修了証
                  */
                 "title": string;
                 /**
@@ -10222,7 +10222,7 @@ export interface Locale extends ILocale {
     };
     "_aboutMisskey": {
         /**
-         * yojo-artは、CherryPickをベースに2024年から開発中のカスタマイズオープンソースのソフトウェアです。
+         * Cheripiaは、CherryPickをベースに2024年から開発中のカスタマイズオープンソースのソフトウェアです。
          */
         "about": string;
         /**
@@ -10242,7 +10242,7 @@ export interface Locale extends ILocale {
          */
         "original": string;
         /**
-         * {name}はオリジナルのyojo-artを改変したバージョンを使用しています。
+         * {name}はオリジナルのCheripiaを改変したバージョンを使用しています。
          */
         "thisIsModifiedVersion": ParameterizedString<"name">;
         /**
@@ -10293,12 +10293,6 @@ export interface Locale extends ILocale {
              */
             "community": string;
         };
-        "_yojoArt": {
-            /**
-             * yojo-artに寄付
-             */
-            "donate": string;
-        };
     };
     "_displayOfSensitiveMedia": {
         /**
@@ -10320,11 +10314,11 @@ export interface Locale extends ILocale {
          */
         "cheatSheet": string;
         /**
-         * MFMは、yojo-art内の様々な場所で使用できる専用のマークアップ言語です。ここでは、MFMで使用可能な構文一覧が確認できます。
+         * MFMは、Cheripia内の様々な場所で使用できる専用のマークアップ言語です。ここでは、MFMで使用可能な構文一覧が確認できます。
          */
         "intro": string;
         /**
-         * yojo-artでFediverseの世界が広がります
+         * CheripiaでFediverseの世界が広がります
          */
         "dummy": string;
         /**
@@ -11088,7 +11082,7 @@ export interface Locale extends ILocale {
          */
         "driveFileDurationWarn": string;
         /**
-         * 長い音声を使用するとyojo-artの使用に支障をきたす可能性があります。それでも続行しますか？
+         * 長い音声を使用するとCheripiaの使用に支障をきたす可能性があります。それでも続行しますか？
          */
         "driveFileDurationWarnDescription": string;
         /**
@@ -14159,7 +14153,7 @@ export interface Locale extends ILocale {
          */
         "directAccess": string;
         /**
-         * yojo-art本体ではなく、サマリープロキシを使用してプレビューを生成します。
+         * Cheripia本体ではなく、サマリープロキシを使用してプレビューを生成します。
          */
         "summaryProxyDescription": string;
         /**

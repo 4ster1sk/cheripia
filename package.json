@@ -1,12 +1,12 @@
 {
-	"name": "yojo-art",
-	"version": "1.11.2",
+	"name": "cheripia",
+	"version": "1.12.0",
 	"basedCherrypickVersion": "4.17.0",
-	"basedMisskeyVersion": "2026.9.1",
+	"basedMisskeyVersion": "2026.10.0",
 	"codename": "tonjiru",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/yojo-art/cherrypick.git"
+		"url": "https://github.com/cheripia-dev/cheripia.git"
 	},
 	"packageManager": "pnpm@11.25.0",
 	"workspaces": [

@@ -29,6 +29,7 @@
   -->
   ```
 
+  このCheripiaプロジェクトでは、新規ファイルの `SPDX-FileCopyrightText` に `syuilo and misskey-project, cheripia team` を優先して使用する (上記の `syuilo and misskey-project` のみでも問題ない)。既存ファイルの `yojo-art team` や `cherrypick-project` 表記は書き換えない。
   `packages/misskey-js` は MIT ライセンスのサブパッケージなので、この AGPL ヘッダーを一律に付けない (サブパッケージ固有の `package.json` / `LICENSE` / 既存ファイルのヘッダーに従う)。
   SPDX の合否は CI と skill が同じ `scripts/check-spdx.mjs` で判定するため、code review で目視チェックを重ねない。
   CI は `--ci` で SPDX 行の有無を検査し、既定モードは加えて `.vue` / `.html` のコメント形式を検査する。

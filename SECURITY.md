@@ -1,6 +1,6 @@
 # Reporting Security Issues
 
-If you discover a security issue in Misskey, please report it by **[this form](https://github.com/yojo-art/cherrypick/security/advisories/new)**.
+If you discover a security issue in Misskey, please report it by **[this form](https://github.com/cheripia-dev/cheripia/security/advisories/new)**.
 
 This will allow us to assess the risk, and make a fix available before we add a
 bug report to the GitHub repository.

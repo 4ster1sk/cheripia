@@ -124,7 +124,7 @@ describe('Channel', () => {
 
 	describe('チャンネル作成時の基本設定', () => {
 		test('チャンネル作成時にバナーが設定される', async () => {
-			const file = await uploadUrl(root, 'https://raw.githubusercontent.com/yojo-art/cherrypick/develop/packages/backend/test/resources/192.jpg');
+			const file = await uploadUrl(root, 'https://raw.githubusercontent.com/cheripia-dev/cheripia/develop/packages/backend/test/resources/192.jpg');
 			const username = randomString();
 			const name = randomString() + ' Channel';
 			const ch = await api('channels/create', { username: username, name: name, bannerId: file.id }, root);

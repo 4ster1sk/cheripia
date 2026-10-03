@@ -1,10 +1,10 @@
 {
 	"type": "module",
 	"name": "misskey-js",
-	"version": "1.11.2",
+	"version": "1.12.0",
 	"basedCherrypickVersion": "4.17.0",
-	"basedMisskeyVersion": "2026.9.1",
-	"description": "yojo-art SDK for JavaScript",
+	"basedMisskeyVersion": "2026.10.0",
+	"description": "Cheripia SDK for JavaScript",
 	"license": "MIT",
 	"main": "./built/index.js",
 	"types": "./built/index.d.ts",
@@ -38,7 +38,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/yojo-art/cherrypick.git",
+		"url": "git+https://github.com/cheripia-dev/cheripia.git",
 		"directory": "packages/misskey-js"
 	},
 	"devDependencies": {

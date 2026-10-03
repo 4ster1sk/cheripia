@@ -13,9 +13,9 @@ SPDX-License-Identifier: AGPL-3.0-only
 				</MkSwitch>
 			</div>
 
-			<template v-if="(version && version.length > 0) && (releasesYojoArt && releasesYojoArt.length > 0)">
-				<FormInfo v-if="compareVersions(version, releasesYojoArt[0].tag_name) > 0">{{ i18n.ts.youAreRunningBetaClient }}</FormInfo>
-				<FormInfo v-else-if="compareVersions(version, releasesYojoArt[0].tag_name) === 0" check>{{ i18n.ts.youAreRunningUpToDateClient }}</FormInfo>
+			<template v-if="(version && version.length > 0) && (releasesCheripia && releasesCheripia.length > 0)">
+				<FormInfo v-if="compareVersions(version, releasesCheripia[0].tag_name) > 0">{{ i18n.ts.youAreRunningBetaClient }}</FormInfo>
+				<FormInfo v-else-if="compareVersions(version, releasesCheripia[0].tag_name) === 0" check>{{ i18n.ts.youAreRunningUpToDateClient }}</FormInfo>
 				<FormInfo v-else warn>{{ i18n.ts.newVersionOfClientAvailable }}</FormInfo>
 			</template>
 			<FormInfo v-else>{{ i18n.ts.loading }}</FormInfo>
@@ -24,13 +24,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<template #label>{{ instanceName }}</template>
 				<MkKeyValue @click="whatIsNewCherryPick">
 					<template #key>{{ i18n.ts.currentVersion }} <i class="ti ti-external-link"></i></template>
-					<template #value>{{ version }} <span :class="$style.commitHash" @click.stop="openCommitPage('yojo-art/cherrypick', gitHash)">({{ gitHash.substring(0, 8) }})</span></template>
+					<template #value>{{ version }} <span :class="$style.commitHash" @click.stop="openCommitPage('cheripia-dev/cheripia', gitHash)">({{ gitHash.substring(0, 8) }})</span></template>
 				</MkKeyValue>
-				<MkKeyValue v-if="version < releasesYojoArt[0].tag_name && !skipVersion" style="margin-top: 10px;" @click="whatIsNewLatestCherryPick">
+				<MkKeyValue v-if="version < releasesCheripia[0].tag_name && !skipVersion" style="margin-top: 10px;" @click="whatIsNewLatestCherryPick">
 					<template #key>{{ i18n.ts.latestVersion }} <i class="ti ti-external-link"></i></template>
-					<template #value>{{ releasesYojoArt[0].tag_name }} <span :class="$style.commitHash" @click.stop="openCommitPage('yojo-art/cherrypick', yojoArtTagsMap.get(releasesYojoArt[0].tag_name) || '')">({{ (yojoArtTagsMap.get(releasesYojoArt[0].tag_name) || 'unknown').substring(0, 8) }})</span></template>
+					<template #value>{{ releasesCheripia[0].tag_name }} <span :class="$style.commitHash" @click.stop="openCommitPage('cheripia-dev/cheripia', cheripiaTagsMap.get(releasesCheripia[0].tag_name) || '')">({{ (cheripiaTagsMap.get(releasesCheripia[0].tag_name) || 'unknown').substring(0, 8) }})</span></template>
 				</MkKeyValue>
-				<MkButton v-if="releasesYojoArt.length > 0 && !skipVersion && (compareVersions(version, releasesYojoArt[0].tag_name) < 0)" style="margin-top: 10px;" @click="skipThisVersion">{{ i18n.ts.skipThisVersion }}</MkButton>
+				<MkButton v-if="releasesCheripia.length > 0 && !skipVersion && (compareVersions(version, releasesCheripia[0].tag_name) < 0)" style="margin-top: 10px;" @click="skipThisVersion">{{ i18n.ts.skipThisVersion }}</MkButton>
 			</FormSection>
 
 			<FormSection @click="whatIsNewLatestCherryPick">
@@ -89,10 +89,10 @@ type GitHubRelease = {
 
 const enableReceivePrerelease = ref(meta.enableReceivePrerelease);
 const skipVersion = ref(meta.skipVersion);
-const skipYojoArtVersion = ref(meta.skipCherryPickVersion);
-const yojoArtResponse = await window.fetch('https://api.github.com/repos/yojo-art/cherrypick/releases');
-const yojoArtData = await yojoArtResponse.json() as GitHubRelease[];
-const releasesYojoArt = ref(meta.enableReceivePrerelease ? yojoArtData : yojoArtData.filter(x => !x.prerelease));
+const skipCheripiaVersion = ref(meta.skipCherryPickVersion);
+const cheripiaResponse = await window.fetch('https://api.github.com/repos/cheripia-dev/cheripia/releases');
+const cheripiaData = await cheripiaResponse.json() as GitHubRelease[];
+const releasesCheripia = ref(meta.enableReceivePrerelease ? cheripiaData : cheripiaData.filter(x => !x.prerelease));
 const skipCherryPickVersion = ref(meta.skipCherryPickVersion);
 const cherryPickResponse = await window.fetch('https://api.github.com/repos/kokonect-link/cherrypick/releases');
 const cherryPickData = await cherryPickResponse.json() as GitHubRelease[];
@@ -100,7 +100,7 @@ const releasesCherryPick = ref(meta.enableReceivePrerelease ? cherryPickData : c
 const misskeyResponse = await window.fetch('https://api.github.com/repos/misskey-dev/misskey/releases');
 const misskeyData = await misskeyResponse.json() as GitHubRelease[];
 const releasesMisskey = ref(meta.enableReceivePrerelease ? misskeyData : misskeyData.filter(x => !x.prerelease));
-const yojoArtTagsMap = new Map<string, string>();
+const cheripiaTagsMap = new Map<string, string>();
 const cherryPickTagsMap = new Map<string, string>();
 const misskeyTagsMap = new Map<string, string>();
 
@@ -114,12 +114,12 @@ if (releasesMisskey.value.length > 0) {
 	misskeyTagsMap.set(releasesMisskey.value[0].tag_name, hash);
 }
 
-const whatIsNewYojoArt = () => {
-	window.open(`https://github.com/yojo-art/cherrypick/blob/develop/CHANGELOG_CHERRYPICK.md#${version.replace(/\./g, '')}`, '_blank');
+const whatIsNewCheripia = () => {
+	window.open(`https://github.com/cheripia-dev/cheripia/blob/develop/CHANGELOG_CHERRYPICK.md#${version.replace(/\./g, '')}`, '_blank');
 };
 
-const whatIsNewLatestYojoArt = () => {
-	window.open(`https://github.com/yojo-art/cherrypick/blob/develop/CHANGELOG_CHERRYPICK.md#${releasesCherryPick.value[0].tag_name.replace(/\./g, '')}`, '_blank');
+const whatIsNewLatestCheripia = () => {
+	window.open(`https://github.com/cheripia-dev/cheripia/blob/develop/CHANGELOG_CHERRYPICK.md#${releasesCherryPick.value[0].tag_name.replace(/\./g, '')}`, '_blank');
 };
 const whatIsNewCherryPick = () => {
 	window.open(`https://github.com/kokonect-link/cherrypick/blob/develop/CHANGELOG_CHERRYPICK.md#${version.replace(/\./g, '')}`, '_blank');
@@ -148,7 +148,7 @@ function save() {
 }
 
 function skipThisVersion() {
-	skipCherryPickVersion.value = releasesYojoArt.value[0].tag_name;
+	skipCherryPickVersion.value = releasesCheripia.value[0].tag_name;
 	skipVersion.value = true;
 
 	os.apiWithDialog('admin/update-meta', {
