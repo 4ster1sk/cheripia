@@ -214,7 +214,7 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 					}
 					if (icon) {
 						updates.avatarId = icon.id;
-						updates.avatarUrl = this.driveFileEntityService.getPublicUrl({ file: icon, mode: 'avatar', allowProxiedUrl: false });
+						updates.avatarUrl = this.driveFileEntityService.getPublicUrl({ file: icon, allowProxiedUrl: false });
 						updates.avatarBlurhash = icon.blurhash;
 					} else if (ps.iconId === null) {
 						updates.avatarId = null;

@@ -8,7 +8,7 @@ process.env.NODE_ENV = 'test';
 import * as assert from 'assert';
 import { describe, test } from 'vitest';
 import type { Config } from '@/config.js';
-import type { MiChannel, MiDriveFile, MiMeta } from '@/models/_.js';
+import type { MiChannel, MiDriveFile, MiMeta, MiUser } from '@/models/_.js';
 import { ChannelEntityService } from '@/core/entities/ChannelEntityService.js';
 import { DriveFileEntityService } from '@/core/entities/DriveFileEntityService.js';
 import { IdService } from '@/core/IdService.js';
@@ -94,6 +94,20 @@ async function packBannerUrl(service: ChannelEntityService, src: MiChannel, file
 	return packed.bannerUrl;
 }
 
+async function packIconUrl(service: ChannelEntityService, actor: MiUser): Promise<string | null> {
+	const packed = await service.pack(channel({ bannerId: null, actorId: actor.id }), null, false, { actors: new Map([[actor.id, actor]]) });
+	return packed.iconUrl;
+}
+
+function actorUser(overrides: Partial<MiUser> = {}): MiUser {
+	return {
+		id: 'actor',
+		avatarId: 'avatar',
+		avatarUrl: 'https://example.com/files/avatar',
+		...overrides,
+	} as MiUser;
+}
+
 function assertProxied(actual: string | null, rawUrl: string): void {
 	assert.ok(actual, 'URLが返される');
 	const result = new URL(actual);
@@ -147,6 +161,40 @@ describe('ChannelEntityService', () => {
 			const service = createService();
 			const packed = await service.pack(channel({ bannerId: null }), null);
 			assert.strictEqual(packed.bannerUrl, null);
+		});
+	});
+
+	describe('iconUrlのメディアプロキシ付与', () => {
+		test('actorのavatarUrlをavatarモードでプロキシする', async () => {
+			const service = createService();
+			const actual = await packIconUrl(service, actorUser());
+			assert.ok(actual, 'URLが返される');
+			const result = new URL(actual);
+			assert.strictEqual(`${result.origin}${result.pathname}`, 'https://proxy.example.com/avatar.webp');
+			assert.strictEqual(result.searchParams.get('url'), 'https://example.com/files/avatar');
+			assert.strictEqual(result.searchParams.get('avatar'), '1');
+		});
+
+		test('proxyRemoteFiles=falseかつ外部メディアプロキシが無効でもプロキシする', async () => {
+			const service = createService({}, { proxyRemoteFiles: false });
+			const actual = await packIconUrl(service, actorUser());
+			assert.ok(actual?.startsWith('https://proxy.example.com/avatar.webp?'));
+		});
+
+		test('avatarIdがnullならavatarUrlが残っていてもnullを返す', async () => {
+			const service = createService();
+			assert.strictEqual(await packIconUrl(service, actorUser({ avatarId: null })), null);
+		});
+
+		test('avatarUrlが無ければnullを返す', async () => {
+			const service = createService();
+			assert.strictEqual(await packIconUrl(service, actorUser({ avatarUrl: null })), null);
+		});
+
+		test('actorIdが無ければnullを返す', async () => {
+			const service = createService();
+			const packed = await service.pack(channel({ bannerId: null }), null);
+			assert.strictEqual(packed.iconUrl, null);
 		});
 	});
 });

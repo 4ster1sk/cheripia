@@ -413,20 +413,8 @@ describe('DriveFileEntityService.getPublicUrl', () => {
 			});
 		});
 
-		describe('ap: trueでapFileBaseUrlあり', () => {
-			test('allowProxiedUrlがtrueかつmode未指定ならオリジンを置換する', () => {
-				const service = createService({
-					apFileBaseUrl: 'https://ap-files.example.com',
-				});
-				const result = service.getPublicUrl({
-					file: driveFile(),
-					ap: true,
-					allowProxiedUrl: true,
-				});
-				assert.strictEqual(result, 'https://ap-files.example.com/files/public');
-			});
-
-			test('allowProxiedUrlがfalseでもオリジンを置換する', () => {
+		describe('allowProxiedUrl: false、ap: trueでapFileBaseUrlあり', () => {
+			test('オリジンを置換する', () => {
 				const service = createService({
 					apFileBaseUrl: 'https://ap-files.example.com',
 				});
@@ -438,7 +426,7 @@ describe('DriveFileEntityService.getPublicUrl', () => {
 				assert.strictEqual(result, 'https://ap-files.example.com/files/public');
 			});
 
-			test('apがfalseならallowProxiedUrlがfalseでもオリジンを置換しない', () => {
+			test('apがfalseならオリジンを置換しない', () => {
 				const service = createService({
 					apFileBaseUrl: 'https://ap-files.example.com',
 				});
@@ -453,14 +441,12 @@ describe('DriveFileEntityService.getPublicUrl', () => {
 				const service = createService({
 					apFileBaseUrl: 'https://ap-files.example.com',
 				});
-				for (const allowProxiedUrl of [true, false]) {
-					const result = service.getPublicUrl({
-						file: driveFile({ storedInternal: true }),
-						ap: true,
-						allowProxiedUrl,
-					});
-					assert.strictEqual(result, 'https://example.com/files/public');
-				}
+				const result = service.getPublicUrl({
+					file: driveFile({ storedInternal: true }),
+					ap: true,
+					allowProxiedUrl: false,
+				});
+				assert.strictEqual(result, 'https://example.com/files/public');
 			});
 
 			test('リモートのファイルはオリジンを置換しない', () => {

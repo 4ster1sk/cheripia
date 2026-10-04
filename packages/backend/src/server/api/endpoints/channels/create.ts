@@ -133,7 +133,7 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 				const { channel, account } = await this.signupService.signupChannel({
 					bannerId: banner?.id,
 					avatarId: icon?.id,
-					avatarUrl: icon ? this.driveFileEntityService.getPublicUrl({ file: icon, mode: 'avatar', allowProxiedUrl: false }) : undefined,
+					avatarUrl: icon ? this.driveFileEntityService.getPublicUrl({ file: icon, allowProxiedUrl: false }) : undefined,
 					avatarBlurhash: icon?.blurhash ?? undefined,
 					username: ps.username,
 					name: ps.name,
@@ -168,7 +168,7 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 				if (icon) {
 					if (icon.id !== originalIcon?.id) createdCopyIds.push(icon.id);
 					accountUpdates.avatarId = icon.id;
-					accountUpdates.avatarUrl = this.driveFileEntityService.getPublicUrl({ file: icon, mode: 'avatar', allowProxiedUrl: false });
+					accountUpdates.avatarUrl = this.driveFileEntityService.getPublicUrl({ file: icon, allowProxiedUrl: false });
 					accountUpdates.avatarBlurhash = icon.blurhash;
 				}
 				if (Object.keys(accountUpdates).length > 0) {
