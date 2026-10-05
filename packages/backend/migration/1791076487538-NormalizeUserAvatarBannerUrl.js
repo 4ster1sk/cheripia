@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: syuilo and misskey-project, noridev and cherryPick-project, yojo-art team
+ * SPDX-FileCopyrightText: syuilo and misskey-project, cheripia team
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
