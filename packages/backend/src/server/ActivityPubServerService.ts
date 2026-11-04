@@ -14,7 +14,7 @@ import vary from 'vary';
 import secureJson from 'secure-json-parse';
 import * as mfm from 'mfm-js';
 import { DI } from '@/di-symbols.js';
-import type { FollowingsRepository, NotesRepository, EmojisRepository, NoteReactionsRepository, UserProfilesRepository, UserNotePiningsRepository, UsersRepository, FollowRequestsRepository, MiMeta, ClipsRepository, ClipNotesRepository, MiClipNote, BlockingsRepository } from '@/models/_.js';
+import type { FollowingsRepository, NotesRepository, EmojisRepository, NoteReactionsRepository, UserProfilesRepository, UserNotePiningsRepository, UsersRepository, FollowRequestsRepository, MiMeta, ClipsRepository, ClipNotesRepository, MiClipNote, BlockingsRepository, InstancesRepository } from '@/models/_.js';
 import * as url from '@/misc/prelude/url.js';
 import type { Config } from '@/config.js';
 import { ApRendererService } from '@/core/activitypub/ApRendererService.js';
@@ -77,6 +77,9 @@ export class ActivityPubServerService {
 		@Inject(DI.blockingsRepository)
 		private blockingsRepository: BlockingsRepository,
 
+		@Inject(DI.instancesRepository)
+		private instancesRepository: InstancesRepository,
+
 		@Inject(DI.clipsRepository)
 		private clipsRepository: ClipsRepository,
 
@@ -114,7 +117,6 @@ export class ActivityPubServerService {
 
 		const authUser = await this.apDbResolverService.getAuthUserFromKeyId(signature.keyId);
 		if (authUser == null) return null;
-		if (authUser.user.isSuspended) return null;
 
 		// 凍結済みユーザーの署名は受け入れない (inbox の performOneActivity と同じ水準)
 		if (authUser.user.isSuspended) return null;
@@ -143,6 +145,18 @@ export class ActivityPubServerService {
 	private async isAuthorizedForSignedNoteGet(user: MiUser, note: MiNote): Promise<boolean> {
 		// サーバーブロックされているホストのユーザーには返さない
 		if (user.host != null && !this.utilityService.isFederationAllowedHost(user.host)) return false;
+
+		// 隔離 (quarantine) 制限中のホストには公開投稿しか渡さない。
+		// ここでいう公開投稿は to/cc に Public を含む public / home のことで、
+		// push 側 QueueService.isPublicContent() (home は cc に Public を持つため配信される)
+		// と同じ定義。隔離は DeliverProcessorService による push 側で効く設定で、
+		// Follow/Accept 等は配信され関係が残るため、pull 側である Signed Get では明示的に拒否する。
+		if (user.host != null && await this.instancesRepository.exists({
+			where: {
+				host: this.utilityService.toPuny(user.host),
+				quarantineLimited: true,
+			},
+		})) return false;
 
 		// 投稿者と認証ユーザーの間にブロック関係がある場合は返さない
 		if (await this.blockingsRepository.exists({
@@ -965,6 +979,12 @@ export class ActivityPubServerService {
 				if (note.uri == null || this.utilityService.isSelfHost(note.userHost)) {
 					reply.code(500);
 					return;
+				}
+				// 非公開ノートへの 302 は Location にプライベートな origin URI を
+				// 含むため、リダイレクト前に指定して公開キャッシュに残さない
+				// (下の閲覧結果とは異なり、リダイレクトが応答を確定させるのでここで付ける)
+				if (note.visibility !== 'public' && note.visibility !== 'home') {
+					reply.header('Cache-Control', 'private, no-store');
 				}
 				reply.redirect(note.uri);
 				return;

@@ -7,6 +7,11 @@ describe('quarantine instance', () => {
 	let alice: LoginUser, bob: LoginUser, carol:LoginUser;
 	let aliceInBobHost: Misskey.entities.UserDetailedNotMe, bobInAliceHost: Misskey.entities.UserDetailedNotMe, carolInBobHost: Misskey.entities.UserDetailedNotMe;
 	let aAdmin: LoginUser;
+	// 隔離中 (isQuarantineLimit true) に carol@a.test が作ったフォロワー限定・指名ノート。
+	// 隔離中は配信されずフェッチも拒否されるので、解除後にフェッチできる確認に使い回す。
+	// テスト順序に依存せず解除後のテストから参照できるよう beforeAll で作成する。
+	// (alice は同 describe の 'block' テストで bob をブロックするため、こちらでは使わない)
+	let carolFollowersNoteDuringQuarantine: Misskey.entities.Note, carolSpecifiedNoteDuringQuarantine: Misskey.entities.Note;
 
 	beforeAll(async () => {
 		[alice, bob, carol] = await Promise.all([
@@ -32,6 +37,7 @@ describe('quarantine instance', () => {
 	});
 	describe('isQuarantineLimit true', () => {
 		let alicePublicNote: Misskey.entities.Note, alicePublicRenote: Misskey.entities.Note;
+		let dave: LoginUser, davePublicNoteDuringQuarantine: Misskey.entities.Note;
 		const expected :{ text: string | null, createdAt: string }[] = [];
 		beforeAll(async () => {
 			await aAdmin.client.request('admin/federation/update-instance', { host: 'b.test', isQuarantineLimit: true });
@@ -47,6 +53,24 @@ describe('quarantine instance', () => {
 				text: alicePublicRenote.text,
 				createdAt: alicePublicRenote.createdAt,
 			});
+			// Signed Get (pull) 検証用のノートをここで作成しておく。
+			// テスト本文内で作成するとテスト順序の変化や失敗時に後続 describe の参照が undefined になる。
+			carolFollowersNoteDuringQuarantine = (await carol.client.request('notes/create', {
+				text: `followers note for pull ${Date.now()}`,
+				visibility: 'followers',
+			})).createdNote;
+			carolSpecifiedNoteDuringQuarantine = (await carol.client.request('notes/create', {
+				text: `specified note for pull ${Date.now()}`,
+				visibility: 'specified',
+				visibleUserIds: [bobInAliceHost.id],
+			})).createdNote;
+			// bob がフォローしていない dave@a.test の public ノート。
+			// push されないので ap/show は必ず origin への pull になる (隔離中でも public は通る対照)。
+			dave = await createAccount('a.test');
+			davePublicNoteDuringQuarantine = (await dave.client.request('notes/create', {
+				text: `public note for pull ${Date.now()}`,
+				visibility: 'public',
+			})).createdNote;
 		});
 		test('public', async () => {
 			await sleep();
@@ -121,6 +145,38 @@ describe('quarantine instance', () => {
 				};
 			})), JSON.stringify(Array.from(expected).reverse()));
 		});
+		test('followers-only note cannot be fetched from quarantined instance', async () => {
+			// Follow / Accept は隔離でも配信されるため bob -> carol のフォロー関係は残っている。
+			// それでも pull (Signed Get) では隔離ホストからの followers 照会を拒否することを確認する。
+			await rejects(
+				async () => await bob.client.request('ap/show', { uri: `https://a.test/notes/${carolFollowersNoteDuringQuarantine.id}` }),
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				(err: any) => {
+					strictEqual(err.code, 'REQUEST_FAILED');
+					return true;
+				},
+			);
+		});
+
+		test('specified note cannot be fetched from quarantined instance even for a visible user', async () => {
+			// bob は visibleUserIds に入っているが、隔離ホストのユーザーなので pull では拒否される。
+			await rejects(
+				async () => await bob.client.request('ap/show', { uri: `https://a.test/notes/${carolSpecifiedNoteDuringQuarantine.id}` }),
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				(err: any) => {
+					strictEqual(err.code, 'REQUEST_FAILED');
+					return true;
+				},
+			);
+		});
+
+		test('public note is still fetchable from quarantined instance', async () => {
+			// 拒否の誤検知でないことの対照として、public ノートの pull は隔離中でも成功することを確認する。
+			// dave は bob にフォローされていないためこのノートは push されておらず、必ず origin への pull になる。
+			const resolved = await resolveRemoteNote('a.test', davePublicNoteDuringQuarantine.id, bob);
+			strictEqual(resolved.text, davePublicNoteDuringQuarantine.text);
+		});
+
 		test('block', async () => {
 			await alice.client.request('blocking/create', { userId: bobInAliceHost.id });
 			await sleep();
@@ -219,6 +275,18 @@ describe('quarantine instance', () => {
 					createdAt: note.createdAt,
 				};
 			})), JSON.stringify(Array.from(expected).reverse()));
+		});
+		test('followers-only note created during quarantine becomes fetchable after un-quarantining', async () => {
+			// 隔離中は配信されず Signed Get も拒否されたノート。解除後は pull で取得できることを確認する。
+			const resolved = await resolveRemoteNote('a.test', carolFollowersNoteDuringQuarantine.id, bob);
+			strictEqual(resolved.text, carolFollowersNoteDuringQuarantine.text);
+			strictEqual(resolved.visibility, 'followers');
+		});
+		test('specified note created during quarantine becomes fetchable after un-quarantining', async () => {
+			// bob は visibleUserIds の対象。隔離中は拒否されたが、解除後は pull で取得できることを確認する。
+			const resolved = await resolveRemoteNote('a.test', carolSpecifiedNoteDuringQuarantine.id, bob);
+			strictEqual(resolved.text, carolSpecifiedNoteDuringQuarantine.text);
+			strictEqual(resolved.visibility, 'specified');
 		});
 		//FIXME: assert.rejectsがundefinedを返す
 		test.skip('block', async () => {
