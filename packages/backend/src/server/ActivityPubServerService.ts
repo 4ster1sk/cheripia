@@ -8,13 +8,13 @@ import { IncomingMessage } from 'node:http';
 import { Inject, Injectable } from '@nestjs/common';
 import fastifyAccepts from '@fastify/accepts';
 import httpSignature from '@peertube/http-signature';
-import { Brackets, In, IsNull, LessThan, Not } from 'typeorm';
+import { Brackets, IsNull, LessThan, Not } from 'typeorm';
 import accepts from 'accepts';
 import vary from 'vary';
 import secureJson from 'secure-json-parse';
 import * as mfm from 'mfm-js';
 import { DI } from '@/di-symbols.js';
-import type { FollowingsRepository, NotesRepository, EmojisRepository, NoteReactionsRepository, UserProfilesRepository, UserNotePiningsRepository, UsersRepository, FollowRequestsRepository, MiMeta, ClipsRepository, ClipNotesRepository, MiClipNote } from '@/models/_.js';
+import type { FollowingsRepository, NotesRepository, EmojisRepository, NoteReactionsRepository, UserProfilesRepository, UserNotePiningsRepository, UsersRepository, FollowRequestsRepository, MiMeta, ClipsRepository, ClipNotesRepository, MiClipNote, BlockingsRepository } from '@/models/_.js';
 import * as url from '@/misc/prelude/url.js';
 import type { Config } from '@/config.js';
 import { ApRendererService } from '@/core/activitypub/ApRendererService.js';
@@ -74,6 +74,9 @@ export class ActivityPubServerService {
 		@Inject(DI.followRequestsRepository)
 		private followRequestsRepository: FollowRequestsRepository,
 
+		@Inject(DI.blockingsRepository)
+		private blockingsRepository: BlockingsRepository,
+
 		@Inject(DI.clipsRepository)
 		private clipsRepository: ClipsRepository,
 
@@ -98,18 +101,77 @@ export class ActivityPubServerService {
 	private async authenticate(request: FastifyRequest): Promise<MiUser | null> {
 		let signature;
 
+		if (request.headers.host !== this.config.host) {
+			// Host not match.
+			return null;
+		}
+
 		try {
 			signature = httpSignature.parseRequest(request.raw, { 'headers': ['(request-target)', 'host', 'date'], authorizationHeaderName: 'signature' });
-		} catch (e) {
+		} catch (_) {
 			return null;
 		}
 
 		const authUser = await this.apDbResolverService.getAuthUserFromKeyId(signature.keyId);
 		if (authUser == null) return null;
+		if (authUser.user.isSuspended) return null;
 
-		if (!httpSignature.verifySignature(signature, authUser.key.keyPem)) return null;
+		// 凍結済みユーザーの署名は受け入れない (inbox の performOneActivity と同じ水準)
+		if (authUser.user.isSuspended) return null;
+
+		// ローカルユーザーの署名は受け入れない
+		if (authUser.user.host == null) return null;
+
+		try {
+			if (!httpSignature.verifySignature(signature, authUser.key.keyPem)) return null;
+		} catch {
+			// 不正な公開鍵などでの例外は認証失敗扱いにする (500 にしない)
+			return null;
+		}
 
 		return authUser.user;
+	}
+
+	/**
+	 * Signed Getで認証されたユーザーが followers/specified の投稿を閲覧できるかを判定する。
+	 * NoteEntityService.isVisibleForMe と同じ水準の許可 (リプライ元・メンション先も許可) を行う。
+	 * ※ リモート投稿がここへ到達した場合、remote→remote の follow/block 関係は当インスタンスの
+	 * DB に保持されないため followers 判定は成立しない。redirect より先に 403 を返すのは、
+	 * プライベート URI の 302 露出を避ける安全側の設計である。
+	 */
+	@bindThis
+	private async isAuthorizedForSignedNoteGet(user: MiUser, note: MiNote): Promise<boolean> {
+		// サーバーブロックされているホストのユーザーには返さない
+		if (user.host != null && !this.utilityService.isFederationAllowedHost(user.host)) return false;
+
+		// 投稿者と認証ユーザーの間にブロック関係がある場合は返さない
+		if (await this.blockingsRepository.exists({
+			where: [
+				{ blockerId: note.userId, blockeeId: user.id },
+				{ blockerId: user.id, blockeeId: note.userId },
+			],
+		})) return false;
+
+		if (note.visibility === 'followers') {
+			// NoteEntityService.isVisibleForMe と同じ扱い: 自分の投稿に対するリプライ・自分へのメンションも閲覧可能
+			if (note.replyUserId != null && note.replyUserId === user.id) return true;
+			if (note.mentions != null && note.mentions.includes(user.id)) return true;
+
+			// 認証ユーザーがフォロワーであることを確認
+			return await this.followingsRepository.exists({
+				where: {
+					followerId: user.id,
+					followeeId: note.userId,
+				},
+			});
+		}
+
+		if (note.visibility === 'specified') {
+			// 認証ユーザーがvisibleUserIdsに含まれていることを確認
+			return note.visibleUserIds.includes(user.id);
+		}
+
+		return true;
 	}
 
 	@bindThis
@@ -890,27 +952,9 @@ export class ActivityPubServerService {
 				return;
 			}
 
-			// followersの場合、認証ユーザーがフォロワーであることを確認
-			if (note.visibility === 'followers') {
-				if (user == null) {
-					reply.code(403);
-					return;
-				}
-
-				const isFollowing = await this.followingsRepository.exists({
-					where: {
-						followerId: user.id,
-						followeeId: note.userId,
-					},
-				});
-
-				if (!isFollowing) {
-					reply.code(403);
-					return;
-				}
-			} else if (note.visibility === 'specified') {
-				// specifiedの場合、認証ユーザーがvisibleUserIdsに含まれていることを確認
-				if (user == null || !note.visibleUserIds.includes(user.id)) {
+			// followers/specifiedはSigned Getで認証されたユーザーにのみ返す
+			if (note.visibility === 'followers' || note.visibility === 'specified') {
+				if (user == null || !await this.isAuthorizedForSignedNoteGet(user, note)) {
 					reply.code(403);
 					return;
 				}
@@ -926,7 +970,12 @@ export class ActivityPubServerService {
 				return;
 			}
 
-			reply.header('Cache-Control', 'public, max-age=180');
+			// followers/specifiedの閲覧結果を公開キャッシュに載せない
+			if (note.visibility === 'public' || note.visibility === 'home') {
+				reply.header('Cache-Control', 'public, max-age=180');
+			} else {
+				reply.header('Cache-Control', 'private, no-store');
+			}
 			this.setResponseType(request, reply);
 			return this.apRendererService.addContext(await this.apRendererService.renderNote(note, false));
 		});
@@ -940,10 +989,11 @@ export class ActivityPubServerService {
 				return;
 			}
 
+			const user = await this.authenticate(request);
+
 			const note = await this.notesRepository.findOneBy({
 				id: request.params.note,
 				userHost: IsNull(),
-				visibility: In(['public', 'home']),
 				localOnly: false,
 			});
 
@@ -952,7 +1002,20 @@ export class ActivityPubServerService {
 				return;
 			}
 
-			reply.header('Cache-Control', 'public, max-age=180');
+			// followers/specifiedはSigned Getで認証されたユーザーにのみ返す
+			if (note.visibility === 'followers' || note.visibility === 'specified') {
+				if (user == null || !await this.isAuthorizedForSignedNoteGet(user, note)) {
+					reply.code(403);
+					return;
+				}
+			}
+
+			// followers/specifiedの閲覧結果を公開キャッシュに載せない
+			if (note.visibility === 'public' || note.visibility === 'home') {
+				reply.header('Cache-Control', 'public, max-age=180');
+			} else {
+				reply.header('Cache-Control', 'private, no-store');
+			}
 			this.setResponseType(request, reply);
 			return (this.apRendererService.addContext(await this.packActivity(note)));
 		});

@@ -235,7 +235,11 @@ export class ApNoteService {
 		if (visibility === 'specified' && visibleUsers.length === 0) {
 			if (typeof value === 'string') {	// 入力がstringならばresolverでGETが発生している
 				// こちらから匿名GET出来たものならばpublic
-				visibility = 'public';
+				// createResolver(resolvedBy)で特定のユーザーとしてSigned Getした場合は
+				// フォロワー限定等が取得できた可能性があるのでpublicにしない
+				if (resolver.getResolvedBy() == null) {
+					visibility = 'public';
+				}
 			}
 		}
 		let channel = null as MiChannel | null;
@@ -310,7 +314,8 @@ export class ApNoteService {
 			quote = results.filter((x): x is { status: 'ok', res: MiNote } => x.status === 'ok').map(x => x.res).at(0);
 			if (!quote) {
 				if (throwErrorOnQuoteForbidden) {
-					const forbiddenQuote = results.find(x => (x.status === 'permerror' || x.status === 'temperror') && x.error instanceof StatusError && [401, 403, 404].includes(x.error.statusCode));
+					// 404はquoteが取得できないだけでノート全体を捨てる理由にならないため対象外
+					const forbiddenQuote = results.find(x => (x.status === 'permerror' || x.status === 'temperror') && x.error instanceof StatusError && [401, 403].includes(x.error.statusCode));
 					if (forbiddenQuote != null && forbiddenQuote.status !== 'ok' && forbiddenQuote.error) {
 						throw forbiddenQuote.error;
 					}

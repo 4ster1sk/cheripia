@@ -35,6 +35,7 @@ import type { ICollection, IObject, IOrderedCollection, IClip, IOrderedCollectio
 export class Resolver {
 	private history: Set<string>;
 	private user?: MiLocalUser;
+	private resolvedByUser?: MiLocalUser;
 	private logger: Logger;
 	private recursionLimit = 256;
 
@@ -79,6 +80,16 @@ export class Resolver {
 	@bindThis
 	public setUser(user: MiLocalUser): void {
 		this.user = user;
+		this.resolvedByUser = user;
+	}
+
+	/**
+	 * createResolver(resolvedBy) で明示的に指定された署名ユーザー。
+	 * signToActivityPubGet によるシステムアカウントの自動署名は含まない。
+	 */
+	@bindThis
+	public getResolvedBy(): MiLocalUser | null {
+		return this.resolvedByUser ?? null;
 	}
 
 	@bindThis
