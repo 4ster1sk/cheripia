@@ -138,7 +138,7 @@ export class ApNoteService {
 	 * Noteを作成します。
 	 */
 	@bindThis
-	public async createNote(value: string | IObject, actor?: MiRemoteUser, resolver?: Resolver, silent = false): Promise<MiNote | null> {
+	public async createNote(value: string | IObject, actor?: MiRemoteUser, resolver?: Resolver, silent = false, throwErrorOnQuoteForbidden = false): Promise<MiNote | null> {
 		// eslint-disable-next-line no-param-reassign
 		if (resolver == null) resolver = await this.apResolverService.createResolver();
 
@@ -235,7 +235,11 @@ export class ApNoteService {
 		if (visibility === 'specified' && visibleUsers.length === 0) {
 			if (typeof value === 'string') {	// 入力がstringならばresolverでGETが発生している
 				// こちらから匿名GET出来たものならばpublic
-				visibility = 'public';
+				// createResolver(resolvedBy)で特定のユーザーとしてSigned Getした場合は
+				// フォロワー限定等が取得できた可能性があるのでpublicにしない
+				if (resolver.getResolvedBy() == null) {
+					visibility = 'public';
+				}
 			}
 		}
 		let channel = null as MiChannel | null;
@@ -289,16 +293,17 @@ export class ApNoteService {
 		if (note._misskey_quote ?? note.quoteUrl) {
 			const tryResolveNote = async (uri: string): Promise<
 				| { status: 'ok'; res: MiNote }
-				| { status: 'permerror' | 'temperror' }
+				| { status: 'permerror' | 'temperror', error?: Error }
 			> => {
 				if (!/^https?:/.test(uri)) return { status: 'permerror' };
 				try {
-					const res = await this.resolveNote(uri);
+					const res = await this.resolveNote(uri, { resolver });
 					if (res == null) return { status: 'permerror' };
 					return { status: 'ok', res };
 				} catch (e) {
 					return {
 						status: (e instanceof StatusError && !e.isRetryable) ? 'permerror' : 'temperror',
+						error: (e instanceof Error || e instanceof StatusError) ? e : undefined,
 					};
 				}
 			};
@@ -308,6 +313,13 @@ export class ApNoteService {
 
 			quote = results.filter((x): x is { status: 'ok', res: MiNote } => x.status === 'ok').map(x => x.res).at(0);
 			if (!quote) {
+				if (throwErrorOnQuoteForbidden) {
+					// 404はquoteが取得できないだけでノート全体を捨てる理由にならないため対象外
+					const forbiddenQuote = results.find(x => (x.status === 'permerror' || x.status === 'temperror') && x.error instanceof StatusError && [401, 403].includes(x.error.statusCode));
+					if (forbiddenQuote != null && forbiddenQuote.status !== 'ok' && forbiddenQuote.error) {
+						throw forbiddenQuote.error;
+					}
+				}
 				if (results.some(x => x.status === 'temperror')) {
 					throw new Error('quote resolve failed');
 				}

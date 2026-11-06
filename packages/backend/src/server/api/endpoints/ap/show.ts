@@ -8,6 +8,8 @@ import ms from 'ms';
 import { Endpoint } from '@/server/api/endpoint-base.js';
 import type { MiNote } from '@/models/Note.js';
 import type { MiLocalUser, MiUser } from '@/models/User.js';
+import type { BlockingsRepository } from '@/models/_.js';
+import { DI } from '@/di-symbols.js';
 import { isActor, isPost, getApId } from '@/core/activitypub/type.js';
 import type { SchemaType } from '@/misc/json-schema.js';
 import { ApResolverService } from '@/core/activitypub/ApResolverService.js';
@@ -116,6 +118,8 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 		private apDbResolverService: ApDbResolverService,
 		private apPersonService: ApPersonService,
 		private apNoteService: ApNoteService,
+		@Inject(DI.blockingsRepository)
+		private blockingsRepository: BlockingsRepository,
 	) {
 		super(meta, paramDef, async (ps, me) => {
 			const object = await this.fetchAny(ps.uri, me);
@@ -141,7 +145,7 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 			this.apDbResolverService.getNoteFromApId(uri),
 			this.apDbResolverService.getChannelFromApId(uri),
 		]);
-		let local = await this.mergePack(me, user ?? channelUser, note);
+		let local = await this.mergePack(me, user ?? channelUser, await this.filterVisibleNote(me, note));
 		if (local != null) return local;
 
 		const host = this.utilityService.extractDbHost(uri);
@@ -150,7 +154,7 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 		if (this.utilityService.isSelfHost(host)) return null;
 
 		// リモートから一旦オブジェクトフェッチ
-		const resolver = await this.apResolverService.createResolver();
+		const resolver = await this.apResolverService.createResolver(me ?? undefined);
 		// allow ap/show exclusively to lookup URLs that are cross-origin or non-canonical (like https://alice.example.com/@bob@bob.example.com -> https://bob.example.com/@bob)
 		const object = await resolver.resolve(uri, FetchAllowSoftFailMask.CrossOrigin | FetchAllowSoftFailMask.NonCanonicalId).catch((err) => {
 			if (err instanceof IdentifiableError) {
@@ -187,19 +191,70 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 		// /@user のような正規id以外で取得できるURIが指定されていた場合、ここで初めて正規URIが確定する
 		// これはDBに存在する可能性があるため再度DB検索
 		if (uri !== object.id) {
-			local = await this.mergePack(me, ...await Promise.all([
+			// CrossOrigin / NonCanonicalId 解決で確定した canonical URI のホストを再検証する
+			// (旧コードの createNote(getApId(object)) は resolver 経由で isFederationAllowedHost を通していた)
+			if (!this.utilityService.isFederationAllowedUri(object.id)) {
+				throw new ApiError(meta.errors.federationNotAllowed);
+			}
+
+			const [canonicalUser, canonicalNote] = await Promise.all([
 				this.apDbResolverService.getUserFromApId(object.id),
 				this.apDbResolverService.getNoteFromApId(object.id),
-			]));
+			]);
+			local = await this.mergePack(me, canonicalUser, await this.filterVisibleNote(me, canonicalNote));
 			if (local != null) return local;
 		}
 
 		// 同一ユーザーの情報を再度処理するので、使用済みのresolverを再利用してはいけない
+		// ただし Signed Get でフォロワー限定・指名投稿を解決するため、同一ユーザーの署名を引き継ぐ
+		const resolverForCreate = await this.apResolverService.createResolver(me ?? undefined);
+		const createdNote = isPost(object) ? await this.apNoteService.createNote(object, undefined, resolverForCreate, true) : null;
+		// ブロック済み著者の公開ノートが fallthrough 経路で返らないようブロック判定を通す
+		// (可視性自体は origin サーバーの Signed Get 応答 (401/403) に委任している)
+		if (createdNote != null && me != null) {
+			const blockedUserIds = [createdNote.userId, createdNote.renoteUserId, createdNote.replyUserId]
+				.filter((id): id is string => id != null);
+			if (await this.blockingsRepository.exists({
+				where: blockedUserIds.flatMap(userId => [
+					{ blockerId: userId, blockeeId: me.id },
+					{ blockerId: me.id, blockeeId: userId },
+				]),
+			})) {
+				return null;
+			}
+		}
 		return await this.mergePack(
 			me,
 			isActor(object) ? await this.apPersonService.createPerson(getApId(object)) : null,
-			isPost(object) ? await this.apNoteService.createNote(getApId(object), undefined, undefined, true) : null,
+			createdNote,
 		);
+	}
+
+	@bindThis
+	private async filterVisibleNote(me: MiLocalUser | null | undefined, note: MiNote | null | undefined): Promise<MiNote | null | undefined> {
+		if (note == null) return note;
+		if (me == null) return note;
+
+		const visible = await this.noteEntityService.isVisibleForMe(note, me.id);
+		if (!visible) return null;
+
+		const blockedUserIds = [note.userId, note.renoteUserId, note.replyUserId]
+			.filter((id): id is string => id != null);
+		const blocked = await this.blockingsRepository.exists({
+			where: blockedUserIds.flatMap(userId => [
+				{ blockerId: userId, blockeeId: me.id },
+				{ blockerId: me.id, blockeeId: userId },
+			]),
+		});
+		if (blocked) return null;
+
+		// リモートのフォロワー限定・指名投稿は、DB にキャッシュされた内容が古い・不完全な可能性がある。
+		// また、相手サーバーにブロックされた後は再取得で 401/403 となるべきなので、常にリモートから再取得する。
+		if (note.userHost != null && (note.visibility === 'followers' || note.visibility === 'specified')) {
+			return null;
+		}
+
+		return note;
 	}
 
 	@bindThis

@@ -377,4 +377,442 @@ describe('Note', () => {
 			});
 		});
 	});
+
+	describe('Visibility', () => {
+		test('Followers-only note can be fetched after following', async () => {
+			const [author, follower] = await Promise.all([
+				createAccount('b.test'),
+				createAccount('a.test'),
+			]);
+
+			const authorInA = await resolveRemoteUser('b.test', author.id, follower);
+
+			const note = (await author.client.request('notes/create', {
+				text: 'secret',
+				visibility: 'followers',
+			})).createdNote;
+
+			const noteUri = `https://b.test/notes/${note.id}`;
+
+			// Follower tries to fetch the note (should fail)
+			await rejects(
+				async () => await follower.client.request('ap/show', { uri: noteUri }),
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				(err: any) => {
+					strictEqual(err.code, 'REQUEST_FAILED');
+					return true;
+				},
+			);
+
+			// Follower follows Author
+			await follower.client.request('following/create', { userId: authorInA.id });
+			await waitForFollowRelation(follower, author, 1);
+
+			// Follower tries to fetch the note again (should success)
+			const resolvedNote = await resolveRemoteNote('b.test', note.id, follower);
+			strictEqual(resolvedNote.text, 'secret');
+		});
+
+		test('Followers-only note can be fetched via Announce if the receiver follows the announcer', async () => {
+			const [author, follower] = await Promise.all([
+				createAccount('b.test'),
+				createAccount('a.test'),
+			]);
+
+			const authorInA = await resolveRemoteUser('b.test', author.id, follower);
+
+			// Author creates a followers-only note
+			const noteText = `followers only ${Date.now()}`;
+
+			const note = (await author.client.request('notes/create', {
+				text: noteText,
+				visibility: 'followers',
+			})).createdNote;
+
+			// Follower follows Author
+			await follower.client.request('following/create', { userId: authorInA.id });
+			await waitForFollowRelation(follower, author, 1);
+
+			// Author renote the note
+			const authorRenote = await author.client.request('notes/create', {
+				renoteId: note.id,
+			});
+
+			await sleep();
+
+			// Follower should be able to see the renote and the original note
+			const timeline = await follower.client.request('notes/timeline', { limit: 10 });
+			const renoteUri = `https://b.test/notes/${authorRenote.createdNote.id}/activity`;
+			const renoteInA = timeline.find(n => n.uri === renoteUri);
+
+			assert(renoteInA != null);
+			assert(renoteInA.renote != null);
+			strictEqual(renoteInA.renote.text, noteText);
+			strictEqual(renoteInA.renote.visibility, 'followers');
+		});
+
+		test('Followers-only note can be fetched via Reply if the receiver follows the author', async () => {
+			const [author, follower] = await Promise.all([
+				createAccount('b.test'),
+				createAccount('a.test'),
+			]);
+
+			const authorInA = await resolveRemoteUser('b.test', author.id, follower);
+
+			const noteText = `followers only ${Date.now()}`;
+
+			// Author creates a followers-only note
+			const note = (await author.client.request('notes/create', {
+				text: noteText,
+				visibility: 'followers',
+			})).createdNote;
+
+			const noteUri = `https://b.test/notes/${note.id}`;
+
+			// Follower tries to fetch the note (should fail)
+			await rejects(
+				async () => await follower.client.request('ap/show', { uri: noteUri }),
+				(err: any) => {
+					strictEqual(err.code, 'REQUEST_FAILED');
+					return true;
+				},
+			);
+
+			// Follower follows Author
+			await follower.client.request('following/create', { userId: authorInA.id });
+			await waitForFollowRelation(follower, author, 1);
+
+			// Author replies to the note
+			const reply = (await author.client.request('notes/create', {
+				text: 'reply to followers only',
+				replyId: note.id,
+				visibility: 'followers',
+			})).createdNote;
+
+			await sleep();
+
+			// Follower should be able to see the reply and the original note
+			const timeline = await follower.client.request('notes/timeline', { limit: 10 });
+			const replyInA = timeline.find(n => n.uri === `https://b.test/notes/${reply.id}`);
+
+			assert(replyInA != null);
+			assert(replyInA.reply != null);
+			strictEqual(replyInA.reply.text, noteText);
+			strictEqual(replyInA.reply.visibility, 'followers');
+		});
+
+		test('Followers-only note can be fetched via Quote if the receiver follows the author', async () => {
+			const [author, follower] = await Promise.all([
+				createAccount('b.test'),
+				createAccount('a.test'),
+			]);
+
+			const authorInA = await resolveRemoteUser('b.test', author.id, follower);
+
+			// Author creates a followers-only note
+			const noteText = `followers only source ${Date.now()}`;
+			const note = (await author.client.request('notes/create', {
+				text: noteText,
+				visibility: 'followers',
+			})).createdNote;
+
+			const noteUri = `https://b.test/notes/${note.id}`;
+
+			// Follower tries to fetch the note (should fail)
+			await rejects(
+				async () => await follower.client.request('ap/show', { uri: noteUri }),
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				(err: any) => {
+					strictEqual(err.code, 'REQUEST_FAILED');
+					return true;
+				},
+			);
+
+			// Follower follows Author
+			await follower.client.request('following/create', { userId: authorInA.id });
+			await waitForFollowRelation(follower, author, 1);
+
+			// Author quotes the note
+			const quoteText = `quoting secret note ${Date.now()}`;
+			const quote = (await author.client.request('notes/create', {
+				text: quoteText,
+				renoteId: note.id,
+				visibility: 'public',
+			})).createdNote;
+			await sleep();
+
+			// Follower should be able to see the Quote and the Original Note
+			const timeline = await follower.client.request('notes/timeline', { limit: 10 });
+			const quotesInA = timeline.filter(n => n.text === quoteText);
+
+			const quoteUri = `https://b.test/notes/${quote.id}`;
+
+			// Check duplication of quote
+			strictEqual(quotesInA.length, 1);
+
+			const quoteInA = quotesInA[0];
+			strictEqual(quoteInA.text, quoteText);
+			strictEqual(quoteInA.uri, quoteUri);
+
+			// Check renote content
+			assert(quoteInA.renote != null);
+			strictEqual(quoteInA.renote.text, noteText);
+			strictEqual(quoteInA.renote.visibility, 'followers');
+		});
+
+		async function waitForBlocked(blocked: LoginUser, blockerId: string): Promise<void> {
+			await vi.waitFor(async () => {
+				const blocker = await blocked.client.request('users/show', { userId: blockerId });
+				strictEqual(blocker.isBlocked, true);
+			}, WAIT_FOR_FEDERATION);
+		}
+
+		test('Specified note can be fetched by visible user', async () => {
+			const [author, follower] = await Promise.all([
+				createAccount('b.test'),
+				createAccount('a.test'),
+			]);
+
+			const [authorInA, followerInB] = await Promise.all([
+				resolveRemoteUser('b.test', author.id, follower),
+				resolveRemoteUser('a.test', follower.id, author),
+			]);
+
+			const noteText = `specified only ${Date.now()}`;
+			const note = (await author.client.request('notes/create', {
+				text: noteText,
+				visibility: 'specified',
+				visibleUserIds: [followerInB.id],
+			})).createdNote;
+
+			const noteUri = `https://b.test/notes/${note.id}`;
+
+			// Non-visible user tries to fetch the note (should fail)
+			const [outsider] = await Promise.all([
+				createAccount('a.test'),
+			]);
+			const authorInAForOutsider = await resolveRemoteUser('b.test', author.id, outsider);
+			await outsider.client.request('following/create', { userId: authorInAForOutsider.id });
+			await sleep();
+
+			await rejects(
+				async () => await outsider.client.request('ap/show', { uri: noteUri }),
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				(err: any) => {
+					strictEqual(err.code, 'REQUEST_FAILED');
+					return true;
+				},
+			);
+
+			// Visible follower fetches the note (should success)
+			const resolvedNote = await resolveRemoteNote('b.test', note.id, follower);
+			strictEqual(resolvedNote.text, noteText);
+			strictEqual(resolvedNote.visibility, 'specified');
+		});
+
+		test('Followers-only note cannot be fetched after blocking the author', async () => {
+			const [author, follower] = await Promise.all([
+				createAccount('b.test'),
+				createAccount('a.test'),
+			]);
+
+			const [authorInA, followerInB] = await Promise.all([
+				resolveRemoteUser('b.test', author.id, follower),
+				resolveRemoteUser('a.test', follower.id, author),
+			]);
+
+			const noteText = `followers only ${Date.now()}`;
+			const note = (await author.client.request('notes/create', {
+				text: noteText,
+				visibility: 'followers',
+			})).createdNote;
+
+			const noteUri = `https://b.test/notes/${note.id}`;
+
+			// Follower follows Author and fetches the note (should success)
+			await follower.client.request('following/create', { userId: authorInA.id });
+			await waitForFollowRelation(follower, author, 1);
+			const resolvedNote = await resolveRemoteNote('b.test', note.id, follower);
+			strictEqual(resolvedNote.text, noteText);
+			strictEqual(resolvedNote.visibility, 'followers');
+
+			// Follower blocks Author
+			await follower.client.request('blocking/create', { userId: authorInA.id });
+			await waitForBlocked(author, followerInB.id);
+
+			// Blocked follower tries to fetch the note again (should fail)
+			await rejects(
+				async () => await follower.client.request('ap/show', { uri: noteUri }),
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				(err: any) => {
+					strictEqual(err.code, 'REQUEST_FAILED');
+					return true;
+				},
+			);
+		});
+
+		test('Public notes of a blocked author are not returned by ap/show (cached and fresh)', async () => {
+			const [author, follower] = await Promise.all([
+				createAccount('b.test'),
+				createAccount('a.test'),
+			]);
+
+			const [authorInA, followerInB] = await Promise.all([
+				resolveRemoteUser('b.test', author.id, follower),
+				resolveRemoteUser('a.test', follower.id, author),
+			]);
+
+			const cachedText = `public cached ${Date.now()}`;
+			const cachedNote = (await author.client.request('notes/create', {
+				text: cachedText,
+				visibility: 'public',
+			})).createdNote;
+			const cachedUri = `https://b.test/notes/${cachedNote.id}`;
+
+			// ブロック前は公開ノートを取得できる
+			const before = await resolveRemoteNote('b.test', cachedNote.id, follower);
+			strictEqual(before.text, cachedText);
+
+			// Follower blocks Author (双方向のブロックが両インスタンスに反映されるまで待つ)
+			await follower.client.request('blocking/create', { userId: authorInA.id });
+			await waitForBlocked(author, followerInB.id);
+
+			// DB キャッシュ済みの公開ノート: ap/show の検索経路 (filterVisibleNote) で除外され
+			// NO_SUCH_OBJECT になる (origin は公開ノートに認証を要求しないため、
+			// クライアント側のブロック判定が決定的に効く)
+			await rejects(
+				async () => await follower.client.request('ap/show', { uri: cachedUri }),
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				(err: any) => {
+					strictEqual(err.code, 'NO_SUCH_OBJECT');
+					return true;
+				},
+			);
+
+			// ブロック後に作成された (まだキャッシュされていない) 公開ノート:
+			// フェッチ自体は成功するが createdNote のブロック判定で結果が除外される
+			const freshNote = (await author.client.request('notes/create', {
+				text: `public fresh ${Date.now()}`,
+				visibility: 'public',
+			})).createdNote;
+			await rejects(
+				async () => await follower.client.request('ap/show', { uri: `https://b.test/notes/${freshNote.id}` }),
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				(err: any) => {
+					strictEqual(err.code, 'NO_SUCH_OBJECT');
+					return true;
+				},
+			);
+		});
+
+		test('Followers-only note cannot be fetched via ap/show after unfollowing', async () => {
+			const [author, follower] = await Promise.all([
+				createAccount('b.test'),
+				createAccount('a.test'),
+			]);
+
+			const authorInA = await resolveRemoteUser('b.test', author.id, follower);
+
+			const noteText = `followers only ${Date.now()}`;
+			const note = (await author.client.request('notes/create', {
+				text: noteText,
+				visibility: 'followers',
+			})).createdNote;
+			const noteUri = `https://b.test/notes/${note.id}`;
+
+			// Follow and fetch (note gets cached locally)
+			await follower.client.request('following/create', { userId: authorInA.id });
+			await waitForFollowRelation(follower, author, 1);
+			const resolvedNote = await resolveRemoteNote('b.test', note.id, follower);
+			strictEqual(resolvedNote.text, noteText);
+
+			// Follower unfollows Author
+			await follower.client.request('following/delete', { userId: authorInA.id });
+			await waitForFollowRelation(follower, author, 0);
+
+			// ローカルDBにキャッシュが残っていても、remote の followers/specified は
+			// 常に origin へ再取得されるため取得できない
+			await rejects(
+				async () => await follower.client.request('ap/show', { uri: noteUri }),
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				(err: any) => {
+					strictEqual(err.code, 'REQUEST_FAILED');
+					return true;
+				},
+			);
+		});
+	});
+
+	describe('Signed Get fallback for Announce (3 instances)', () => {
+		test('Followers-only note of c.test is ingested at b.test via Announce with signed get by a local follower of the announcer', async () => {
+			const [author, follower, outsider] = await Promise.all([
+				createAccount('c.test'),
+				createAccount('b.test'),
+				createAccount('a.test'),
+			]);
+
+			const authorInB = await resolveRemoteUser('c.test', author.id, follower);
+
+			// 原投稿はフォロー成立前に作成する。フォロー後に作成すると通常の Create 配送で
+			// b.test に取り込まれ、Announce の保存用再取得が Signed Get を経ずに済んでしまう。
+			const noteText = `c.test followers only ${Date.now()}`;
+			const note = (await author.client.request('notes/create', {
+				text: noteText,
+				visibility: 'followers',
+			})).createdNote;
+			const noteUri = `https://c.test/notes/${note.id}`;
+
+			await follower.client.request('following/create', { userId: authorInB.id });
+			await waitForFollowRelation(follower, author, 1);
+
+			// Announce の時点で b.test は原投稿を持っていないこと (Signed Get フォールバックの前提)
+			const beforeAnnounce = await follower.client.request('users/notes', {
+				userId: authorInB.id,
+				limit: 100,
+			});
+			assert(
+				!beforeAnnounce.some(n => n.uri === noteUri),
+				'original note must not be ingested at b.test before the announce',
+			);
+
+			// 無関係な a.test のユーザーは取得できない (origin は未認証・権限なしに 403 を返す)
+			await rejects(
+				async () => await outsider.client.request('ap/show', { uri: noteUri }),
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				(err: any) => {
+					strictEqual(err.code, 'REQUEST_FAILED');
+					return true;
+				},
+			);
+
+			// Author が自身のフォロワー限定投稿をリノート (Announce)。
+			// b.test での anonymous resolve は 403 で失敗し、
+			// announcer (author) のローカルフォロワー (follower) の鍵による Signed Get で再解決される。
+			await author.client.request('notes/create', { renoteId: note.id });
+
+			await vi.waitFor(async () => {
+				const timeline = await follower.client.request('notes/timeline', { limit: 10 });
+				const announce = timeline.find(n =>
+					n.user.username === author.username &&
+					n.user.host === 'c.test' &&
+					n.renote != null &&
+					n.renote.uri === noteUri,
+				);
+				assert(announce != null, 'announce not found in follower timeline');
+				assert(announce.renote != null);
+				strictEqual(announce.renote.text, noteText);
+				strictEqual(announce.renote.visibility, 'followers');
+			}, WAIT_FOR_FEDERATION);
+
+			// b.test で解決されたノートが a.test に露出しないこと
+			await rejects(
+				async () => await outsider.client.request('ap/show', { uri: noteUri }),
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				(err: any) => {
+					strictEqual(err.code, 'REQUEST_FAILED');
+					return true;
+				},
+			);
+		});
+	});
 });
