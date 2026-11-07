@@ -96,7 +96,7 @@ FROM node:\${NODE_VERSION}-bookworm
 RUN apt-get update \\
     && apt-get install -y --no-install-recommends ffmpeg \\
     && rm -rf /var/lib/apt/lists/*
-RUN corepack enable
+RUN npm install -g pnpm
 WORKDIR /misskey
 EOF
 
