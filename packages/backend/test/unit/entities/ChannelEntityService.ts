@@ -68,7 +68,6 @@ function channel(overrides: Partial<MiChannel> = {}): MiChannel {
 		usersCount: 0,
 		notesCount: 0,
 		isSensitive: false,
-		allowRenoteToExternal: true,
 		host: null,
 		actorId: null,
 		...overrides,

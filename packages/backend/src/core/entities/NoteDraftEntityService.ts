@@ -128,7 +128,6 @@ export class NoteDraftEntityService implements OnModuleInit {
 				name: channel.name,
 				color: channel.color,
 				isSensitive: channel.isSensitive,
-				allowRenoteToExternal: channel.allowRenoteToExternal,
 				userId: channel.userId,
 			} : undefined,
 			poll: noteDraft.hasPoll ? {

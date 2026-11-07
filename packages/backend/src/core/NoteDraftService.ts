@@ -265,19 +265,6 @@ export class NoteDraftService {
 				// specified / direct noteはreject
 				throw new IdentifiableError('81eb8188-aea1-4e35-9a8f-3334a3be9855', 'Cannot Renote Due to Visibility');
 			}
-
-			if (renote.channelId && renote.channelId !== data.channelId) {
-				// チャンネルのノートに対しリノート要求がきたとき、チャンネル外へのリノート可否をチェック
-				// リノートのユースケースのうち、チャンネル内→チャンネル外は少数だと考えられるため、JOINはせず必要な時に都度取得する
-				const renoteChannel = await this.channelsRepository.findOneBy({ id: renote.channelId });
-				if (renoteChannel == null) {
-					// リノートしたいノートが書き込まれているチャンネルがない
-					throw new IdentifiableError('6815399a-6f13-4069-b60d-ed5156249d12', 'No such channel');
-				} else if (!renoteChannel.allowRenoteToExternal) {
-					// リノート作成のリクエストだが、対象チャンネルがリノート禁止だった場合
-					throw new IdentifiableError('ed1952ac-2d26-4957-8b30-2deda76bedf7', 'Cannot Renote to External');
-				}
-			}
 		}
 		//#endregion
 

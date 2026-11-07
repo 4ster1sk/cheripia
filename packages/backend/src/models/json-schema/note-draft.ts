@@ -152,10 +152,6 @@ export const packedNoteDraftSchema = {
 					type: 'boolean',
 					optional: false, nullable: false,
 				},
-				allowRenoteToExternal: {
-					type: 'boolean',
-					optional: false, nullable: false,
-				},
 				userId: {
 					type: 'string',
 					optional: false, nullable: true,

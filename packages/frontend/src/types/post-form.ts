@@ -13,7 +13,6 @@ export interface PostFormProps {
 		name: string;
 		color: string;
 		isSensitive: boolean;
-		allowRenoteToExternal: boolean;
 		userId: string | null;
 	} | null;
 	mention?: Misskey.entities.User;

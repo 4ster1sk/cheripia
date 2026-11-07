@@ -10728,10 +10728,6 @@ export interface Locale extends ILocale {
          * 名前のみ
          */
         "nameOnly": string;
-        /**
-         * チャンネル外へのリノートと引用リノートを許可する
-         */
-        "allowRenoteToExternal": string;
     };
     "_menuDisplay": {
         /**

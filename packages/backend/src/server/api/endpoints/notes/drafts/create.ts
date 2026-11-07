@@ -106,12 +106,6 @@ export const meta = {
 			id: 'b6992544-63e7-67f0-fa7f-32444b1b5306',
 		},
 
-		cannotRenoteOutsideOfChannel: {
-			message: 'Cannot renote outside of channel.',
-			code: 'CANNOT_RENOTE_OUTSIDE_OF_CHANNEL',
-			id: '33510210-8452-094c-6227-4a6c05d99f00',
-		},
-
 		containsProhibitedWords: {
 			message: 'Cannot post because it contains prohibited words.',
 			code: 'CONTAINS_PROHIBITED_WORDS',
@@ -134,12 +128,6 @@ export const meta = {
 			message: 'You cannot create scheduled notes any more.',
 			code: 'TOO_MANY_SCHEDULED_NOTES',
 			id: '22ae69eb-09e3-4541-a850-773cfa45e693',
-		},
-
-		cannotRenoteToExternal: {
-			message: 'Cannot Renote to External.',
-			code: 'CANNOT_RENOTE_TO_EXTERNAL',
-			id: 'ed1952ac-2d26-4957-8b30-2deda76bedf7',
 		},
 
 		scheduledAtRequired: {
@@ -296,8 +284,6 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 							throw new ApiError(meta.errors.cannotRenoteDueToVisibility);
 						case '6815399a-6f13-4069-b60d-ed5156249d12':
 							throw new ApiError(meta.errors.noSuchChannel);
-						case 'ed1952ac-2d26-4957-8b30-2deda76bedf7':
-							throw new ApiError(meta.errors.cannotRenoteToExternal);
 						case 'c4721841-22fc-4bb7-ad3d-897ef1d375b5':
 							throw new ApiError(meta.errors.noSuchReplyTarget);
 						case 'e6c10b57-2c09-4da3-bd4d-eda05d51d140':

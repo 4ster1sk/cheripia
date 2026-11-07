@@ -69,7 +69,6 @@ export const paramDef = {
 		iconId: { type: 'string', format: 'misskey:id', nullable: true },
 		color: { type: 'string', minLength: 1, maxLength: 16 },
 		isSensitive: { type: 'boolean', nullable: true },
-		allowRenoteToExternal: { type: 'boolean', nullable: true },
 		username: { type: 'string' },
 	},
 	required: ['username'],
@@ -183,12 +182,11 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 				throw e;
 			}
 
-			if (ps.name !== undefined || ps.color !== undefined || typeof ps.isSensitive === 'boolean' || typeof ps.allowRenoteToExternal === 'boolean') {
+			if (ps.name !== undefined || ps.color !== undefined || typeof ps.isSensitive === 'boolean') {
 				await this.channelsRepository.update(channel.id, {
 					...(ps.name !== undefined ? { name: ps.name } : {}),
 					...(ps.color !== undefined ? { color: ps.color } : {}),
 					...(typeof ps.isSensitive === 'boolean' ? { isSensitive: ps.isSensitive } : {}),
-					...(typeof ps.allowRenoteToExternal === 'boolean' ? { allowRenoteToExternal: ps.allowRenoteToExternal } : {}),
 				});
 			}
 			return await this.channelEntityService.pack({
@@ -198,7 +196,6 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 				...(ps.description !== undefined ? { description: ps.description } : {}),
 				...(ps.color !== undefined ? { color: ps.color } : {}),
 				...(typeof ps.isSensitive === 'boolean' ? { isSensitive: ps.isSensitive } : {}),
-				...(typeof ps.allowRenoteToExternal === 'boolean' ? { allowRenoteToExternal: ps.allowRenoteToExternal } : {}),
 			}, me);
 		});
 	}

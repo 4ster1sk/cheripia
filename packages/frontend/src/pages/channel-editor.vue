@@ -38,10 +38,6 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<template #label>{{ i18n.ts.sensitive }}</template>
 			</MkSwitch>
 
-			<MkSwitch v-model="allowRenoteToExternal">
-				<template #label>{{ i18n.ts._channel.allowRenoteToExternal }}</template>
-			</MkSwitch>
-
 			<div>
 				<MkButton v-if="iconId == null && iconUrl == null" @click="setIconImage"><i class="ti ti-plus"></i> {{ i18n.ts._channel.setIcon }}</MkButton>
 				<div v-else-if="iconUrl" :class="$style.iconPreview">
@@ -124,7 +120,6 @@ const iconUrl = ref<string | null>(null);
 const iconId = ref<string | null | undefined>(undefined);
 const color = ref('#000');
 const isSensitive = ref(false);
-const allowRenoteToExternal = ref(true);
 const pinnedNoteIds = ref<Misskey.entities.Note['id'][]>([]);
 
 const host = toUnicode(config.host);
@@ -210,7 +205,6 @@ async function fetchChannel() {
 	isSensitive.value = result.isSensitive;
 	pinnedNoteIds.value = result.pinnedNoteIds;
 	color.value = result.color;
-	allowRenoteToExternal.value = result.allowRenoteToExternal;
 
 	channel.value = result;
 }
@@ -242,7 +236,6 @@ function save() {
 		...(iconId.value !== undefined ? { iconId: iconId.value } : {}),
 		color: color.value,
 		isSensitive: isSensitive.value,
-		allowRenoteToExternal: allowRenoteToExternal.value,
 	} satisfies Misskey.entities.ChannelsCreateRequest;
 
 	if (props.channelId != null) {

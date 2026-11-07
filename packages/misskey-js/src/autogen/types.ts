@@ -5041,7 +5041,6 @@ export type components = {
                 name: string;
                 color: string;
                 isSensitive: boolean;
-                allowRenoteToExternal: boolean;
                 userId: string | null;
             } | null;
             localOnly?: boolean;
@@ -5107,7 +5106,6 @@ export type components = {
                 name: string;
                 color: string;
                 isSensitive: boolean;
-                allowRenoteToExternal: boolean;
                 userId: string | null;
             } | null;
             localOnly: boolean;
@@ -5611,7 +5609,6 @@ export type components = {
             usersCount: number;
             notesCount: number;
             isSensitive: boolean;
-            allowRenoteToExternal: boolean;
             isFollowing?: boolean;
             isFavorited?: boolean;
             isMuting?: boolean;
@@ -16853,7 +16850,6 @@ export interface operations {
                     iconId?: string | null;
                     color?: string;
                     isSensitive?: boolean | null;
-                    allowRenoteToExternal?: boolean | null;
                     username: string;
                 };
             };
@@ -17858,7 +17854,6 @@ export interface operations {
                     pinnedNoteIds?: string[];
                     color?: string;
                     isSensitive?: boolean | null;
-                    allowRenoteToExternal?: boolean | null;
                 };
             };
         };

@@ -336,17 +336,8 @@ export function useNote(
 		if (!$i) return;
 		if (props.mock) return;
 		if (appearNote.channel) {
-			if (appearNote.channel.allowRenoteToExternal) {
-				const { menu } = getQuoteMenu({ note: rawNote, mock: props.mock });
-				os.popupMenu(menu, els.quoteButton?.value);
-			} else {
-				os.post({
-					renote: appearNote,
-					channel: appearNote.channel,
-				}).then(() => {
-					focus();
-				});
-			}
+			const { menu } = getQuoteMenu({ note: rawNote, mock: props.mock });
+			os.popupMenu(menu, els.quoteButton?.value);
 		} else {
 			os.post({
 				renote: appearNote,

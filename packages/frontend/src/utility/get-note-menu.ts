@@ -902,7 +902,7 @@ export function getQuoteMenu(props: {
 	const menu: MenuItem[] = [];
 	const appearNote = getAppearNote(props.note);
 
-	if (appearNote && (!appearNote.channel || appearNote.channel.allowRenoteToExternal)) {
+	if (appearNote) {
 		menu.push({
 			text: i18n.ts.quote,
 			icon: 'ti ti-quote',
@@ -1028,151 +1028,109 @@ export async function getRenoteMenu(props: {
 		}
 	}
 
-	if (!appearNote.channel || appearNote.channel.allowRenoteToExternal) {
+	normalRenoteItems.push({
+		text: i18n.ts.renote,
+		icon: 'ti ti-repeat',
+		action: async () => {
+			const el = props.renoteButton.value;
+			if (el && prefer.s.animation) {
+				const rect = el.getBoundingClientRect();
+				const x = rect.left + (el.offsetWidth / 2);
+				const y = rect.top + (el.offsetHeight / 2);
+				const { dispose } = os.popup(MkRippleEffect, { x, y }, {
+					end: () => dispose(),
+				});
+			}
+
+			const configuredVisibility = prefer.s.rememberNoteVisibility ? store.s.visibility : prefer.s.defaultNoteVisibility;
+
+			let visibility = appearNote.visibility;
+			visibility = smallerVisibility(visibility, configuredVisibility);
+			if (appearNote.channel?.isSensitive) {
+				visibility = smallerVisibility(visibility, 'home');
+			}
+
+			if (!props.mock) {
+				const canceled = await checkRenoted(props);
+				if (canceled) return;
+
+				misskeyApi('notes/create', {
+					visibility,
+					renoteId: appearNote.id,
+				}).then((res) => {
+					os.toast(i18n.ts.renoted, 'renote');
+					globalEvents.emit('notePosted', res.createdNote);
+				});
+			}
+		},
+	});
+
+	// Add quote button if quote button is not separated
+	if (!props.mock && !prefer.s.renoteQuoteButtonSeparation) {
 		normalRenoteItems.push({
-			text: i18n.ts.renote,
-			icon: 'ti ti-repeat',
+			text: i18n.ts.quote,
+			icon: 'ti ti-quote',
 			action: async () => {
-				const el = props.renoteButton.value;
-				if (el && prefer.s.animation) {
-					const rect = el.getBoundingClientRect();
-					const x = rect.left + (el.offsetWidth / 2);
-					const y = rect.top + (el.offsetHeight / 2);
-					const { dispose } = os.popup(MkRippleEffect, { x, y }, {
-						end: () => dispose(),
-					});
-				}
+				const result =	await confirmRenote(appearNote.id);
+				if (result) return;
+				const canceled = await checkRenoted(props);
+				if (canceled) return;
 
-				const configuredVisibility = prefer.s.rememberNoteVisibility ? store.s.visibility : prefer.s.defaultNoteVisibility;
-
-				let visibility = appearNote.visibility;
-				visibility = smallerVisibility(visibility, configuredVisibility);
-				if (appearNote.channel?.isSensitive) {
-					visibility = smallerVisibility(visibility, 'home');
-				}
-
-				if (!props.mock) {
-					const canceled = await checkRenoted(props);
-					if (canceled) return;
-
-					misskeyApi('notes/create', {
-						visibility,
-						renoteId: appearNote.id,
-					}).then((res) => {
-						os.toast(i18n.ts.renoted, 'renote');
-						globalEvents.emit('notePosted', res.createdNote);
-					});
-				}
+				os.post({
+					renote: appearNote,
+				});
 			},
 		});
+	}
 
-		// Add quote button if quote button is not separated
-		if (!props.mock && !prefer.s.renoteQuoteButtonSeparation) {
-			normalRenoteItems.push({
-				text: i18n.ts.quote,
-				icon: 'ti ti-quote',
+	normalExternalChannelRenoteItems.push({
+		type: 'parent',
+		icon: 'ti ti-repeat',
+		text: appearNote.channel ? i18n.ts.renoteToOtherChannel : i18n.ts.renoteToChannel,
+		children: async () => {
+			const channels = await favoritedChannelsCache.fetch();
+			return channels.filter((channel) => {
+				if (!appearNote.channelId) return true;
+				return channel.id !== appearNote.channelId;
+			}).map((channel) => ({
+				text: channel.name,
 				action: async () => {
-					const result =	await confirmRenote(appearNote.id);
-					if (result) return;
-					const canceled = await checkRenoted(props);
-					if (canceled) return;
+					const el = props.renoteButton.value;
+					if (el && prefer.s.animation) {
+						const rect = el.getBoundingClientRect();
+						const x = rect.left + (el.offsetWidth / 2);
+						const y = rect.top + (el.offsetHeight / 2);
+						const { dispose } = os.popup(MkRippleEffect, { x, y }, {
+							end: () => dispose(),
+						});
+					}
 
-					os.post({
-						renote: appearNote,
-					});
+					if (!props.mock) {
+						const result =	await confirmRenote(appearNote.id);
+						if (result) return;
+						const canceled = await checkRenoted(props);
+						if (canceled) return;
+
+						misskeyApi('notes/create', {
+							renoteId: appearNote.id,
+							channelId: channel.id,
+						}).then((res) => {
+							os.toast(i18n.tsx.renotedToX({ name: channel.name }));
+							globalEvents.emit('notePosted', res.createdNote);
+						});
+					}
 				},
-			});
-		}
+			}));
+		},
+	});
 
-		normalExternalChannelRenoteItems.push({
-			type: 'parent',
-			icon: 'ti ti-repeat',
-			text: appearNote.channel ? i18n.ts.renoteToOtherChannel : i18n.ts.renoteToChannel,
-			children: async () => {
-				const channels = await favoritedChannelsCache.fetch();
-				return channels.filter((channel) => {
-					if (!appearNote.channelId) return true;
-					return channel.id !== appearNote.channelId;
-				}).map((channel) => ({
-					text: channel.name,
-					action: async () => {
-						const el = props.renoteButton.value;
-						if (el && prefer.s.animation) {
-							const rect = el.getBoundingClientRect();
-							const x = rect.left + (el.offsetWidth / 2);
-							const y = rect.top + (el.offsetHeight / 2);
-							const { dispose } = os.popup(MkRippleEffect, { x, y }, {
-								end: () => dispose(),
-							});
-						}
-
-						if (!props.mock) {
-							const result =	await confirmRenote(appearNote.id);
-							if (result) return;
-							const canceled = await checkRenoted(props);
-							if (canceled) return;
-
-							misskeyApi('notes/create', {
-								renoteId: appearNote.id,
-								channelId: channel.id,
-							}).then((res) => {
-								os.toast(i18n.tsx.renotedToX({ name: channel.name }));
-								globalEvents.emit('notePosted', res.createdNote);
-							});
-						}
-					},
-				}));
-			},
-		});
-
-		// Add visibility section
-		if (prefer.s.renoteVisibilitySelection && !['followers', 'specified'].includes(appearNote.visibility)) {
-			// renote to public
-			if (appearNote.visibility === 'public') {
-				visibilityRenoteItems.push({
-					text: `${i18n.ts.renote} (${i18n.ts._visibility.public})`,
-					icon: 'ti ti-world',
-					action: async () => {
-						const result =	await confirmRenote(appearNote.id);
-						if (result) return;
-						const canceled = await checkRenoted(props);
-						if (canceled) return;
-
-						misskeyApi('notes/create', {
-							visibility: 'public',
-							renoteId: appearNote.id,
-						}).then(() => {
-							os.toast(i18n.ts.renoted, 'renote');
-						});
-					},
-				});
-			}
-
-			// renote to home
-			if (['home', 'public'].includes(appearNote.visibility)) {
-				visibilityRenoteItems.push({
-					text: `${i18n.ts.renote} (${i18n.ts._visibility.home})`,
-					icon: 'ti ti-home',
-					action: async () => {
-						const result =	await confirmRenote(appearNote.id);
-						if (result) return;
-						const canceled = await checkRenoted(props);
-						if (canceled) return;
-
-						misskeyApi('notes/create', {
-							visibility: 'home',
-							renoteId: appearNote.id,
-						}).then(() => {
-							os.toast(i18n.ts.renoted, 'renote');
-						});
-					},
-				});
-			}
-
-			// renote to followers
+	// Add visibility section
+	if (prefer.s.renoteVisibilitySelection && !['followers', 'specified'].includes(appearNote.visibility)) {
+		// renote to public
+		if (appearNote.visibility === 'public') {
 			visibilityRenoteItems.push({
-				text: `${i18n.ts.renote} (${i18n.ts._visibility.followers})`,
-				icon: 'ti ti-lock',
+				text: `${i18n.ts.renote} (${i18n.ts._visibility.public})`,
+				icon: 'ti ti-world',
 				action: async () => {
 					const result =	await confirmRenote(appearNote.id);
 					if (result) return;
@@ -1180,7 +1138,7 @@ export async function getRenoteMenu(props: {
 					if (canceled) return;
 
 					misskeyApi('notes/create', {
-						visibility: 'followers',
+						visibility: 'public',
 						renoteId: appearNote.id,
 					}).then(() => {
 						os.toast(i18n.ts.renoted, 'renote');
@@ -1188,6 +1146,46 @@ export async function getRenoteMenu(props: {
 				},
 			});
 		}
+
+		// renote to home
+		if (['home', 'public'].includes(appearNote.visibility)) {
+			visibilityRenoteItems.push({
+				text: `${i18n.ts.renote} (${i18n.ts._visibility.home})`,
+				icon: 'ti ti-home',
+				action: async () => {
+					const result =	await confirmRenote(appearNote.id);
+					if (result) return;
+					const canceled = await checkRenoted(props);
+					if (canceled) return;
+
+					misskeyApi('notes/create', {
+						visibility: 'home',
+						renoteId: appearNote.id,
+					}).then(() => {
+						os.toast(i18n.ts.renoted, 'renote');
+					});
+				},
+			});
+		}
+
+		// renote to followers
+		visibilityRenoteItems.push({
+			text: `${i18n.ts.renote} (${i18n.ts._visibility.followers})`,
+			icon: 'ti ti-lock',
+			action: async () => {
+				const result =	await confirmRenote(appearNote.id);
+				if (result) return;
+				const canceled = await checkRenoted(props);
+				if (canceled) return;
+
+				misskeyApi('notes/create', {
+					visibility: 'followers',
+					renoteId: appearNote.id,
+				}).then(() => {
+					os.toast(i18n.ts.renoted, 'renote');
+				});
+			},
+		});
 	}
 
 	const renoteItems = addDividersBetweenMenuSections(
@@ -1244,90 +1242,88 @@ export async function getRenoteOnly(props: {
 		}
 	}
 
-	if (!appearNote.channel || appearNote.channel.allowRenoteToExternal) {
-		const el = props.renoteButton.value as HTMLElement | null | undefined;
-		if (el && prefer.s.animation) {
-			const rect = el.getBoundingClientRect();
-			const x = rect.left + (el.offsetWidth / 2);
-			const y = rect.top + (el.offsetHeight / 2);
-			const { dispose } = os.popup(MkRippleEffect, { x, y }, {
-				end: () => dispose(),
-			});
-		}
+	const el = props.renoteButton.value as HTMLElement | null | undefined;
+	if (el && prefer.s.animation) {
+		const rect = el.getBoundingClientRect();
+		const x = rect.left + (el.offsetWidth / 2);
+		const y = rect.top + (el.offsetHeight / 2);
+		const { dispose } = os.popup(MkRippleEffect, { x, y }, {
+			end: () => dispose(),
+		});
+	}
 
-		const configuredVisibility = prefer.s.rememberNoteVisibility ? store.s.visibility : prefer.s.defaultNoteVisibility;
+	const configuredVisibility = prefer.s.rememberNoteVisibility ? store.s.visibility : prefer.s.defaultNoteVisibility;
 
-		let visibility = appearNote.visibility;
-		visibility = smallerVisibility(visibility, configuredVisibility);
-		if (appearNote.channel?.isSensitive) {
-			visibility = smallerVisibility(visibility, 'home');
-		}
+	let visibility = appearNote.visibility;
+	visibility = smallerVisibility(visibility, configuredVisibility);
+	if (appearNote.channel?.isSensitive) {
+		visibility = smallerVisibility(visibility, 'home');
+	}
 
-		if (!props.mock && prefer.s.renoteVisibilitySelection) {
-			const result = await confirmRenote(appearNote.id);
-			if (result) return;
+	if (!props.mock && prefer.s.renoteVisibilitySelection) {
+		const result = await confirmRenote(appearNote.id);
+		if (result) return;
 
-			misskeyApi('notes/create', {
-				visibility,
-				renoteId: appearNote.id,
-			}).then(() => {
-				os.toast(i18n.ts.renoted, 'renote');
-			});
-		}
+		misskeyApi('notes/create', {
+			visibility,
+			renoteId: appearNote.id,
+		}).then(() => {
+			os.toast(i18n.ts.renoted, 'renote');
+		});
+	}
 
-		// Add visibility section
-		if (
-			!prefer.s.renoteVisibilitySelection &&
-			appearNote.visibility !== 'specified'
-		) {
-			const result = await confirmRenote(appearNote.id);
-			if (result) return;
-			if (prefer.s.forceRenoteVisibilitySelection !== 'none') {
-				if (appearNote.visibility === 'public' && prefer.s.forceRenoteVisibilitySelection === 'public') { // renote to public
-					misskeyApi('notes/create', {
-						visibility: 'public',
-						renoteId: appearNote.id,
-					}).then(() => {
-						os.toast(i18n.ts.renoted, 'renote');
-					});
-				} else if (['home', 'public'].includes(appearNote.visibility) && prefer.s.forceRenoteVisibilitySelection === 'home') { // renote to home
-					misskeyApi('notes/create', {
-						visibility: 'home',
-						renoteId: appearNote.id,
-					}).then(() => {
-						os.toast(i18n.ts.renoted, 'renote');
-					});
-				} else if (appearNote.visibility === 'followers' && prefer.s.forceRenoteVisibilitySelection === 'followers') { // renote to followers
-					misskeyApi('notes/create', {
-						visibility: 'followers',
-						renoteId: appearNote.id,
-					}).then(() => {
-						os.toast(i18n.ts.renoted, 'renote');
-					});
-				}
-			} else {
-				if (appearNote.visibility === 'public') { // renote to public
-					misskeyApi('notes/create', {
-						visibility: 'public',
-						renoteId: appearNote.id,
-					}).then(() => {
-						os.toast(i18n.ts.renoted, 'renote');
-					});
-				} else if (['home', 'public'].includes(appearNote.visibility)) { // renote to home
-					misskeyApi('notes/create', {
-						visibility: 'home',
-						renoteId: appearNote.id,
-					}).then(() => {
-						os.toast(i18n.ts.renoted, 'renote');
-					});
-				} else if (appearNote.visibility === 'followers') { // renote to followers
-					misskeyApi('notes/create', {
-						visibility: 'followers',
-						renoteId: appearNote.id,
-					}).then(() => {
-						os.toast(i18n.ts.renoted, 'renote');
-					});
-				}
+	// Add visibility section
+	if (
+		!prefer.s.renoteVisibilitySelection &&
+		appearNote.visibility !== 'specified'
+	) {
+		const result = await confirmRenote(appearNote.id);
+		if (result) return;
+		if (prefer.s.forceRenoteVisibilitySelection !== 'none') {
+			if (appearNote.visibility === 'public' && prefer.s.forceRenoteVisibilitySelection === 'public') { // renote to public
+				misskeyApi('notes/create', {
+					visibility: 'public',
+					renoteId: appearNote.id,
+				}).then(() => {
+					os.toast(i18n.ts.renoted, 'renote');
+				});
+			} else if (['home', 'public'].includes(appearNote.visibility) && prefer.s.forceRenoteVisibilitySelection === 'home') { // renote to home
+				misskeyApi('notes/create', {
+					visibility: 'home',
+					renoteId: appearNote.id,
+				}).then(() => {
+					os.toast(i18n.ts.renoted, 'renote');
+				});
+			} else if (appearNote.visibility === 'followers' && prefer.s.forceRenoteVisibilitySelection === 'followers') { // renote to followers
+				misskeyApi('notes/create', {
+					visibility: 'followers',
+					renoteId: appearNote.id,
+				}).then(() => {
+					os.toast(i18n.ts.renoted, 'renote');
+				});
+			}
+		} else {
+			if (appearNote.visibility === 'public') { // renote to public
+				misskeyApi('notes/create', {
+					visibility: 'public',
+					renoteId: appearNote.id,
+				}).then(() => {
+					os.toast(i18n.ts.renoted, 'renote');
+				});
+			} else if (['home', 'public'].includes(appearNote.visibility)) { // renote to home
+				misskeyApi('notes/create', {
+					visibility: 'home',
+					renoteId: appearNote.id,
+				}).then(() => {
+					os.toast(i18n.ts.renoted, 'renote');
+				});
+			} else if (appearNote.visibility === 'followers') { // renote to followers
+				misskeyApi('notes/create', {
+					visibility: 'followers',
+					renoteId: appearNote.id,
+				}).then(() => {
+					os.toast(i18n.ts.renoted, 'renote');
+				});
 			}
 		}
 	}

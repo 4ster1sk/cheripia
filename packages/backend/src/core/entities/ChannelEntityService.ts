@@ -139,7 +139,6 @@ export class ChannelEntityService {
 			usersCount: channel.usersCount,
 			notesCount: channel.notesCount,
 			isSensitive: channel.isSensitive,
-			allowRenoteToExternal: channel.allowRenoteToExternal,
 			host: channel.host, //ローカルユーザーはnullリモートユーザーはstring
 			actorId: channel.actorId ?? undefined, //マイグレすると無い事がある
 

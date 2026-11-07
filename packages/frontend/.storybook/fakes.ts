@@ -41,7 +41,6 @@ export function channel(id = 'somechannelid', name = 'Some Channel', bannerUrl: 
 	usersCount: 1,
 	notesCount: 1,
 	isSensitive: false,
-	allowRenoteToExternal: false,
 	host: null,
 };
 }

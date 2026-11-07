@@ -113,12 +113,6 @@ export const meta = {
 			id: 'b6992544-63e7-67f0-fa7f-32444b1b5306',
 		},
 
-		cannotRenoteOutsideOfChannel: {
-			message: 'Cannot renote outside of channel.',
-			code: 'CANNOT_RENOTE_OUTSIDE_OF_CHANNEL',
-			id: '33510210-8452-094c-6227-4a6c05d99f00',
-		},
-
 		containsProhibitedWords: {
 			message: 'Cannot post because it contains prohibited words.',
 			code: 'CONTAINS_PROHIBITED_WORDS',
@@ -314,10 +308,6 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 						throw new ApiError(meta.errors.cannotRenoteDueToVisibility);
 					} else if (err.id === '48d7a997-da5c-4716-b3c3-92db3f37bf7d') {
 						throw new ApiError(meta.errors.cannotRenoteDueToVisibility);
-					} else if (err.id === 'b060f9a6-8909-4080-9e0b-94d9fa6f6a77') {
-						throw new ApiError(meta.errors.noSuchChannel);
-					} else if (err.id === '7e435f4a-780d-4cfc-a15a-42519bd6fb67') {
-						throw new ApiError(meta.errors.cannotRenoteOutsideOfChannel);
 					} else if (err.id === '60142edb-1519-408e-926d-4f108d27bee0') {
 						throw new ApiError(meta.errors.noSuchReplyTarget);
 					} else if (err.id === 'f089e4e2-c0e7-4f60-8a23-e5a6bf786b36') {

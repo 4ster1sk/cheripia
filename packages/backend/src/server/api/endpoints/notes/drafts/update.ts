@@ -100,12 +100,6 @@ export const meta = {
 			id: 'b6992544-63e7-67f0-fa7f-32444b1b5306',
 		},
 
-		cannotRenoteOutsideOfChannel: {
-			message: 'Cannot renote outside of channel.',
-			code: 'CANNOT_RENOTE_OUTSIDE_OF_CHANNEL',
-			id: '33510210-8452-094c-6227-4a6c05d99f00',
-		},
-
 		containsProhibitedWords: {
 			message: 'Cannot post because it contains prohibited words.',
 			code: 'CONTAINS_PROHIBITED_WORDS',
@@ -140,12 +134,6 @@ export const meta = {
 			message: 'Cannot renote.',
 			code: 'CANNOT_RENOTE',
 			id: '76cc5583-5a14-4ad3-8717-0298507e32db',
-		},
-
-		cannotRenoteToExternal: {
-			message: 'Cannot Renote to External.',
-			code: 'CANNOT_RENOTE_TO_EXTERNAL',
-			id: 'ed1952ac-2d26-4957-8b30-2deda76bedf7',
 		},
 
 		noSuchReply: {
@@ -324,8 +312,6 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 							throw new ApiError(meta.errors.cannotRenoteDueToVisibility);
 						case '6815399a-6f13-4069-b60d-ed5156249d12':
 							throw new ApiError(meta.errors.noSuchChannel);
-						case 'ed1952ac-2d26-4957-8b30-2deda76bedf7':
-							throw new ApiError(meta.errors.cannotRenoteToExternal);
 						case 'c4721841-22fc-4bb7-ad3d-897ef1d375b5':
 							throw new ApiError(meta.errors.noSuchReply);
 						case 'e6c10b57-2c09-4da3-bd4d-eda05d51d140':
@@ -340,8 +326,6 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 							throw new ApiError(meta.errors.cannotReRenote);
 						case '749ee0f6-d3da-459a-bf02-282e2da4292c':
 							throw new ApiError(meta.errors.noSuchReplyTarget);
-						case '33510210-8452-094c-6227-4a6c05d99f00':
-							throw new ApiError(meta.errors.cannotRenoteOutsideOfChannel);
 						case 'aa6e01d3-a85c-669d-758a-76aab43af334':
 							throw new ApiError(meta.errors.containsProhibitedWords);
 						case '4de0363a-3046-481b-9b0f-feff3e211025':

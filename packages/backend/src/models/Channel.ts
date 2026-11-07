@@ -94,11 +94,6 @@ export class MiChannel {
 	})
 	public isSensitive: boolean;
 
-	@Column('boolean', {
-		default: true,
-	})
-	public allowRenoteToExternal: boolean;
-
 	@Column('varchar', {
 		length: 128,
 		nullable: true,

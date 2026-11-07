@@ -371,4 +371,43 @@ describe('Channel', () => {
 			await api('notes/drafts/delete', { draftId }, alice).catch(() => {});
 		});
 	});
+
+	describe('チャンネル外リノート (常時許可)', () => {
+		let channel: misskey.entities.ChannelsCreateResponse;
+		let otherChannel: misskey.entities.ChannelsCreateResponse;
+		let channelNote: misskey.entities.Note;
+
+		beforeAll(async () => {
+			const createRes = await api('channels/create', { name: 'renote-test-channel', username: randomString() }, root);
+			assert.strictEqual(createRes.status, 200);
+			channel = createRes.body;
+			const otherRes = await api('channels/create', { name: 'renote-target-channel', username: randomString() }, root);
+			assert.strictEqual(otherRes.status, 200);
+			otherChannel = otherRes.body;
+			channelNote = await post(alice, { text: 'renote me', channelId: channel.id });
+		});
+
+		test('チャンネル投稿のチャンネル外(TLへの)リノートが成功する', async () => {
+			const res = await api('notes/create', { renoteId: channelNote.id }, alice);
+			assert.strictEqual(res.status, 200);
+			assert.strictEqual(res.body.createdNote.channelId ?? null, null);
+			assert.strictEqual(res.body.createdNote.renoteId, channelNote.id);
+		});
+
+		test('チャンネル投稿の別チャンネルへのリノートが成功する', async () => {
+			const res = await api('notes/create', { renoteId: channelNote.id, channelId: otherChannel.id }, alice);
+			assert.strictEqual(res.status, 200);
+			assert.strictEqual(res.body.createdNote.channelId, otherChannel.id);
+			assert.strictEqual(res.body.createdNote.renoteId, channelNote.id);
+		});
+
+		test('チャンネル投稿のチャンネル外リノートドラフト作成が成功する', async () => {
+			const res = await api('notes/drafts/create', { renoteId: channelNote.id }, alice);
+			assert.strictEqual(res.status, 200);
+			assert.strictEqual(res.body.createdDraft.channelId ?? null, null);
+			assert.strictEqual(res.body.createdDraft.renoteId, channelNote.id);
+
+			await api('notes/drafts/delete', { draftId: res.body.createdDraft.id }, alice).catch(() => {});
+		});
+	});
 });

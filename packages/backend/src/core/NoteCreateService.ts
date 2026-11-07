@@ -372,19 +372,6 @@ export class NoteCreateService implements OnApplicationShutdown {
 				// specified / direct noteはreject
 				throw new IdentifiableError('48d7a997-da5c-4716-b3c3-92db3f37bf7d', 'Renote target visibility');
 			}
-
-			if (renote.channelId && renote.channelId !== data.channelId) {
-				// チャンネルのノートに対しリノート要求がきたとき、チャンネル外へのリノート可否をチェック
-				// リノートのユースケースのうち、チャンネル内→チャンネル外は少数だと考えられるため、JOINはせず必要な時に都度取得する
-				const renoteChannel = await this.channelsRepository.findOneBy({ id: renote.channelId });
-				if (renoteChannel == null) {
-					// リノートしたいノートが書き込まれているチャンネルが無い
-					throw new IdentifiableError('b060f9a6-8909-4080-9e0b-94d9fa6f6a77', 'No such channel');
-				} else if (!renoteChannel.allowRenoteToExternal) {
-					// リノート作成のリクエストだが、対象チャンネルがリノート禁止だった場合
-					throw new IdentifiableError('7e435f4a-780d-4cfc-a15a-42519bd6fb67', 'Channel does not allow renote to external');
-				}
-			}
 		}
 
 		let reply: MiNote | null = null;

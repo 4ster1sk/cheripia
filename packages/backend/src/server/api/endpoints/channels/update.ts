@@ -100,7 +100,6 @@ export const paramDef = {
 		},
 		color: { type: 'string', minLength: 1, maxLength: 16 },
 		isSensitive: { type: 'boolean', nullable: true },
-		allowRenoteToExternal: { type: 'boolean', nullable: true },
 	},
 	required: ['channelId'],
 } as const;
@@ -292,7 +291,6 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 					...(typeof ps.isArchived === 'boolean' ? { isArchived: ps.isArchived } : {}),
 					...(banner !== undefined ? { bannerId: banner?.id ?? null } : {}),
 					...(typeof ps.isSensitive === 'boolean' ? { isSensitive: ps.isSensitive } : {}),
-					...(typeof ps.allowRenoteToExternal === 'boolean' ? { allowRenoteToExternal: ps.allowRenoteToExternal } : {}),
 				});
 			} catch (e) {
 				// DB反映に失敗したらこの処理で新規作成した複製ファイルだけ後始末する（元ファイルは残す）
