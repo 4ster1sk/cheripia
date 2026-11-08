@@ -25,7 +25,10 @@ SPDX-License-Identifier: AGPL-3.0-only
 		</div>
 	</div>
 	<div :class="$style.statusBar">
-		<div v-if="timerVisible" :class="$style.turnTimer">{{ timerLabel }}</div>
+		<div :class="$style.statusBarLeft">
+			<div :class="$style.roundInfo">{{ roundLabel }}</div>
+			<div v-if="timerVisible" :class="$style.turnTimer">{{ timerLabel }}</div>
+		</div>
 		<div :class="$style.doraIndicators">
 			<span :class="$style.doraIndicatorLabel">{{ i18n.ts._mahjong.dora }}</span>
 			<XTile v-for="tile in mj.doraIndicateTiles" :key="tile" :tile="mj$(tile)" variation="1" :doras="[]"/>
@@ -299,7 +302,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 	</div>
 	<div v-if="showKyokuResults" :class="$style.kyokuResult">
 		<div :class="$style.kyokuResultCard">
-			<div :class="$style.kyokuResultTitle">{{ ryuukyokued ? '流局' : '局結果' }}</div>
+			<div :class="$style.kyokuResultTitle">{{ roundLabel }} {{ ryuukyokued ? '流局' : '局結果' }}</div>
 			<div v-if="ryuukyokued">
 				<div v-for="house in houses" :key="house" :class="[$style.kyokuResultRow, $style.kyokuResultRowCompact]">
 					<div :class="$style.kyokuResultHouseRow">
@@ -564,6 +567,10 @@ function houseToUser(house: Mmj.House) {
 function houseLabel(house: Mmj.House): string {
 	return house === 'e' ? i18n.ts._mahjong.east : house === 's' ? i18n.ts._mahjong.south : house === 'w' ? i18n.ts._mahjong.west : i18n.ts._mahjong.north;
 }
+
+const roundLabel = computed(() => {
+	return `${houseLabel(mj.value.round)}${i18n.tsx._mahjong.kyoku({ n: mj.value.kyoku })}`;
+});
 
 function isTenpaiHouse(house: Mmj.House): boolean {
 	return ryuukyokuResult.value?.tenpaiHouses.includes(house) ?? false;
@@ -1291,6 +1298,24 @@ onUnmounted(detachListeners);
 	max-width: 600px;
 	min-height: 44px;
 	margin: 0 auto 8px;
+}
+
+.statusBarLeft {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.roundInfo {
+	padding: 4px 12px;
+	background: color-mix(in srgb, black 55%, transparent);
+	color: #fff;
+	border-radius: 999px;
+	font-size: 80%;
+	font-weight: bold;
+	white-space: nowrap;
+	pointer-events: none;
 }
 
 .turnTimer {

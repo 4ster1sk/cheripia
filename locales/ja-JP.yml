@@ -4333,6 +4333,7 @@ _mahjong:
   callConfirmation: "鳴き確認"
   nextKyokuConfirmation: "次局確認"
   remainingSeconds: "残り {n}s"
+  kyoku: "{n}局"
   waitTiles: "待ち牌"
   tenpai: "テンパイ"
   noten: "ノーテン"

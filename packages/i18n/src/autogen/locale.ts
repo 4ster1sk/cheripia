@@ -16173,6 +16173,10 @@ export interface Locale extends ILocale {
          */
         "remainingSeconds": ParameterizedString<"n">;
         /**
+         * {n}局
+         */
+        "kyoku": ParameterizedString<"n">;
+        /**
          * 待ち牌
          */
         "waitTiles": string;

@@ -126,6 +126,14 @@ export class PlayerGameEngine {
 		return this.state.doraIndicateTiles;
 	}
 
+	public get round(): PlayerState['round'] {
+		return this.state.round;
+	}
+
+	public get kyoku(): number {
+		return this.state.kyoku;
+	}
+
 	public get points(): Record<House, number> {
 		return this.state.points;
 	}
