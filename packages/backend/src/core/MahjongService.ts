@@ -596,6 +596,9 @@ export class MahjongService implements OnApplicationShutdown {
 		const aiHouses = this.getAiHouses(room, mj);
 
 		if (res.ryuukyoku) {
+			// asking を伴わない流局では、最後の捨て牌もクライアントへ通知する
+			// asking を伴う場合は asking 分岐で解決前に dahai を publish 済み
+			this.globalEventService.publishMahjongRoomStream(room.id, 'dahai', { house, tile, riichi });
 			this.globalEventService.publishMahjongRoomStream(room.id, 'ryuukyoku', {});
 			await this.endKyoku(room, mj);
 			return;
