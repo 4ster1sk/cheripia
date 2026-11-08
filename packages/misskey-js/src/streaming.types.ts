@@ -395,6 +395,7 @@ export type Channels = {
 				callee: MahjongHouse;
 				tiles: readonly [number, number, number, number];
 				rinsyan: number;
+				doraIndicateTiles: number[];
 			}) => void;
 			ciied: (payload: {
 				caller: MahjongHouse;
@@ -411,12 +412,14 @@ export type Channels = {
 				house: MahjongHouse;
 				tiles: readonly [number, number, number, number];
 				rinsyan: number;
+				doraIndicateTiles: number[];
 			}) => void;
 			kakanned: (payload: {
 				house: MahjongHouse;
 				tiles: readonly [number, number, number, number];
 				rinsyan: number;
 				from: MahjongHouse;
+				doraIndicateTiles: number[];
 			}) => void;
 			tsumoHora: (payload: {
 				house: MahjongHouse;

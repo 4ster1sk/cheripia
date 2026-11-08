@@ -6,7 +6,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import * as Redis from 'ioredis';
 import * as Reversi from 'misskey-reversi';
-import type { House as MahjongHouse } from 'misskey-mahjong';
+import type { House as MahjongHouse, TileId } from 'misskey-mahjong';
 import type { MahjongRoom } from '@/core/MahjongService.js';
 import type { MiChannel } from '@/models/Channel.js';
 import type { MiUser } from '@/models/User.js';
@@ -293,6 +293,7 @@ export interface MahjongRoomEventTypes {
 		callee: MahjongHouse;
 		tiles: readonly [number, number, number, number];
 		rinsyan: number;
+		doraIndicateTiles: TileId[];
 	};
 	ciied: {
 		caller: MahjongHouse;
@@ -309,12 +310,14 @@ export interface MahjongRoomEventTypes {
 		house: MahjongHouse;
 		tiles: readonly [number, number, number, number];
 		rinsyan: number;
+		doraIndicateTiles: TileId[];
 	};
 	kakanned: {
 		house: MahjongHouse;
 		tiles: readonly [number, number, number, number];
 		rinsyan: number;
 		from: MahjongHouse;
+		doraIndicateTiles: TileId[];
 	};
 	tsumoHora: {
 		house: MahjongHouse;

@@ -15,9 +15,6 @@ import { IdService } from '@/core/IdService.js';
 import { Packed } from '@/misc/json-schema.js';
 import type { OnApplicationShutdown } from '@nestjs/common';
 
-const CALL_AND_RON_ASKING_TIMEOUT_MS = 1000 * 10; // 10sec
-const NEXT_KYOKU_CONFIRMATION_TIMEOUT_MS = 1000 * 15; // 15sec
-
 const EAST_ROUND_KYOKU_COUNT = 4;
 
 export type MahjongRoom = {
@@ -81,6 +78,60 @@ function getHouseOfUserId(room: MahjongRoom, mj: Mmj.MasterGameEngine, userId: M
 	if (userId === room.user3Id) return mj.user3House;
 	if (userId === room.user4Id) return mj.user4House;
 	throw new Error('user is not a member of the room');
+}
+
+/**
+ * チーのパターンと捨て牌から、成立に必要な順子を返す
+ */
+function getCiiTilesForPattern(pattern: 'x__' | '_x_' | '__x', targetTile: Mmj.TileType): [Mmj.TileType, Mmj.TileType, Mmj.TileType] | null {
+	switch (pattern) {
+		case 'x__': {
+			const next1 = Mmj.NEXT_TILE_FOR_SHUNTSU[targetTile];
+			const next2 = next1 != null ? Mmj.NEXT_TILE_FOR_SHUNTSU[next1] : null;
+			return next1 != null && next2 != null ? [targetTile, next1, next2] : null;
+		}
+		case '_x_': {
+			const prev1 = Mmj.PREV_TILE_FOR_SHUNTSU[targetTile];
+			const next1 = Mmj.NEXT_TILE_FOR_SHUNTSU[targetTile];
+			return prev1 != null && next1 != null ? [prev1, targetTile, next1] : null;
+		}
+		case '__x': {
+			const prev1 = Mmj.PREV_TILE_FOR_SHUNTSU[targetTile];
+			const prev2 = prev1 != null ? Mmj.PREV_TILE_FOR_SHUNTSU[prev1] : null;
+			return prev1 != null && prev2 != null ? [prev2, prev1, targetTile] : null;
+		}
+		default:
+			return null;
+	}
+}
+
+function getLastHoDiscardTileType(mj: Mmj.MasterGameEngine, callee: Mmj.House): Mmj.TileType | null {
+	return mj.hoTileTypes[callee].at(-1) ?? null;
+}
+
+/**
+ * 1つの捨て牌に対して同じプレイヤーに複数の asking が発生することがある。
+ * プレイヤーが1つを選択したら、同じプレイヤーに発生している他の asking は辞退として扱う。
+ * 他のプレイヤーの回答には触れない。
+ */
+function declineOtherAskingAnswers(
+	answers: CallingAnswers,
+	house: Mmj.House,
+	mj: Mmj.MasterGameEngine,
+	accepted: 'ron' | 'pon' | 'cii' | 'kan',
+): void {
+	if (accepted !== 'ron' && mj.askings.ron?.callers.includes(house)) {
+		answers.ron[house] = false;
+	}
+	if (accepted !== 'pon' && mj.askings.pon?.caller === house) {
+		answers.pon = false;
+	}
+	if (accepted !== 'cii' && mj.askings.cii?.caller === house) {
+		answers.cii = false;
+	}
+	if (accepted !== 'kan' && mj.askings.kan?.caller === house) {
+		answers.kan = false;
+	}
 }
 
 @Injectable()
@@ -471,7 +522,7 @@ export class MahjongService implements OnApplicationShutdown {
 				this.waitForTurn(room, res.turn, mj);
 				break;
 			case 'kanned':
-				this.globalEventService.publishMahjongRoomStream(room.id, 'kanned', { caller: res.caller, callee: res.callee, tiles: res.tiles, rinsyan: res.rinsyan });
+				this.globalEventService.publishMahjongRoomStream(room.id, 'kanned', { caller: res.caller, callee: res.callee, tiles: res.tiles, rinsyan: res.rinsyan, doraIndicateTiles: mj.doraIndicateTiles });
 				this.waitForTurn(room, res.turn, mj);
 				break;
 			case 'ciied':
@@ -519,7 +570,7 @@ export class MahjongService implements OnApplicationShutdown {
 			}
 			const current = JSON.parse(confirmationRaw) as NextKyokuConfirmation;
 			const allConfirmed = current.user1 && current.user2 && current.user3 && current.user4;
-			if (allConfirmed || (Date.now() - waitingStartedAt > NEXT_KYOKU_CONFIRMATION_TIMEOUT_MS)) {
+			if (allConfirmed || (Date.now() - waitingStartedAt > Mmj.NEXT_KYOKU_CONFIRMATION_TIMEOUT_MS)) {
 				clearInterval(interval);
 				this.removeTimer(this.otherTimers, room.id, interval);
 				await this.redisClient.del(`mahjong:gameNextKyokuConfirmation:${room.id}`);
@@ -567,6 +618,9 @@ export class MahjongService implements OnApplicationShutdown {
 		const aiHouses = this.getAiHouses(room, mj);
 
 		if (res.ryuukyoku) {
+			// asking を伴わない流局では、最後の捨て牌もクライアントへ通知する
+			// asking を伴う場合は asking 分岐で解決前に dahai を publish 済み
+			this.globalEventService.publishMahjongRoomStream(room.id, 'dahai', { house, tile, riichi });
 			this.globalEventService.publishMahjongRoomStream(room.id, 'ryuukyoku', {});
 			await this.endKyoku(room, mj);
 			return;
@@ -596,13 +650,13 @@ export class MahjongService implements OnApplicationShutdown {
 				answers.kan = mj.riichis[res.canKanHouse] ? false : null;
 			}
 
-			if (res.canPonHouse != null && aiHouses.includes(res.canPonHouse)) {
+			if (res.canPonHouse != null && !mj.riichis[res.canPonHouse] && aiHouses.includes(res.canPonHouse)) {
 				answers.pon = Math.random() < 0.5;
 			}
 			if (res.canCiiHouse != null && aiHouses.includes(res.canCiiHouse)) {
 				answers.cii = false;
 			}
-			if (res.canKanHouse != null && aiHouses.includes(res.canKanHouse)) {
+			if (res.canKanHouse != null && !mj.riichis[res.canKanHouse] && aiHouses.includes(res.canKanHouse)) {
 				answers.kan = Math.random() < 0.5;
 			}
 			for (const h of res.canRonHouses) {
@@ -630,7 +684,7 @@ export class MahjongService implements OnApplicationShutdown {
 					(res.canRonHouses.includes('w') && currentAnswers.ron.w == null) ||
 					(res.canRonHouses.includes('n') && currentAnswers.ron.n == null)
 				);
-				if (allAnswered || (Date.now() - waitingStartedAt > CALL_AND_RON_ASKING_TIMEOUT_MS)) {
+				if (allAnswered || (Date.now() - waitingStartedAt > Mmj.CALL_AND_RON_ASKING_TIMEOUT_MS)) {
 					clearInterval(interval);
 					this.removeTimer(this.otherTimers, room.id, interval);
 					await this.redisClient.del(`mahjong:gameCallingAsking:${room.id}`);
@@ -777,7 +831,7 @@ export class MahjongService implements OnApplicationShutdown {
 			room.gameState = mj.getState();
 			await this.clearTurnWaitingTimer(room.id);
 			await this.saveRoom(room);
-			this.globalEventService.publishMahjongRoomStream(room.id, 'ankanned', { house: myHouse, tiles: res.tiles, rinsyan: res.rinsyan });
+			this.globalEventService.publishMahjongRoomStream(room.id, 'ankanned', { house: myHouse, tiles: res.tiles, rinsyan: res.rinsyan, doraIndicateTiles: mj.doraIndicateTiles });
 			this.waitForTurn(room, myHouse, mj);
 		} catch (err) {
 			console.error('mahjong: failed to ankan', err);
@@ -799,7 +853,7 @@ export class MahjongService implements OnApplicationShutdown {
 			room.gameState = mj.getState();
 			await this.clearTurnWaitingTimer(room.id);
 			await this.saveRoom(room);
-			this.globalEventService.publishMahjongRoomStream(room.id, 'kakanned', { house: myHouse, tiles: res.tiles, rinsyan: res.rinsyan, from: res.from });
+			this.globalEventService.publishMahjongRoomStream(room.id, 'kakanned', { house: myHouse, tiles: res.tiles, rinsyan: res.rinsyan, from: res.from, doraIndicateTiles: mj.doraIndicateTiles });
 			this.waitForTurn(room, myHouse, mj);
 		} catch (err) {
 			console.error('mahjong: failed to kakan', err);
@@ -848,6 +902,8 @@ export class MahjongService implements OnApplicationShutdown {
 		await this.updateAnswer(roomId, user, (answers, house, mj) => {
 			if (mj.askings.ron == null || !mj.askings.ron.callers.includes(house)) return false;
 			answers.ron[house] = true;
+			// ロンを選択したら、同じプレイヤーのポン・チー・カンは辞退扱いにする
+			declineOtherAskingAnswers(answers, house, mj, 'ron');
 			return true;
 		});
 	}
@@ -855,8 +911,25 @@ export class MahjongService implements OnApplicationShutdown {
 	@bindThis
 	public async commit_pon(roomId: MahjongRoom['id'], user: MiUser): Promise<void> {
 		await this.updateAnswer(roomId, user, (answers, house, mj) => {
-			if (mj.askings.pon == null || mj.askings.pon.caller !== house) return false;
+			const asking = mj.askings.pon;
+			if (asking == null || asking.caller !== house) return false;
+
+			// リーチ中は鳴けない
+			if (mj.riichis[house]) {
+				answers.pon = false;
+				return true;
+			}
+
+			// クライアントの申告を信頼せず、手牌に2枚あることを再検証する
+			const targetTile = getLastHoDiscardTileType(mj, asking.callee);
+			if (targetTile == null || mj.handTileTypes[house].filter(t => t === targetTile).length < 2) {
+				answers.pon = false;
+				return true;
+			}
+
 			answers.pon = true;
+			// ポンが成立したら、同じプレイヤーのロン・チー・カンは辞退扱いにする
+			declineOtherAskingAnswers(answers, house, mj, 'pon');
 			return true;
 		});
 	}
@@ -864,8 +937,25 @@ export class MahjongService implements OnApplicationShutdown {
 	@bindThis
 	public async commit_kan(roomId: MahjongRoom['id'], user: MiUser): Promise<void> {
 		await this.updateAnswer(roomId, user, (answers, house, mj) => {
-			if (mj.askings.kan == null || mj.askings.kan.caller !== house) return false;
+			const asking = mj.askings.kan;
+			if (asking == null || asking.caller !== house) return false;
+
+			// リーチ中は鳴けない
+			if (mj.riichis[house]) {
+				answers.kan = false;
+				return true;
+			}
+
+			// クライアントの申告を信頼せず、手牌に3枚あることを再検証する
+			const targetTile = getLastHoDiscardTileType(mj, asking.callee);
+			if (targetTile == null || mj.handTileTypes[house].filter(t => t === targetTile).length < 3) {
+				answers.kan = false;
+				return true;
+			}
+
 			answers.kan = true;
+			// カンが成立したら、同じプレイヤーのロン・ポン・チーは辞退扱いにする
+			declineOtherAskingAnswers(answers, house, mj, 'kan');
 			return true;
 		});
 	}
@@ -873,8 +963,34 @@ export class MahjongService implements OnApplicationShutdown {
 	@bindThis
 	public async commit_cii(roomId: MahjongRoom['id'], user: MiUser, pattern: 'x__' | '_x_' | '__x'): Promise<void> {
 		await this.updateAnswer(roomId, user, (answers, house, mj) => {
-			if (mj.askings.cii == null || mj.askings.cii.caller !== house) return false;
-			answers.cii = pattern;
+			const asking = mj.askings.cii;
+			if (asking == null || asking.caller !== house) return false;
+
+			// リーチ中は鳴けない
+			if (mj.riichis[house]) {
+				answers.cii = false;
+				return true;
+			}
+
+			// クライアントの申告したパターンが実際に成立するか検証する。
+			// 不正なパターンでも例外を投げず、不成立として安全に解決する。
+			const targetTile = getLastHoDiscardTileType(mj, asking.callee);
+			if (targetTile == null) {
+				answers.cii = false;
+				return true;
+			}
+			const expectedTiles = getCiiTilesForPattern(pattern, targetTile);
+			const availablePatterns = Mmj.getAvailableCiiPatterns(mj.handTileTypes[house], targetTile);
+			const isValid = expectedTiles != null && availablePatterns.some(tiles =>
+				tiles[0] === expectedTiles[0] && tiles[1] === expectedTiles[1] && tiles[2] === expectedTiles[2]);
+
+			if (isValid) {
+				answers.cii = pattern;
+				// チーが成立したら、同じプレイヤーのロン・ポン・カンは辞退扱いにする
+				declineOtherAskingAnswers(answers, house, mj, 'cii');
+			} else {
+				answers.cii = false;
+			}
 			return true;
 		});
 	}

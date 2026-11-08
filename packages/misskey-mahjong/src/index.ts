@@ -11,3 +11,5 @@ export type { MasterState } from './engine.master.js';
 export { PlayerGameEngine } from './engine.player.js';
 export type { PlayerState } from './engine.player.js';
 export { convertHuroForCalcYaku, getWaitTiles } from './common.yaku.js';
+export { calcFu } from './common.fu.js';
+export type { FuCalcEnv } from './common.fu.js';

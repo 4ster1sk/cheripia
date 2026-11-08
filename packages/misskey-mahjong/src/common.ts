@@ -3,6 +3,16 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
+/**
+ * 鳴き・ロンの回答を待つ時間 (ミリ秒)
+ */
+export const CALL_AND_RON_ASKING_TIMEOUT_MS = 1000 * 10;
+
+/**
+ * 次局確認を待つ時間 (ミリ秒)
+ */
+export const NEXT_KYOKU_CONFIRMATION_TIMEOUT_MS = 1000 * 15;
+
 // NOTE: アガリ形の判定に使われるため並び順が重要
 // 具体的には、文字列としてソートした際に同じ牌種の1~9が順に並んでいる必要がある
 // また、字牌は最後にある必要がある
@@ -127,6 +137,7 @@ export type Huro = {
 export type PointFactor = {
 	isYakuman: false;
 	fan: number;
+	fu: number;
 } | {
 	isYakuman: true;
 	value: number;
@@ -313,40 +324,31 @@ export function isSameNumberTile(a: TileType, b: TileType): boolean {
 	return aNumber === bNumber;
 }
 
-export function fanToPoint(fan: number, isParent: boolean): number {
-	let point;
+function ceil100(point: number): number {
+	return Math.ceil(point / 100) * 100;
+}
 
-	if (fan >= 13) {
-		point = 32000;
-	} else if (fan >= 11) {
-		point = 24000;
-	} else if (fan >= 8) {
-		point = 16000;
-	} else if (fan >= 6) {
-		point = 12000;
-	} else if (fan >= 4) {
-		point = 8000;
-	} else if (fan >= 3) {
-		point = 4000;
-	} else if (fan >= 2) {
-		point = 2000;
-	} else {
-		point = 1000;
-	}
-
-	if (isParent) {
-		point *= 1.5;
-	}
-
-	return point;
+/**
+ * 基本点を計算する。
+ */
+function calcBasePoint(fan: number, fu: number): number {
+	if (fan >= 13) return 8000;
+	if (fan >= 11) return 6000;
+	if (fan >= 8) return 4000;
+	if (fan >= 6) return 3000;
+	if (fan >= 5) return 2000;
+	if (fan >= 4 && fu >= 40) return 2000;
+	if (fan >= 3 && fu >= 70) return 2000;
+	return Math.min(fu * 2 ** (2 + fan), 2000);
 }
 
 export function calcPoint(factor: PointFactor, isParent: boolean, doraCount = 0): number {
 	if (factor.isYakuman) {
 		return 32000 * factor.value * (isParent ? 1.5 : 1);
-	} else {
-		return fanToPoint(factor.fan + doraCount, isParent);
 	}
+
+	const basePoint = calcBasePoint(factor.fan + doraCount, factor.fu);
+	return ceil100(basePoint * (isParent ? 6 : 4));
 }
 
 export function calcOwnedDoraCount(handTiles: TileType[], huros: Huro[], doras: TileType[]): number {
@@ -355,10 +357,9 @@ export function calcOwnedDoraCount(handTiles: TileType[], huros: Huro[], doras: 
 		if (doras.includes(t)) count++;
 	}
 	for (const huro of huros) {
-		if (huro.type === 'pon' && includes(doras, huro.tiles[0])) count += 3;
-		if (huro.type === 'cii') count += huro.tiles.filter(t => includes(doras, t)).length;
-		if (huro.type === 'minkan' && includes(doras, huro.tiles[0])) count += 4;
-		if (huro.type === 'ankan' && includes(doras, huro.tiles[0])) count += 4;
+		for (const tid of huro.tiles) {
+			if (doras.includes(findTileByIdOrFail(tid).t)) count++;
+		}
 	}
 	return count;
 }
@@ -386,17 +387,27 @@ export function calcTsumoHoraPointDeltas(house: House, fansOrFactor: number | Po
 		n: 0,
 	};
 
-	const point = typeof fansOrFactor === 'number' ? fanToPoint(fansOrFactor + doraCount, isParent) : calcPoint(fansOrFactor, isParent, doraCount);
-	deltas[house] = point;
+	let basePoint: number;
+	if (typeof fansOrFactor === 'number') {
+		// 翻数だけ指定された場合は30符として計算する(後方互換)
+		basePoint = calcBasePoint(fansOrFactor + doraCount, 30);
+	} else if (fansOrFactor.isYakuman) {
+		basePoint = 8000 * fansOrFactor.value;
+	} else {
+		basePoint = calcBasePoint(fansOrFactor.fan + doraCount, fansOrFactor.fu);
+	}
+
 	if (isParent) {
-		const childPoint = Math.ceil(point / 3);
+		const childPoint = ceil100(basePoint * 2);
+		deltas.e = childPoint * 3;
 		deltas.s = -childPoint;
 		deltas.w = -childPoint;
 		deltas.n = -childPoint;
 	} else {
-		const parentPoint = Math.ceil(point / 2);
+		const parentPoint = ceil100(basePoint * 2);
+		const otherPoint = ceil100(basePoint);
+		deltas[house] = parentPoint + otherPoint * 2;
 		deltas.e = -parentPoint;
-		const otherPoint = Math.ceil(point / 4);
 		if (house === 's') {
 			deltas.w = -otherPoint;
 			deltas.n = -otherPoint;

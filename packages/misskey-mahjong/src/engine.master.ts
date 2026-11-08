@@ -7,6 +7,7 @@ import { TileType, House, Huro, TileId } from './common.js';
 import * as Common from './common.js';
 import { PlayerState } from './engine.player.js';
 import { calcYakusWithDetail, convertHuroForCalcYaku, isAgarikeiWithHuros, YakuData, YakuSet } from './common.yaku.js';
+import { calcFu } from './common.fu.js';
 
 export const INITIAL_POINT = 25000;
 
@@ -314,6 +315,10 @@ export class MasterGameEngine {
 		return this.stateManager.doras;
 	}
 
+	public get doraIndicateTiles(): TileId[] {
+		return this.$state.kingTiles.slice(0, this.$state.activatedDorasCount);
+	}
+
 	public get handTiles(): Record<House, TileId[]> {
 		return this.stateManager.handTiles;
 	}
@@ -490,6 +495,9 @@ export class MasterGameEngine {
 
 		if (riichi) {
 			if (tx.$state.riichis[house]) throw new Error('Already riichi');
+			if (tx.$state.huros[house].some(huro => Common.includes(Common.CALL_HURO_TYPES, huro.type))) {
+				throw new Error('Cannot riichi with call huros');
+			}
 			const tempHandTiles = [...tx.handTileTypes[house]];
 			tempHandTiles.splice(tempHandTiles.indexOf($type(tid)), 1);
 			if (!Common.isTenpai(tempHandTiles)) throw new Error('Not tenpai');
@@ -629,11 +637,21 @@ export class MasterGameEngine {
 	public commit_kakan(house: House, tid: TileId) {
 		const tx = this.startTransaction();
 
-		const pon = tx.$state.huros[house].find(h => h.type === 'pon' && $type(h.tiles[0]) === $type(tid)) as Huro & { type: 'pon' };
-		if (pon == null) throw new Error('No such pon');
-		tx.$state.handTiles[house].splice(tx.$state.handTiles[house].indexOf(tid), 1);
+		if (tx.$state.turn !== house) throw new Error('Not your turn');
+		if (tx.$state.riichis[house]) throw new Error('Cannot kakan during riichi');
+
+		const huros = tx.$state.huros[house];
+		const ponIndex = huros.findIndex(h => h.type === 'pon' && $type(h.tiles[0]) === $type(tid));
+		if (ponIndex === -1) throw new Error('No such pon');
+		const pon = huros[ponIndex] as Huro & { type: 'pon' };
+
+		const handIndex = tx.$state.handTiles[house].indexOf(tid);
+		if (handIndex === -1) throw new Error('No such tile in your hand');
+		tx.$state.handTiles[house].splice(handIndex, 1);
+
 		const tiles = [tid, ...pon.tiles] as const;
-		tx.$state.huros[house].push({ type: 'minkan', tiles: tiles, from: pon.from });
+		// 加槓は元のポンをミンカンに置換する (面子数・枚数を増やさない)
+		huros[ponIndex] = { type: 'minkan', tiles: tiles, from: pon.from };
 
 		tx.clearFirstTurnAndIppatsus();
 
@@ -652,6 +670,8 @@ export class MasterGameEngine {
 
 	public commit_ankan(house: House, tid: TileId) {
 		const tx = this.startTransaction();
+
+		if (tx.$state.turn !== house) throw new Error('Not your turn');
 
 		const t1 = tx.$state.handTiles[house].filter(t => $type(t) === $type(tid)).at(0);
 		if (t1 == null) throw new Error('No such tile');
@@ -691,15 +711,18 @@ export class MasterGameEngine {
 
 		if (tx.$state.turn !== house) throw new Error('Not your turn');
 
-		const huros = tx.$state.huros[house].map(convertHuroForCalcYaku);
-		if (!isAgarikeiWithHuros(tx.handTileTypes[house], huros)) throw new Error('Not an agari hand');
+		const handTiles = tx.handTileTypes[house];
+		const agariTile = handTiles.at(-1)!;
+		const huros = tx.$state.huros[house];
+		const hurosForYaku = huros.map(convertHuroForCalcYaku);
+		if (!isAgarikeiWithHuros(handTiles, hurosForYaku)) throw new Error('Not an agari hand');
 
 		const yakus = calcYakusWithDetail({
 			seatWind: house,
-			fieldWind: this.$state.round,
-			handTiles: tx.handTileTypes[house],
-			huros,
-			tsumoTile: tx.handTileTypes[house].at(-1)!,
+			fieldWind: tx.$state.round,
+			handTiles,
+			huros: hurosForYaku,
+			tsumoTile: agariTile,
 			ronTile: null,
 			firstTurn: tx.$state.firstTurnFlags[house],
 			riichi: tx.$state.riichis[house],
@@ -708,11 +731,27 @@ export class MasterGameEngine {
 			rinshan: tx.$state.rinshanFlags[house],
 			haitei: tx.$state.tiles.length === 0,
 		});
-		const doraCount =
-			Common.calcOwnedDoraCount(tx.handTileTypes[house], tx.$state.huros[house], tx.doras) +
-			Common.calcRedDoraCount(tx.$state.handTiles[house], tx.$state.huros[house]);
 		if (yakus.yakuNames.length === 0) throw new Error('No yaku');
-		const pointDeltas = Common.calcTsumoHoraPointDeltas(house, yakus, doraCount);
+		const doraCount =
+			Common.calcOwnedDoraCount(handTiles, huros, tx.doras) +
+			Common.calcRedDoraCount(tx.$state.handTiles[house], huros);
+		const factor: Common.PointFactor = yakus.isYakuman
+			? { isYakuman: true, value: yakus.value }
+			: {
+				isYakuman: false,
+				fan: yakus.fan,
+				fu: calcFu({
+					handTiles,
+					huros,
+					agariTile,
+					isTsumo: true,
+					seatWind: house,
+					fieldWind: tx.$state.round,
+					yakuNames: yakus.yakuNames,
+					isYakuman: yakus.isYakuman,
+				}),
+			};
+		const pointDeltas = Common.calcTsumoHoraPointDeltas(house, factor, doraCount);
 		tx.$state.points.e += pointDeltas.e;
 		tx.$state.points.s += pointDeltas.s;
 		tx.$state.points.w += pointDeltas.w;
@@ -756,11 +795,13 @@ export class MasterGameEngine {
 			const yakus: { [K in House]?: YakuSet } = Object.fromEntries(callers.map(house => {
 				const ronTileId = tx.$state.hoTiles[callee].at(-1)!;
 				const ronTile = $type(ronTileId);
+				const handTiles = tx.handTileTypes[house].concat([ronTile]);
+				const huros = tx.$state.huros[house];
 				const yakus = calcYakusWithDetail({
 					seatWind: house,
-			fieldWind: this.$state.round,
-					handTiles: tx.handTileTypes[house].concat([ronTile]),
-					huros: tx.$state.huros[house].map(convertHuroForCalcYaku),
+					fieldWind: tx.$state.round,
+					handTiles,
+					huros: huros.map(convertHuroForCalcYaku),
 					tsumoTile: null,
 					ronTile,
 					firstTurn: tx.$state.firstTurnFlags[house],
@@ -770,9 +811,25 @@ export class MasterGameEngine {
 					hotei: tx.$state.tiles.length === 0,
 				});
 				const doraCount =
-					Common.calcOwnedDoraCount(tx.handTileTypes[house].concat([ronTile]), tx.$state.huros[house], tx.doras) +
-					Common.calcRedDoraCount(tx.$state.handTiles[house].concat([ronTileId]), tx.$state.huros[house]);
-				const point = Common.calcPoint(yakus, house === 'e', doraCount);
+					Common.calcOwnedDoraCount(handTiles, huros, tx.doras) +
+					Common.calcRedDoraCount(tx.$state.handTiles[house].concat([ronTileId]), huros);
+				const factor: Common.PointFactor = yakus.isYakuman
+					? { isYakuman: true, value: yakus.value }
+					: {
+						isYakuman: false,
+						fan: yakus.fan,
+						fu: calcFu({
+							handTiles,
+							huros,
+							agariTile: ronTile,
+							isTsumo: false,
+							seatWind: house,
+							fieldWind: tx.$state.round,
+							yakuNames: yakus.yakuNames,
+							isYakuman: yakus.isYakuman,
+						}),
+					};
+				const point = Common.calcPoint(factor, house === 'e', doraCount);
 				tx.$state.points[callee] -= point;
 				tx.$state.points[house] += point;
 				if (doLog) {
@@ -791,7 +848,7 @@ export class MasterGameEngine {
 				turn: null,
 				yakus,
 			};
-		} else if (kan != null && answers.kan) {
+		} else if (kan != null && answers.kan && !tx.$state.riichis[kan.caller]) {
 			// 大明槓
 
 			const tile = tx.$state.hoTiles[kan.callee].pop()!;
@@ -826,7 +883,7 @@ export class MasterGameEngine {
 				rinsyan,
 				turn: tx.$state.turn,
 			};
-		} else if (pon != null && answers.pon) {
+		} else if (pon != null && answers.pon && !tx.$state.riichis[pon.caller]) {
 			const tile = tx.$state.hoTiles[pon.callee].pop()!;
 			const t1 = tx.$state.handTiles[pon.caller].filter(t => $type(t) === $type(tile)).at(0);
 			if (t1 == null) throw new Error('No such tile');
@@ -852,7 +909,21 @@ export class MasterGameEngine {
 				tiles: tiles,
 				turn: tx.$state.turn,
 			};
-		} else if (cii != null && answers.cii) {
+		} else if (cii != null && answers.cii && !tx.$state.riichis[cii.caller]) {
+			const ciiTile = tx.$state.hoTiles[cii.callee].at(-1);
+			if (ciiTile == null) throw new Error('No such tile');
+			const ciiTileType = $type(ciiTile);
+			const availableCiiPatterns = Common.getAvailableCiiPatterns(tx.handTileTypes[cii.caller], ciiTileType);
+			const isValidCiiPattern = availableCiiPatterns.some(tiles => {
+				switch (answers.cii) {
+					case 'x__': return tiles[0] === ciiTileType;
+					case '_x_': return tiles[1] === ciiTileType;
+					case '__x': return tiles[2] === ciiTileType;
+					default: return false;
+				}
+			});
+			if (!isValidCiiPattern) throw new Error('Invalid cii pattern');
+
 			const tile = tx.$state.hoTiles[cii.callee].pop()!;
 			let tiles: [TileId, TileId, TileId];
 
@@ -953,6 +1024,7 @@ export class MasterGameEngine {
 		} : huro);
 
 		const askings = this.$state.askings;
+		const canCall = !this.$state.riichis[house];
 
 		return {
 			user1House: this.$state.user1House,
@@ -1020,9 +1092,9 @@ export class MasterGameEngine {
 			},
 			latestDahaiedTile: null,
 			turn: this.$state.turn,
-			canPon: askings.pon?.caller === house ? { callee: askings.pon.callee } : null,
-			canCii: askings.cii?.caller === house ? { callee: askings.cii.callee } : null,
-			canKan: askings.kan?.caller === house ? { callee: askings.kan.callee } : null,
+			canPon: canCall && askings.pon?.caller === house ? { callee: askings.pon.callee } : null,
+			canCii: canCall && askings.cii?.caller === house ? { callee: askings.cii.callee } : null,
+			canKan: canCall && askings.kan?.caller === house ? { callee: askings.kan.callee } : null,
 			canRon: askings.ron?.callers.includes(house) ? { callee: askings.ron.callee } : null,
 		};
 	}
