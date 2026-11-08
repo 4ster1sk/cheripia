@@ -602,3 +602,39 @@ describe('Master game engine state transitions', () => {
 		});
 	});
 });
+
+describe('Master game engine player state', () => {
+	const createState = (riichi: boolean): MasterState => MasterGameEngine.createInitialState({
+		riichis: {
+			e: riichi,
+			s: false,
+			w: false,
+			n: false,
+		},
+		askings: {
+			ron: { callee: 's', callers: ['e'] },
+			pon: { callee: 's', caller: 'e' },
+			cii: { callee: 'n', caller: 'e' },
+			kan: { callee: 'w', caller: 'e' },
+		},
+	});
+
+	it('hides call options for a riichi player but keeps ron', () => {
+		const player = new MasterGameEngine(createState(true)).createPlayerState(1);
+
+		expect(player.canPon).toBeNull();
+		expect(player.canCii).toBeNull();
+		expect(player.canKan).toBeNull();
+		// リーチ中でもロンは可能
+		expect(player.canRon).toEqual({ callee: 's' });
+	});
+
+	it('shows call options for a non-riichi player', () => {
+		const player = new MasterGameEngine(createState(false)).createPlayerState(1);
+
+		expect(player.canPon).toEqual({ callee: 's' });
+		expect(player.canCii).toEqual({ callee: 'n' });
+		expect(player.canKan).toEqual({ callee: 'w' });
+		expect(player.canRon).toEqual({ callee: 's' });
+	});
+});

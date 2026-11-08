@@ -1024,6 +1024,7 @@ export class MasterGameEngine {
 		} : huro);
 
 		const askings = this.$state.askings;
+		const canCall = !this.$state.riichis[house];
 
 		return {
 			user1House: this.$state.user1House,
@@ -1091,9 +1092,9 @@ export class MasterGameEngine {
 			},
 			latestDahaiedTile: null,
 			turn: this.$state.turn,
-			canPon: askings.pon?.caller === house ? { callee: askings.pon.callee } : null,
-			canCii: askings.cii?.caller === house ? { callee: askings.cii.callee } : null,
-			canKan: askings.kan?.caller === house ? { callee: askings.kan.callee } : null,
+			canPon: canCall && askings.pon?.caller === house ? { callee: askings.pon.callee } : null,
+			canCii: canCall && askings.cii?.caller === house ? { callee: askings.cii.callee } : null,
+			canKan: canCall && askings.kan?.caller === house ? { callee: askings.kan.callee } : null,
 			canRon: askings.ron?.callers.includes(house) ? { callee: askings.ron.callee } : null,
 		};
 	}
