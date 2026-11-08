@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { CALL_HURO_TYPES, CHAR_TILES, FourMentsuOneJyantou, House, MANZU_TILES, PINZU_TILES, SOUZU_TILES, TileType, YAOCHU_TILES, TILE_TYPES, analyzeFourMentsuOneJyantou, isAgarikei, isShuntu, isManzu, isPinzu, isSameNumberTile, isSouzu, isKotsu, includes, TERMINAL_TILES, mentsuEquals, Huro, TILE_ID_MAP } from './common.js';
+import { CALL_HURO_TYPES, CHAR_TILES, FourMentsuOneJyantou, House, MANZU_TILES, PINZU_TILES, SOUZU_TILES, TileType, YAOCHU_TILES, TILE_TYPES, SHUNTU_PATTERNS, analyzeFourMentsuOneJyantou, isAgarikei, isShuntu, isManzu, isPinzu, isSameNumberTile, isSouzu, isKotsu, includes, TERMINAL_TILES, mentsuEquals, Huro, TILE_ID_MAP } from './common.js';
 import { calcWaitPatterns, isRyanmen, isToitsu, FourMentsuOneJyantouWithWait } from './common.fu.js';
 
 const RYUISO_TILES: TileType[] = ['s2', 's3', 's4', 's6', 's8', 'hatsu'];
@@ -96,23 +96,57 @@ type Minkan = {
 
 export type HuroForCalcYaku = Pon | Cii | Ankan | Minkan;
 
-export function isAgarikeiWithHuros(handTiles: TileType[], huros: HuroForCalcYaku[]): boolean {
-	const tiles = [...handTiles];
-	for (const huro of huros) {
-		switch (huro.type) {
-			case 'pon':
-				tiles.push(huro.tile, huro.tile, huro.tile);
-				break;
-			case 'cii':
-				tiles.push(...huro.tiles);
-				break;
-			case 'ankan':
-			case 'minkan':
-				tiles.push(huro.tile, huro.tile, huro.tile);
-				break;
-		}
+function canFormMentsu(tiles: TileType[]): boolean {
+	if (tiles.length === 0) return true;
+
+	const sorted = [...tiles].sort((a, b) => TILE_TYPES.indexOf(a) - TILE_TYPES.indexOf(b));
+	const first = sorted[0];
+	const count = sorted.filter(tile => tile === first).length;
+
+	if (count >= 3) {
+		const rest = [...sorted];
+		for (let i = 0; i < 3; i++) rest.splice(rest.indexOf(first), 1);
+		if (canFormMentsu(rest)) return true;
 	}
-	return isAgarikei(tiles);
+
+	const second = TILE_TYPES[TILE_TYPES.indexOf(first) + 1];
+	const third = TILE_TYPES[TILE_TYPES.indexOf(first) + 2];
+	if (second != null && third != null && sorted.includes(second) && sorted.includes(third) && SHUNTU_PATTERNS.some(pattern => mentsuEquals(pattern, [first, second, third]))) {
+		const rest = [...sorted];
+		rest.splice(rest.indexOf(first), 1);
+		rest.splice(rest.indexOf(second), 1);
+		rest.splice(rest.indexOf(third), 1);
+		if (canFormMentsu(rest)) return true;
+	}
+
+	return false;
+}
+
+function isConcealedAgari(handTiles: TileType[]): boolean {
+	if (handTiles.length < 2 || handTiles.length % 3 !== 2) return false;
+
+	const pairCandidates = [...new Set(handTiles)].filter(tile => handTiles.filter(t => t === tile).length >= 2);
+	for (const pair of pairCandidates) {
+		const rest = [...handTiles];
+		rest.splice(rest.indexOf(pair), 1);
+		rest.splice(rest.indexOf(pair), 1);
+		if (canFormMentsu(rest)) return true;
+	}
+
+	return false;
+}
+
+export function isAgarikeiWithHuros(handTiles: TileType[], huros: HuroForCalcYaku[]): boolean {
+	if (huros.length === 0) return isAgarikei(handTiles);
+	if (handTiles.length + huros.length * 3 !== 14) return false;
+	return isConcealedAgari(handTiles);
+}
+
+/**
+ * 待ち牌の種類を返す
+ */
+export function getWaitTiles(handTiles: TileType[], huros: HuroForCalcYaku[]): TileType[] {
+	return TILE_TYPES.filter(tile => isAgarikeiWithHuros([...handTiles, tile], huros));
 }
 
 export type EnvForCalcYaku = {

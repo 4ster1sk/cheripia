@@ -5,7 +5,7 @@
 
 import { TileType, House, Huro, TileId } from './common.js';
 import * as Common from './common.js';
-import { calcYakusWithDetail, convertHuroForCalcYaku, isAgarikeiWithHuros } from './common.yaku.js';
+import { calcYakusWithDetail, convertHuroForCalcYaku, getWaitTiles, isAgarikeiWithHuros } from './common.yaku.js';
 
 //#region syntax suger
 function $(tid: TileId): Common.TileInstance {
@@ -94,6 +94,7 @@ export type PlayerState = {
 	canCii: { callee: House } | null;
 	canKan: { callee: House } | null; // = 大明槓
 	canRon: { callee: House } | null;
+	spectator?: boolean;
 };
 
 export type KyokuResult = {
@@ -311,6 +312,11 @@ export class PlayerGameEngine {
 		} catch {
 			return false;
 		}
+	}
+
+	public getWaitTiles(): TileType[] {
+		const huros = this.state.huros[this.myHouse].map(convertHuroForCalcYaku);
+		return getWaitTiles(this.myHandTileTypes, huros);
 	}
 
 	public commit_tsumoHora(house: House, handTiles: TileId[], tsumoTile: TileId): KyokuResult {

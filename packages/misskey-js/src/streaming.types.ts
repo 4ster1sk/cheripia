@@ -367,6 +367,9 @@ export type Channels = {
 			ended: (payload: {
 				room: MahjongRoomDetailed;
 			}) => void;
+			spectatorState: (payload: {
+				room: MahjongRoomDetailed;
+			}) => void;
 			tsumo: (payload: {
 				house: MahjongHouse;
 				tile: number;

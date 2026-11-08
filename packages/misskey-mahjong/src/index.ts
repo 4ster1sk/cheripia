@@ -10,3 +10,4 @@ export { MasterGameEngine } from './engine.master.js';
 export type { MasterState } from './engine.master.js';
 export { PlayerGameEngine } from './engine.player.js';
 export type { PlayerState } from './engine.player.js';
+export { convertHuroForCalcYaku, getWaitTiles } from './common.yaku.js';

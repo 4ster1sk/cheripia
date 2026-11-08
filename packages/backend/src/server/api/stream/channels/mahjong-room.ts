@@ -21,6 +21,7 @@ export class MahjongRoomChannel extends Channel {
 	public static kind = 'read:account';
 	private roomId: string | null = null;
 	private myHouse: 'e' | 's' | 'w' | 'n' | null = null;
+	private spectator = false;
 
 	constructor(
 		@Inject(REQUEST)
@@ -38,15 +39,37 @@ export class MahjongRoomChannel extends Channel {
 
 		if (this.user == null) return;
 		const room = await this.mahjongService.getRoom(this.roomId);
-		if (room == null || !this.mahjongService.isMember(room, this.user)) return;
-		this.myHouse = this.mahjongService.getHouseOfUser(room, this.user);
+		if (room == null) return;
+
+		if (this.mahjongService.isMember(room, this.user)) {
+			this.myHouse = this.mahjongService.getHouseOfUser(room, this.user);
+		} else if (room.isStarted && !room.isEnded) {
+			this.spectator = true;
+		} else {
+			return;
+		}
 
 		this.subscriber.on(`mahjongRoomStream:${this.roomId}`, this.onMahjongRoomStreamMessage);
+
+		if (this.spectator) {
+			this.send('spectatorState', {
+				room: await this.mahjongService.packSpectatorRoom(room),
+			});
+		}
 	}
 
 	@bindThis
 	private async onMahjongRoomStreamMessage(message: GlobalEvents['mahjongRoom']['payload']) {
 		if (this.user == null) return;
+
+		if (this.spectator) {
+			const room = await this.mahjongService.getRoom(this.roomId!);
+			if (room == null) return;
+			this.send('spectatorState', {
+				room: await this.mahjongService.packSpectatorRoom(room),
+			});
+			return;
+		}
 
 		if (message.type === 'started' || message.type === 'nextKyoku' || message.type === 'ended') {
 			if (message.type !== 'ended') {
@@ -73,6 +96,8 @@ export class MahjongRoomChannel extends Channel {
 
 	@bindThis
 	public onMessage(type: string, body: JsonValue) {
+		if (this.spectator) return;
+
 		switch (type) {
 			case 'ready':
 				if (typeof body !== 'boolean') return;

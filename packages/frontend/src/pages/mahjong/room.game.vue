@@ -65,8 +65,14 @@ SPDX-License-Identifier: AGPL-3.0-only
 						<div :class="[$style.centerPanelIndicator, { [$style.centerPanelIndicatorIndicated]: mj.turn === mj.myHouse }]"></div>
 					</div>
 				</div>
-				<div>
+				<div :class="$style.centerPanelContent">
 					<div>{{ mj.tilesCount }}</div>
+					<div v-if="waitTiles.length > 0" :class="$style.waitTiles">
+						<div :class="$style.waitTilesLabel">{{ i18n.ts._mahjong.waitTiles }}</div>
+						<div :class="$style.waitTilesList">
+							<XTile v-for="tile in waitTiles" :key="tile" :tile="mj$(tileTypeToTileId(tile))" variation="1" :doras="[]"/>
+						</div>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -270,15 +276,15 @@ SPDX-License-Identifier: AGPL-3.0-only
 		</div>
 
 		<div :class="$style.actions" class="_buttons">
-			<MkButton v-if="mj.canRon != null" primary gradate @click="ron">Ron</MkButton>
-			<MkButton v-if="mj.canPon != null" primary @click="pon">Pon</MkButton>
-			<MkButton v-if="mj.canCii != null" primary @click="cii">Cii</MkButton>
-			<MkButton v-if="mj.canKan != null" primary @click="kan">Kan</MkButton>
-			<MkButton v-if="mj.canRon != null || mj.canPon != null || mj.canCii != null || mj.canKan != null" @click="skip">Skip</MkButton>
-			<MkButton v-if="isMyTurn && mj.canAnkan()" @click="ankan">Ankan</MkButton>
-			<MkButton v-if="isMyTurn && mj.canKakan()" @click="kakan">Kakan</MkButton>
-			<MkButton v-if="isMyTurn && canHora" primary gradate @click="tsumoHora">Tsumo</MkButton>
-			<MkButton v-if="isMyTurn && mj.canRiichi()" primary @click="riichi">Riichi</MkButton>
+			<MkButton v-if="mj.canRon != null" primary gradate @click="ron">{{ i18n.ts._mahjong.ron }}</MkButton>
+			<MkButton v-if="mj.canPon != null" primary @click="pon">{{ i18n.ts._mahjong.pon }}</MkButton>
+			<MkButton v-if="mj.canCii != null" primary @click="cii">{{ i18n.ts._mahjong.cii }}</MkButton>
+			<MkButton v-if="mj.canKan != null" primary @click="kan">{{ i18n.ts._mahjong.kan }}</MkButton>
+			<MkButton v-if="mj.canRon != null || mj.canPon != null || mj.canCii != null || mj.canKan != null" @click="skip">{{ i18n.ts._mahjong.skip }}</MkButton>
+			<MkButton v-if="isMyTurn && mj.canAnkan()" @click="ankan">{{ i18n.ts._mahjong.ankan }}</MkButton>
+			<MkButton v-if="isMyTurn && mj.canKakan()" @click="kakan">{{ i18n.ts._mahjong.kakan }}</MkButton>
+			<MkButton v-if="isMyTurn && canHora" primary gradate @click="tsumoHora">{{ i18n.ts._mahjong.tsumo }}</MkButton>
+			<MkButton v-if="isMyTurn && mj.canRiichi()" primary @click="riichi">{{ i18n.ts._mahjong.riichi }}</MkButton>
 		</div>
 	</div>
 	<div v-if="showKyokuResults" :class="$style.kyokuResult">
@@ -300,7 +306,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<div>{{ res.pointDeltas.e }} / {{ res.pointDeltas.s }} / {{ res.pointDeltas.w }} / {{ res.pointDeltas.n }}</div>
 			</div>
 		</div>
-		<MkButton primary @click="confirmKyokuResult">OK</MkButton>
+		<MkButton primary @click="confirmKyokuResult">{{ i18n.ts._mahjong.confirm }}</MkButton>
 	</div>
 </div>
 </template>
@@ -328,6 +334,13 @@ function mj$(tid: Mmj.TileId): Mmj.TileInstance {
 
 function mj$type(tid: Mmj.TileId): Mmj.TileType {
 	return mj$(tid).t;
+}
+
+function tileTypeToTileId(type: Mmj.TileType): Mmj.TileId {
+	for (const [id, tile] of Mmj.TILE_ID_MAP) {
+		if (tile.t === type && tile.red !== true) return id;
+	}
+	throw new Error(`tile not found: ${type}`);
 }
 //#endregion
 
@@ -358,6 +371,8 @@ const users = computed(() => ({
 	w: houseToUser('w'),
 	n: houseToUser('n'),
 }));
+
+const waitTiles = computed(() => mj.value.getWaitTiles());
 
 const selectableTiles = ref<Mmj.TileType[] | null>(null);
 const ronSerifHouses = reactive<Record<Mmj.House, boolean>>({ e: false, s: false, w: false, n: false });
@@ -963,6 +978,36 @@ onUnmounted(detachListeners);
 }
 .centerPanelPoint {
 	margin-left: 10px;
+}
+
+.centerPanelContent {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 2px;
+}
+
+.waitTiles {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	max-width: 150px;
+}
+
+.waitTilesLabel {
+	color: #fff;
+	font-size: 60%;
+	opacity: 0.8;
+	text-shadow: 0 1px 2px #000;
+}
+
+.waitTilesList {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	max-width: 140px;
 }
 
 .turnTimer {

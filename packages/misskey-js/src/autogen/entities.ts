@@ -525,6 +525,7 @@ export type InviteListResponse = operations['invite___list']['responses']['200']
 export type MahjongCreateRoomResponse = operations['mahjong___create-room']['responses']['200']['content']['application/json'];
 export type MahjongJoinRoomRequest = operations['mahjong___join-room']['requestBody']['content']['application/json'];
 export type MahjongJoinRoomResponse = operations['mahjong___join-room']['responses']['200']['content']['application/json'];
+export type MahjongRoomsResponse = operations['mahjong___rooms']['responses']['200']['content']['application/json'];
 export type MahjongShowRoomRequest = operations['mahjong___show-room']['requestBody']['content']['application/json'];
 export type MahjongShowRoomResponse = operations['mahjong___show-room']['responses']['200']['content']['application/json'];
 export type MetaRequest = operations['meta']['requestBody']['content']['application/json'];

@@ -16121,6 +16121,66 @@ export interface Locale extends ILocale {
          */
         "redDora": string;
         /**
+         * ロン
+         */
+        "ron": string;
+        /**
+         * ポン
+         */
+        "pon": string;
+        /**
+         * チー
+         */
+        "cii": string;
+        /**
+         * カン
+         */
+        "kan": string;
+        /**
+         * 暗槓
+         */
+        "ankan": string;
+        /**
+         * 加槓
+         */
+        "kakan": string;
+        /**
+         * ツモ
+         */
+        "tsumo": string;
+        /**
+         * リーチ
+         */
+        "riichi": string;
+        /**
+         * パス
+         */
+        "skip": string;
+        /**
+         * 確認
+         */
+        "confirm": string;
+        /**
+         * 待ち牌
+         */
+        "waitTiles": string;
+        /**
+         * 観戦
+         */
+        "spectate": string;
+        /**
+         * 観戦中
+         */
+        "spectating": string;
+        /**
+         * 対局中のルーム
+         */
+        "activeRooms": string;
+        /**
+         * 対局中のルームはありません
+         */
+        "noActiveRooms": string;
+        /**
          * 飜
          */
         "fan": string;

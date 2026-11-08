@@ -1100,6 +1100,9 @@ export type Channels = {
             ended: (payload: {
                 room: MahjongRoomDetailed;
             }) => void;
+            spectatorState: (payload: {
+                room: MahjongRoomDetailed;
+            }) => void;
             tsumo: (payload: {
                 house: MahjongHouse;
                 tile: number;
@@ -2313,6 +2316,7 @@ declare namespace entities {
         MahjongCreateRoomResponse,
         MahjongJoinRoomRequest,
         MahjongJoinRoomResponse,
+        MahjongRoomsResponse,
         MahjongShowRoomRequest,
         MahjongShowRoomResponse,
         MetaRequest,
@@ -3232,6 +3236,9 @@ type MahjongJoinRoomResponse = operations['mahjong___join-room']['responses']['2
 
 // @public (undocumented)
 type MahjongRoomDetailed = components['schemas']['MahjongRoomDetailed'];
+
+// @public (undocumented)
+type MahjongRoomsResponse = operations['mahjong___rooms']['responses']['200']['content']['application/json'];
 
 // @public (undocumented)
 type MahjongShowRoomRequest = operations['mahjong___show-room']['requestBody']['content']['application/json'];
@@ -4281,7 +4288,7 @@ type VerifyEmailRequest = operations['verify-email']['requestBody']['content']['
 // src/streaming.ts:57:3 - (ae-forgotten-export) The symbol "ReconnectingWebSocket" needs to be exported by the entry point index.d.ts
 // src/streaming.types.ts:271:4 - (ae-forgotten-export) The symbol "ReversiUpdateKey" needs to be exported by the entry point index.d.ts
 // src/streaming.types.ts:287:4 - (ae-forgotten-export) The symbol "ReversiUpdateSettings" needs to be exported by the entry point index.d.ts
-// src/streaming.types.ts:371:5 - (ae-forgotten-export) The symbol "MahjongHouse" needs to be exported by the entry point index.d.ts
+// src/streaming.types.ts:374:5 - (ae-forgotten-export) The symbol "MahjongHouse" needs to be exported by the entry point index.d.ts
 
 // (No @packageDocumentation comment for this package)
 

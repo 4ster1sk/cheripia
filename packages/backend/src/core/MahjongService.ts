@@ -203,6 +203,21 @@ export class MahjongService implements OnApplicationShutdown {
 	}
 
 	@bindThis
+	public async getActiveRooms(): Promise<MahjongRoom[]> {
+		const keys = await this.redisClient.keys('*mahjong:room:*');
+		const rooms: MahjongRoom[] = [];
+		for (const key of keys) {
+			// ioredis の keyPrefix が付与されているため、mahjong:room: 以降を roomId として扱う
+			const index = key.indexOf('mahjong:room:');
+			if (index === -1) continue;
+			const room = await this.getRoom(key.slice(index + 'mahjong:room:'.length));
+			if (room == null) continue;
+			if (room.isStarted && !room.isEnded) rooms.push(room);
+		}
+		return rooms.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+	}
+
+	@bindThis
 	public isMember(room: MahjongRoom, user: MiUser): boolean {
 		return getSlotOfUserId(room, user.id) != null;
 	}
@@ -911,6 +926,22 @@ export class MahjongService implements OnApplicationShutdown {
 		return {
 			...room,
 			gameState: room.gameState != null ? this.packState(room, me) : null,
+		} as Packed<'MahjongRoomDetailed'>;
+	}
+
+	@bindThis
+	public async packRoomSummary(room: MahjongRoom): Promise<Packed<'MahjongRoomDetailed'>> {
+		return {
+			...room,
+			gameState: null,
+		} as Packed<'MahjongRoomDetailed'>;
+	}
+
+	@bindThis
+	public async packSpectatorRoom(room: MahjongRoom): Promise<Packed<'MahjongRoomDetailed'>> {
+		return {
+			...room,
+			gameState: room.gameState != null ? new Mmj.MasterGameEngine(room.gameState).createSpectatorState() : null,
 		} as Packed<'MahjongRoomDetailed'>;
 	}
 

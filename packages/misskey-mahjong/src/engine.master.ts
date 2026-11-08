@@ -1021,6 +1021,14 @@ export class MasterGameEngine {
 		};
 	}
 
+	public createSpectatorState(): PlayerState {
+		const state = this.createPlayerState(1);
+		state.spectator = true;
+		state.handTiles = structuredClone(this.$state.handTiles);
+		state.huros = structuredClone(this.$state.huros);
+		return state;
+	}
+
 	public calcCrc32ForUser1(): number {
 		throw new Error('TODO');
 	}

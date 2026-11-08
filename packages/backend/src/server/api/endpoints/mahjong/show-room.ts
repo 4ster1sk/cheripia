@@ -44,7 +44,14 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 		super(meta, paramDef, async (ps, me) => {
 			const room = await this.mahjongService.getRoom(ps.roomId);
 
-			if (room == null || !this.mahjongService.isMember(room, me)) {
+			if (room == null) {
+				throw new ApiError(meta.errors.noSuchRoom);
+			}
+
+			if (!this.mahjongService.isMember(room, me)) {
+				if (room.isStarted && !room.isEnded) {
+					return await this.mahjongService.packSpectatorRoom(room);
+				}
 				throw new ApiError(meta.errors.noSuchRoom);
 			}
 
