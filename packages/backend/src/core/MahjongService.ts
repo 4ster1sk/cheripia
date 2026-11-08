@@ -112,6 +112,31 @@ function getLastHoDiscardTileType(mj: Mmj.MasterGameEngine, callee: Mmj.House): 
 	return mj.hoTileTypes[callee].at(-1) ?? null;
 }
 
+/**
+ * 1つの捨て牌に対して同じプレイヤーに複数の asking が発生することがある。
+ * プレイヤーが1つを選択したら、同じプレイヤーに発生している他の asking は辞退として扱う。
+ * 他のプレイヤーの回答には触れない。
+ */
+function declineOtherAskingAnswers(
+	answers: CallingAnswers,
+	house: Mmj.House,
+	mj: Mmj.MasterGameEngine,
+	accepted: 'ron' | 'pon' | 'cii' | 'kan',
+): void {
+	if (accepted !== 'ron' && mj.askings.ron?.callers.includes(house)) {
+		answers.ron[house] = false;
+	}
+	if (accepted !== 'pon' && mj.askings.pon?.caller === house) {
+		answers.pon = false;
+	}
+	if (accepted !== 'cii' && mj.askings.cii?.caller === house) {
+		answers.cii = false;
+	}
+	if (accepted !== 'kan' && mj.askings.kan?.caller === house) {
+		answers.kan = false;
+	}
+}
+
 @Injectable()
 export class MahjongService implements OnApplicationShutdown {
 	private readonly turnTimers = new Map<string, Set<NodeJS.Timeout>>();
@@ -880,6 +905,8 @@ export class MahjongService implements OnApplicationShutdown {
 		await this.updateAnswer(roomId, user, (answers, house, mj) => {
 			if (mj.askings.ron == null || !mj.askings.ron.callers.includes(house)) return false;
 			answers.ron[house] = true;
+			// ロンを選択したら、同じプレイヤーのポン・チー・カンは辞退扱いにする
+			declineOtherAskingAnswers(answers, house, mj, 'ron');
 			return true;
 		});
 	}
@@ -904,6 +931,8 @@ export class MahjongService implements OnApplicationShutdown {
 			}
 
 			answers.pon = true;
+			// ポンが成立したら、同じプレイヤーのロン・チー・カンは辞退扱いにする
+			declineOtherAskingAnswers(answers, house, mj, 'pon');
 			return true;
 		});
 	}
@@ -928,6 +957,8 @@ export class MahjongService implements OnApplicationShutdown {
 			}
 
 			answers.kan = true;
+			// カンが成立したら、同じプレイヤーのロン・ポン・チーは辞退扱いにする
+			declineOtherAskingAnswers(answers, house, mj, 'kan');
 			return true;
 		});
 	}
@@ -956,7 +987,13 @@ export class MahjongService implements OnApplicationShutdown {
 			const isValid = expectedTiles != null && availablePatterns.some(tiles =>
 				tiles[0] === expectedTiles[0] && tiles[1] === expectedTiles[1] && tiles[2] === expectedTiles[2]);
 
-			answers.cii = isValid ? pattern : false;
+			if (isValid) {
+				answers.cii = pattern;
+				// チーが成立したら、同じプレイヤーのロン・ポン・カンは辞退扱いにする
+				declineOtherAskingAnswers(answers, house, mj, 'cii');
+			} else {
+				answers.cii = false;
+			}
 			return true;
 		});
 	}

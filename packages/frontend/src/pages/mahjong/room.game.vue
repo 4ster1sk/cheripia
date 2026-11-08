@@ -528,14 +528,25 @@ function tsumoHora() {
 	});
 }
 
+/**
+ * ロン・ポン・チー・カンのいずれかを選択したら、残りの選択肢をローカルでも消す。
+ * 送信後に skip を押して回答を上書きできないようにする。
+ */
+function clearCalls() {
+	mj.value.commit_nop();
+	triggerRef(mj);
+}
+
 function ron() {
 	props.connection!.send('ronHora', {
 	});
+	clearCalls();
 }
 
 function pon() {
 	props.connection!.send('pon', {
 	});
+	clearCalls();
 }
 
 function cii(ev: MouseEvent) {
@@ -548,6 +559,7 @@ function cii(ev: MouseEvent) {
 			props.connection!.send('cii', {
 				pattern: index === 0 ? 'x__' : index === 1 ? '_x_' : '__x',
 			});
+			clearCalls();
 		},
 	})), ev.currentTarget ?? ev.target);
 }
@@ -555,11 +567,11 @@ function cii(ev: MouseEvent) {
 function kan() {
 	props.connection!.send('kan', {
 	});
+	clearCalls();
 }
 
 function skip() {
-	mj.value.commit_nop();
-	triggerRef(mj);
+	clearCalls();
 
 	props.connection!.send('nop', {});
 }

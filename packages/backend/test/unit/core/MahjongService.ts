@@ -6,6 +6,7 @@
 import { describe, expect, test, vi } from 'vitest';
 import * as Mmj from 'misskey-mahjong';
 import { MahjongService, type MahjongRoom } from '@/core/MahjongService.js';
+import type { MiUser } from '@/models/User.js';
 
 function createRoom(): MahjongRoom {
 	return {
@@ -48,6 +49,90 @@ function createExhaustedState(): Mmj.MasterState {
 	});
 }
 
+type CallingAnswersForTest = {
+	pon: null | boolean;
+	cii: null | false | 'x__' | '_x_' | '__x';
+	kan: null | boolean;
+	ron: Record<Mmj.House, null | boolean>;
+};
+
+function createCallingRoom(options: { riichi?: boolean } = {}): MahjongRoom {
+	const room = createRoom();
+	room.gameState = Mmj.MasterGameEngine.createInitialState({
+		riichis: {
+			e: false,
+			s: options.riichi ?? false,
+			w: false,
+			n: false,
+		},
+		handTiles: {
+			e: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14],
+			// m5 を3枚、m4 と m6 を持たせ、ポン・チー・カンを同時に成立させる
+			s: [18, 19, 20, 13, 21, 57, 58, 59, 61, 62, 63, 65, 66],
+			w: [22, 23, 24, 26, 27, 28, 30, 31, 32, 34, 35, 36, 38],
+			n: [39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51],
+		},
+		hoTiles: {
+			e: [17],
+			s: [],
+			w: [],
+			n: [],
+		},
+		askings: {
+			ron: { callee: 'e', callers: ['s', 'w'] },
+			pon: { callee: 'e', caller: 's' },
+			cii: { callee: 'e', caller: 's' },
+			kan: { callee: 'e', caller: 's' },
+		},
+		tiles: [52, 53, 54, 55, 56, 60, 64, 67, 68, 69, 70],
+		kingTiles: [125, 126, 127, 128],
+		activatedDorasCount: 1,
+		turn: null,
+		nextTurnAfterAsking: 's',
+	});
+	return room;
+}
+
+function createCallingService(room: MahjongRoom) {
+	const store = new Map<string, string>();
+	store.set(`mahjong:room:${room.id}`, JSON.stringify(room));
+	store.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify({
+		pon: null,
+		cii: null,
+		kan: null,
+		ron: { e: null, s: null, w: null, n: null },
+	} satisfies CallingAnswersForTest));
+
+	const redisClient = {
+		del: vi.fn((key: string) => {
+			store.delete(key);
+			return Promise.resolve(1);
+		}),
+		get: vi.fn((key: string) => Promise.resolve(store.get(key) ?? null)),
+		set: vi.fn((key: string, value: string) => {
+			store.set(key, value);
+			return Promise.resolve('OK');
+		}),
+	};
+
+	const service = new MahjongService(
+		redisClient as unknown as ConstructorParameters<typeof MahjongService>[0],
+		{} as unknown as ConstructorParameters<typeof MahjongService>[1],
+		{} as unknown as ConstructorParameters<typeof MahjongService>[2],
+		{} as unknown as ConstructorParameters<typeof MahjongService>[3],
+	);
+
+	return { service, store };
+}
+
+function readCallingAnswers(store: Map<string, string>): CallingAnswersForTest {
+	const raw = store.get('mahjong:gameCallingAsking:test-room');
+	expect(raw).toBeDefined();
+	return JSON.parse(raw!) as CallingAnswersForTest;
+}
+
+const user2 = { id: 'user2' } as unknown as MiUser;
+
 describe('MahjongService', () => {
 	test('publishes the final discard before ryuukyoku', async () => {
 		const room = createRoom();
@@ -82,6 +167,97 @@ describe('MahjongService', () => {
 			expect(published[0]!.payload).toEqual({ house: 'e', tile: 1, riichi: false });
 			// 最後の捨て牌がエンジン状態の河に残っている
 			expect(room.gameState?.hoTiles.e.at(-1)).toBe(1);
+		} finally {
+			service.dispose();
+		}
+	});
+
+	test('ron declines the same player\'s pon, cii and kan answers', async () => {
+		const { service, store } = createCallingService(createCallingRoom());
+		try {
+			await service.commit_ronHora('test-room', user2);
+
+			const answers = readCallingAnswers(store);
+			expect(answers.ron).toEqual({ e: null, s: true, w: null, n: null });
+			expect(answers.pon).toBe(false);
+			expect(answers.cii).toBe(false);
+			expect(answers.kan).toBe(false);
+		} finally {
+			service.dispose();
+		}
+	});
+
+	test('pon declines the same player\'s ron, cii and kan answers', async () => {
+		const { service, store } = createCallingService(createCallingRoom());
+		try {
+			await service.commit_pon('test-room', user2);
+
+			const answers = readCallingAnswers(store);
+			expect(answers.pon).toBe(true);
+			expect(answers.cii).toBe(false);
+			expect(answers.kan).toBe(false);
+			expect(answers.ron).toEqual({ e: null, s: false, w: null, n: null });
+		} finally {
+			service.dispose();
+		}
+	});
+
+	test('cii declines the same player\'s ron, pon and kan answers', async () => {
+		const { service, store } = createCallingService(createCallingRoom());
+		try {
+			await service.commit_cii('test-room', user2, '_x_');
+
+			const answers = readCallingAnswers(store);
+			expect(answers.cii).toBe('_x_');
+			expect(answers.pon).toBe(false);
+			expect(answers.kan).toBe(false);
+			expect(answers.ron).toEqual({ e: null, s: false, w: null, n: null });
+		} finally {
+			service.dispose();
+		}
+	});
+
+	test('kan declines the same player\'s ron, pon and cii answers', async () => {
+		const { service, store } = createCallingService(createCallingRoom());
+		try {
+			await service.commit_kan('test-room', user2);
+
+			const answers = readCallingAnswers(store);
+			expect(answers.kan).toBe(true);
+			expect(answers.pon).toBe(false);
+			expect(answers.cii).toBe(false);
+			expect(answers.ron).toEqual({ e: null, s: false, w: null, n: null });
+		} finally {
+			service.dispose();
+		}
+	});
+
+	test('riichi player\'s illegal pon does not decline their ron answer', async () => {
+		const { service, store } = createCallingService(createCallingRoom({ riichi: true }));
+		try {
+			await service.commit_pon('test-room', user2);
+
+			const answers = readCallingAnswers(store);
+			expect(answers.pon).toBe(false);
+			expect(answers.cii).toBeNull();
+			expect(answers.kan).toBeNull();
+			expect(answers.ron).toEqual({ e: null, s: null, w: null, n: null });
+		} finally {
+			service.dispose();
+		}
+	});
+
+	test('invalid cii does not decline the same player\'s ron answer', async () => {
+		const { service, store } = createCallingService(createCallingRoom());
+		try {
+			// s の手牌では m5 に対して m6, m7 が揃わないため x__ は成立しない
+			await service.commit_cii('test-room', user2, 'x__');
+
+			const answers = readCallingAnswers(store);
+			expect(answers.cii).toBe(false);
+			expect(answers.pon).toBeNull();
+			expect(answers.kan).toBeNull();
+			expect(answers.ron).toEqual({ e: null, s: null, w: null, n: null });
 		} finally {
 			service.dispose();
 		}
