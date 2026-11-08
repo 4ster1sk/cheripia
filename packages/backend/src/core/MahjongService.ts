@@ -5,54 +5,44 @@
 
 import { Inject, Injectable } from '@nestjs/common';
 import * as Redis from 'ioredis';
-import { ModuleRef } from '@nestjs/core';
-import { IsNull, LessThan, MoreThan } from 'typeorm';
 import * as Mmj from 'misskey-mahjong';
-import type {
-	MiMahjongGame,
-	MahjongGamesRepository,
-} from '@/models/_.js';
 import type { MiUser } from '@/models/User.js';
 import { DI } from '@/di-symbols.js';
 import { bindThis } from '@/decorators.js';
-import { CacheService } from '@/core/CacheService.js';
 import { UserEntityService } from '@/core/entities/UserEntityService.js';
 import { GlobalEventService } from '@/core/GlobalEventService.js';
 import { IdService } from '@/core/IdService.js';
-import { NotificationService } from '@/core/NotificationService.js';
-import { Serialized } from '@/types.js';
 import { Packed } from '@/misc/json-schema.js';
-import { ReversiGameEntityService } from './entities/ReversiGameEntityService.js';
-import type { OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
+import type { OnApplicationShutdown } from '@nestjs/common';
 
-const INVITATION_TIMEOUT_MS = 1000 * 20; // 20sec
 const CALL_AND_RON_ASKING_TIMEOUT_MS = 1000 * 10; // 10sec
-const TURN_TIMEOUT_MS = 1000 * 30; // 30sec
 const NEXT_KYOKU_CONFIRMATION_TIMEOUT_MS = 1000 * 15; // 15sec
 
-type Room = {
+const EAST_ROUND_KYOKU_COUNT = 4;
+
+export type MahjongRoom = {
 	id: string;
-	user1Id: MiUser['id'];
-	user2Id: MiUser['id'] | null;
-	user3Id: MiUser['id'] | null;
-	user4Id: MiUser['id'] | null;
+	createdAt: string;
+	startedAt: string | null;
+	endedAt: string | null;
+	isStarted: boolean;
+	isEnded: boolean;
+	user1Id: string;
+	user2Id: string | null;
+	user3Id: string | null;
+	user4Id: string | null;
 	user1: Packed<'UserLite'> | null;
 	user2: Packed<'UserLite'> | null;
 	user3: Packed<'UserLite'> | null;
 	user4: Packed<'UserLite'> | null;
-	user1Ai?: boolean;
-	user2Ai?: boolean;
-	user3Ai?: boolean;
-	user4Ai?: boolean;
+	user1Ai: boolean;
+	user2Ai: boolean;
+	user3Ai: boolean;
+	user4Ai: boolean;
 	user1Ready: boolean;
 	user2Ready: boolean;
 	user3Ready: boolean;
 	user4Ready: boolean;
-	user1Offline?: boolean;
-	user2Offline?: boolean;
-	user3Offline?: boolean;
-	user4Offline?: boolean;
-	isStarted?: boolean;
 	timeLimitForEachTurn: number;
 
 	gameState?: Mmj.MasterState;
@@ -77,52 +67,124 @@ type NextKyokuConfirmation = {
 	user4: boolean;
 };
 
-function getUserIdOfHouse(room: Room, mj: Mmj.MasterGameEngine, house: Mmj.House): MiUser['id'] {
-	return mj.user1House === house ? room.user1Id : mj.user2House === house ? room.user2Id : mj.user3House === house ? room.user3Id : room.user4Id;
+function getSlotOfUserId(room: MahjongRoom, userId: MiUser['id']): 1 | 2 | 3 | 4 | null {
+	if (userId === room.user1Id) return 1;
+	if (userId === room.user2Id) return 2;
+	if (userId === room.user3Id) return 3;
+	if (userId === room.user4Id) return 4;
+	return null;
 }
 
-function getHouseOfUserId(room: Room, mj: Mmj.MasterGameEngine, userId: MiUser['id']): Mmj.House {
-	return userId === room.user1Id ? mj.user1House : userId === room.user2Id ? mj.user2House : userId === room.user3Id ? mj.user3House : mj.user4House;
+function getHouseOfUserId(room: MahjongRoom, mj: Mmj.MasterGameEngine, userId: MiUser['id']): Mmj.House {
+	if (userId === room.user1Id) return mj.user1House;
+	if (userId === room.user2Id) return mj.user2House;
+	if (userId === room.user3Id) return mj.user3House;
+	if (userId === room.user4Id) return mj.user4House;
+	throw new Error('user is not a member of the room');
 }
 
 @Injectable()
-export class MahjongService implements OnApplicationShutdown, OnModuleInit {
-	private notificationService: NotificationService;
+export class MahjongService implements OnApplicationShutdown {
+	private readonly turnTimers = new Map<string, Set<NodeJS.Timeout>>();
+	private readonly otherTimers = new Map<string, Set<NodeJS.Timeout>>();
 
 	constructor(
-		private moduleRef: ModuleRef,
-
 		@Inject(DI.redis)
 		private redisClient: Redis.Redis,
 
-		//@Inject(DI.mahjongGamesRepository)
-		//private mahjongGamesRepository: MahjongGamesRepository,
-
-		private cacheService: CacheService,
 		private userEntityService: UserEntityService,
 		private globalEventService: GlobalEventService,
-		private reversiGameEntityService: ReversiGameEntityService,
 		private idService: IdService,
 	) {
 	}
-	async onModuleInit() {
-		this.notificationService = this.moduleRef.get(NotificationService.name);
+
+	private readonly roomLocks = new Map<string, Promise<unknown>>();
+
+	@bindThis
+	private async withRoomLock<T>(roomId: string, fn: () => Promise<T>): Promise<T> {
+		const previous = (this.roomLocks.get(roomId) ?? Promise.resolve()).catch(() => {});
+		let release!: () => void;
+		const gate = new Promise<void>(resolve => release = resolve);
+		const queued = previous.then(() => gate);
+		this.roomLocks.set(roomId, queued);
+		await previous;
+		try {
+			return await fn();
+		} finally {
+			release();
+			if (this.roomLocks.get(roomId) === queued) this.roomLocks.delete(roomId);
+		}
 	}
 
 	@bindThis
-	private async saveRoom(room: Room) {
+	private addTimer(map: Map<string, Set<NodeJS.Timeout>>, roomId: string, timer: NodeJS.Timeout) {
+		let timers = map.get(roomId);
+		if (timers == null) {
+			timers = new Set();
+			map.set(roomId, timers);
+		}
+		timers.add(timer);
+	}
+
+	@bindThis
+	private removeTimer(map: Map<string, Set<NodeJS.Timeout>>, roomId: string, timer: NodeJS.Timeout) {
+		map.get(roomId)?.delete(timer);
+	}
+
+	@bindThis
+	private clearTimers(map: Map<string, Set<NodeJS.Timeout>>, roomId: string) {
+		const timers = map.get(roomId);
+		if (timers == null) return;
+		for (const timer of timers) {
+			clearTimeout(timer);
+			clearInterval(timer);
+		}
+		timers.clear();
+	}
+
+	@bindThis
+	private clearTurnTimers(roomId: string) {
+		this.clearTimers(this.turnTimers, roomId);
+	}
+
+	@bindThis
+	private clearAllTimers(roomId: string) {
+		this.clearTimers(this.turnTimers, roomId);
+		this.clearTimers(this.otherTimers, roomId);
+	}
+
+	@bindThis
+	private async saveRoom(room: MahjongRoom) {
 		await this.redisClient.set(`mahjong:room:${room.id}`, JSON.stringify(room), 'EX', 60 * 30);
 	}
 
 	@bindThis
-	public async createRoom(user: MiUser): Promise<Room> {
-		const room: Room = {
+	private async deleteRoom(roomId: string) {
+		this.clearAllTimers(roomId);
+		await this.redisClient.del(`mahjong:room:${roomId}`);
+	}
+
+	@bindThis
+	public async createRoom(user: MiUser): Promise<MahjongRoom> {
+		const room: MahjongRoom = {
 			id: this.idService.gen(),
+			createdAt: new Date().toISOString(),
+			startedAt: null,
+			endedAt: null,
+			isStarted: false,
+			isEnded: false,
 			user1Id: user.id,
 			user2Id: null,
 			user3Id: null,
 			user4Id: null,
 			user1: await this.userEntityService.pack(user),
+			user2: null,
+			user3: null,
+			user4: null,
+			user1Ai: false,
+			user2Ai: false,
+			user3Ai: false,
+			user4Ai: false,
 			user1Ready: false,
 			user2Ready: false,
 			user3Ready: false,
@@ -134,131 +196,161 @@ export class MahjongService implements OnApplicationShutdown, OnModuleInit {
 	}
 
 	@bindThis
-	public async getRoom(id: Room['id']): Promise<Room | null> {
+	public async getRoom(id: MahjongRoom['id']): Promise<MahjongRoom | null> {
 		const room = await this.redisClient.get(`mahjong:room:${id}`);
-		if (!room) return null;
-		const parsed = JSON.parse(room);
-		return {
-			...parsed,
+		if (room == null) return null;
+		return JSON.parse(room) as MahjongRoom;
+	}
+
+	@bindThis
+	public isMember(room: MahjongRoom, user: MiUser): boolean {
+		return getSlotOfUserId(room, user.id) != null;
+	}
+
+	@bindThis
+	public getHouseOfUser(room: MahjongRoom, user: MiUser): Mmj.House | null {
+		if (room.gameState == null) return null;
+		const slot = getSlotOfUserId(room, user.id);
+		if (slot == null) return null;
+		const mj = new Mmj.MasterGameEngine(room.gameState);
+		return mj.getHouse(slot);
+	}
+
+	@bindThis
+	public async joinRoom(roomId: MahjongRoom['id'], user: MiUser): Promise<MahjongRoom | null> {
+		return await this.withRoomLock(roomId, () => this.joinRoomLocked(roomId, user));
+	}
+
+	private async joinRoomLocked(roomId: MahjongRoom['id'], user: MiUser): Promise<MahjongRoom | null> {
+		const room = await this.getRoom(roomId);
+		if (room == null) return null;
+		if (this.isMember(room, user)) return room;
+		if (room.isStarted) return null;
+
+		const packed = await this.userEntityService.pack(user);
+
+		const tryJoin = async (index: 1 | 2 | 3 | 4): Promise<boolean> => {
+			const idKey = `user${index}Id` as const;
+			const aiKey = `user${index}Ai` as const;
+			const readyKey = `user${index}Ready` as const;
+			const userKey = `user${index}` as const;
+			if (room[idKey] != null) return false;
+			room[idKey] = user.id;
+			room[userKey] = packed;
+			room[aiKey] = false;
+			room[readyKey] = false;
+			await this.saveRoom(room);
+			this.globalEventService.publishMahjongRoomStream(room.id, 'joined', { index, user: packed });
+			return true;
 		};
-	}
 
-	@bindThis
-	public async joinRoom(roomId: Room['id'], user: MiUser): Promise<Room | null> {
-		const room = await this.getRoom(roomId);
-		if (!room) return null;
-		if (room.user1Id === user.id) return room;
-		if (room.user2Id === user.id) return room;
-		if (room.user3Id === user.id) return room;
-		if (room.user4Id === user.id) return room;
-		if (room.user2Id === null) {
-			room.user2Id = user.id;
-			room.user2 = await this.userEntityService.pack(user);
-			await this.saveRoom(room);
-			this.globalEventService.publishMahjongRoomStream(room.id, 'joined', { index: 2, user: room.user2 });
-			return room;
-		}
-		if (room.user3Id === null) {
-			room.user3Id = user.id;
-			room.user3 = await this.userEntityService.pack(user);
-			await this.saveRoom(room);
-			this.globalEventService.publishMahjongRoomStream(room.id, 'joined', { index: 3, user: room.user3 });
-			return room;
-		}
-		if (room.user4Id === null) {
-			room.user4Id = user.id;
-			room.user4 = await this.userEntityService.pack(user);
-			await this.saveRoom(room);
-			this.globalEventService.publishMahjongRoomStream(room.id, 'joined', { index: 4, user: room.user4 });
-			return room;
+		for (const index of [2, 3, 4] as const) {
+			if (await tryJoin(index)) return room;
 		}
 
 		return null;
 	}
 
 	@bindThis
-	public async addAi(roomId: Room['id'], user: MiUser): Promise<Room | null> {
+	public async addAi(roomId: MahjongRoom['id'], user: MiUser): Promise<MahjongRoom | null> {
+		return await this.withRoomLock(roomId, () => this.addAiLocked(roomId, user));
+	}
+
+	private async addAiLocked(roomId: MahjongRoom['id'], user: MiUser): Promise<MahjongRoom | null> {
 		const room = await this.getRoom(roomId);
-		if (!room) return null;
+		if (room == null) return null;
 		if (room.user1Id !== user.id) throw new Error('access denied');
+		if (room.isStarted || room.isEnded) return null;
 
-		if (room.user2Id == null && !room.user2Ai) {
-			room.user2Ai = true;
-			room.user2Ready = true;
-			await this.saveRoom(room);
-			this.globalEventService.publishMahjongRoomStream(room.id, 'joined', { index: 2, user: null });
-			return room;
-		}
-		if (room.user3Id == null && !room.user3Ai) {
-			room.user3Ai = true;
-			room.user3Ready = true;
-			await this.saveRoom(room);
-			this.globalEventService.publishMahjongRoomStream(room.id, 'joined', { index: 3, user: null });
-			return room;
-		}
-		if (room.user4Id == null && !room.user4Ai) {
-			room.user4Ai = true;
-			room.user4Ready = true;
-			await this.saveRoom(room);
-			this.globalEventService.publishMahjongRoomStream(room.id, 'joined', { index: 4, user: null });
-			return room;
+		for (const index of [2, 3, 4] as const) {
+			const idKey = `user${index}Id` as const;
+			const aiKey = `user${index}Ai` as const;
+			const readyKey = `user${index}Ready` as const;
+			if (room[idKey] == null && !room[aiKey]) {
+				room[aiKey] = true;
+				room[readyKey] = true;
+				await this.saveRoom(room);
+				this.globalEventService.publishMahjongRoomStream(room.id, 'joined', { index, user: null });
+				await this.checkAllReady(room);
+				return room;
+			}
 		}
 
 		return null;
 	}
 
 	@bindThis
-	public async leaveRoom(roomId: Room['id'], user: MiUser): Promise<Room | null> {
+	public async leaveRoom(roomId: MahjongRoom['id'], user: MiUser): Promise<MahjongRoom | null> {
+		return await this.withRoomLock(roomId, () => this.leaveRoomLocked(roomId, user));
+	}
+
+	private async leaveRoomLocked(roomId: MahjongRoom['id'], user: MiUser): Promise<MahjongRoom | null> {
 		const room = await this.getRoom(roomId);
-		if (!room) return null;
-		if (room.user1Id === user.id) {
-			room.user1Id = null;
-			room.user1 = null;
-			await this.saveRoom(room);
-			return room;
+		if (room == null) return null;
+		if (room.isStarted) return null;
+
+		const slot = getSlotOfUserId(room, user.id);
+		if (slot == null) return null;
+
+		if (slot === 1) {
+			await this.deleteRoom(room.id);
+			this.globalEventService.publishMahjongRoomStream(room.id, 'canceled', { userId: user.id });
+			return null;
 		}
-		if (room.user2Id === user.id) {
-			room.user2Id = null;
-			room.user2 = null;
-			await this.saveRoom(room);
-			return room;
-		}
-		if (room.user3Id === user.id) {
-			room.user3Id = null;
-			room.user3 = null;
-			await this.saveRoom(room);
-			return room;
-		}
-		if (room.user4Id === user.id) {
-			room.user4Id = null;
-			room.user4 = null;
-			await this.saveRoom(room);
-			return room;
-		}
-		return null;
+
+		const idKey = `user${slot}Id` as const;
+		const aiKey = `user${slot}Ai` as const;
+		const readyKey = `user${slot}Ready` as const;
+		const userKey = `user${slot}` as const;
+		room[idKey] = null;
+		room[userKey] = null;
+		room[aiKey] = false;
+		room[readyKey] = false;
+		await this.saveRoom(room);
+		this.globalEventService.publishMahjongRoomStream(room.id, 'left', { index: slot });
+		this.globalEventService.publishMahjongRoomStream(room.id, 'changeReadyStates', {
+			user1: room.user1Ready,
+			user2: room.user2Ready,
+			user3: room.user3Ready,
+			user4: room.user4Ready,
+		});
+		return room;
 	}
 
 	@bindThis
-	public async changeReadyState(roomId: Room['id'], user: MiUser, ready: boolean): Promise<void> {
-		const room = await this.getRoom(roomId);
-		if (!room) return;
+	public async updateSettings(roomId: MahjongRoom['id'], user: MiUser, key: string, value: unknown): Promise<void> {
+		return await this.withRoomLock(roomId, () => this.updateSettingsLocked(roomId, user, key, value));
+	}
 
-		if (room.user1Id === user.id) {
-			room.user1Ready = ready;
+	private async updateSettingsLocked(roomId: MahjongRoom['id'], user: MiUser, key: string, value: unknown): Promise<void> {
+		const room = await this.getRoom(roomId);
+		if (room == null) return;
+		if (room.user1Id !== user.id) return;
+		if (room.isStarted) return;
+
+		if (key === 'timeLimitForEachTurn') {
+			if (typeof value !== 'number' || !Number.isInteger(value) || value < 5 || value > 300) return;
+			room.timeLimitForEachTurn = value;
 			await this.saveRoom(room);
 		}
-		if (room.user2Id === user.id) {
-			room.user2Ready = ready;
-			await this.saveRoom(room);
-		}
-		if (room.user3Id === user.id) {
-			room.user3Ready = ready;
-			await this.saveRoom(room);
-		}
-		if (room.user4Id === user.id) {
-			room.user4Ready = ready;
-			await this.saveRoom(room);
-		}
+	}
+
+	@bindThis
+	public async changeReadyState(roomId: MahjongRoom['id'], user: MiUser, ready: boolean): Promise<void> {
+		return await this.withRoomLock(roomId, () => this.changeReadyStateLocked(roomId, user, ready));
+	}
+
+	private async changeReadyStateLocked(roomId: MahjongRoom['id'], user: MiUser, ready: boolean): Promise<void> {
+		const room = await this.getRoom(roomId);
+		if (room == null) return;
+		if (room.isStarted || room.isEnded) return;
+
+		const slot = getSlotOfUserId(room, user.id);
+		if (slot == null) return;
+
+		const readyKey = `user${slot}Ready` as const;
+		room[readyKey] = ready;
+		await this.saveRoom(room);
 
 		this.globalEventService.publishMahjongRoomStream(room.id, 'changeReadyStates', {
 			user1: room.user1Ready,
@@ -267,35 +359,54 @@ export class MahjongService implements OnApplicationShutdown, OnModuleInit {
 			user4: room.user4Ready,
 		});
 
-		if (room.user1Ready && room.user2Ready && room.user3Ready && room.user4Ready) {
-			await this.startGame(room);
-		}
+		await this.checkAllReady(room);
 	}
 
 	@bindThis
-	public async startGame(room: Room) {
-		if (!room.user1Ready || !room.user2Ready || !room.user3Ready || !room.user4Ready) {
-			throw new Error('Not ready');
-		}
+	private async checkAllReady(room: MahjongRoom): Promise<void> {
+		if (room.isStarted || room.isEnded) return;
+		const participantsReady =
+			(room.user1Id != null || room.user1Ai) && room.user1Ready &&
+			(room.user2Id != null || room.user2Ai) && room.user2Ready &&
+			(room.user3Id != null || room.user3Ai) && room.user3Ready &&
+			(room.user4Id != null || room.user4Ai) && room.user4Ready;
+		if (!participantsReady) return;
+		await this.startGame(room);
+	}
 
+	@bindThis
+	private async startGame(room: MahjongRoom): Promise<void> {
+		if (room.isStarted) return;
 		room.gameState = Mmj.MasterGameEngine.createInitialState();
 		room.isStarted = true;
+		room.startedAt = new Date().toISOString();
 		await this.saveRoom(room);
 
-		this.globalEventService.publishMahjongRoomStream(room.id, 'started', { room: room });
+		this.globalEventService.publishMahjongRoomStream(room.id, 'started', { room });
 
 		this.kyokuStarted(room);
 	}
 
 	@bindThis
-	private kyokuStarted(room: Room) {
+	private kyokuStarted(room: MahjongRoom): void {
+		if (room.gameState == null) return;
 		const mj = new Mmj.MasterGameEngine(room.gameState);
-
+		if (mj.turn == null) return;
 		this.waitForTurn(room, mj.turn, mj);
 	}
 
 	@bindThis
-	private async answer(room: Room, mj: Mmj.MasterGameEngine, answers: CallingAnswers) {
+	private getAiHouses(room: MahjongRoom, mj: Mmj.MasterGameEngine): Mmj.House[] {
+		const houses: Mmj.House[] = [];
+		if (room.user1Ai) houses.push(mj.user1House);
+		if (room.user2Ai) houses.push(mj.user2House);
+		if (room.user3Ai) houses.push(mj.user3House);
+		if (room.user4Ai) houses.push(mj.user4House);
+		return houses;
+	}
+
+	@bindThis
+	private async answer(room: MahjongRoom, mj: Mmj.MasterGameEngine, answers: CallingAnswers): Promise<void> {
 		const res = mj.commit_resolveCallingInterruption({
 			pon: answers.pon ?? false,
 			cii: answers.cii ?? false,
@@ -333,66 +444,90 @@ export class MahjongService implements OnApplicationShutdown, OnModuleInit {
 						n: mj.handTiles.n,
 					},
 				});
-				this.endKyoku(room, mj);
+				await this.endKyoku(room, mj);
 				break;
 			case 'ryuukyoku':
-				this.globalEventService.publishMahjongRoomStream(room.id, 'ryuukyoku', {
-				});
-				this.endKyoku(room, mj);
+				this.globalEventService.publishMahjongRoomStream(room.id, 'ryuukyoku', {});
+				await this.endKyoku(room, mj);
 				break;
 		}
 	}
 
 	@bindThis
-	private async endKyoku(room: Room, mj: Mmj.MasterGameEngine) {
+	private async endKyoku(room: MahjongRoom, mj: Mmj.MasterGameEngine): Promise<void> {
+		this.clearTurnTimers(room.id);
+
 		const confirmation: NextKyokuConfirmation = {
-			user1: false,
-			user2: false,
-			user3: false,
-			user4: false,
+			user1: room.user1Ai,
+			user2: room.user2Ai,
+			user3: room.user3Ai,
+			user4: room.user4Ai,
 		};
-		this.redisClient.set(`mahjong:gameNextKyokuConfirmation:${room.id}`, JSON.stringify(confirmation));
+		await this.redisClient.set(`mahjong:gameNextKyokuConfirmation:${room.id}`, JSON.stringify(confirmation));
 		const waitingStartedAt = Date.now();
 		const interval = setInterval(async () => {
 			const confirmationRaw = await this.redisClient.get(`mahjong:gameNextKyokuConfirmation:${room.id}`);
 			if (confirmationRaw == null) {
 				clearInterval(interval);
+				this.removeTimer(this.otherTimers, room.id, interval);
 				return;
 			}
-			const confirmation = JSON.parse(confirmationRaw) as NextKyokuConfirmation;
-			const allConfirmed = confirmation.user1 && confirmation.user2 && confirmation.user3 && confirmation.user4;
+			const current = JSON.parse(confirmationRaw) as NextKyokuConfirmation;
+			const allConfirmed = current.user1 && current.user2 && current.user3 && current.user4;
 			if (allConfirmed || (Date.now() - waitingStartedAt > NEXT_KYOKU_CONFIRMATION_TIMEOUT_MS)) {
-				await this.redisClient.del(`mahjong:gameNextKyokuConfirmation:${room.id}`);
 				clearInterval(interval);
-				this.nextKyoku(room, mj);
+				this.removeTimer(this.otherTimers, room.id, interval);
+				await this.redisClient.del(`mahjong:gameNextKyokuConfirmation:${room.id}`);
+				try {
+					await this.nextKyoku(room, mj);
+				} catch (err) {
+					console.error('mahjong: failed to nextKyoku', err);
+				}
 			}
-		}, 2000);
+		}, 500);
+		this.addTimer(this.otherTimers, room.id, interval);
 	}
 
 	@bindThis
-	private async nextKyoku(room: Room, mj: Mmj.MasterGameEngine) {
-		const res = mj.commit_nextKyoku();
+	private async nextKyoku(room: MahjongRoom, mj: Mmj.MasterGameEngine): Promise<void> {
+		mj.commit_nextKyoku();
 		room.gameState = mj.getState();
+
+		if (room.gameState.kyoku > EAST_ROUND_KYOKU_COUNT) {
+			await this.endGame(room);
+			return;
+		}
+
 		await this.saveRoom(room);
-		this.globalEventService.publishMahjongRoomStream(room.id, 'nextKyoku', {
-			room: room,
-		});
+		this.globalEventService.publishMahjongRoomStream(room.id, 'nextKyoku', { room });
 		this.kyokuStarted(room);
 	}
 
 	@bindThis
-	private async dahai(room: Room, mj: Mmj.MasterGameEngine, house: Mmj.House, tile: Mmj.TileId, riichi = false) {
+	private async endGame(room: MahjongRoom): Promise<void> {
+		this.clearAllTimers(room.id);
+		room.isEnded = true;
+		room.endedAt = new Date().toISOString();
+		await this.saveRoom(room);
+		this.globalEventService.publishMahjongRoomStream(room.id, 'ended', { room });
+	}
+
+	@bindThis
+	private async dahai(room: MahjongRoom, mj: Mmj.MasterGameEngine, house: Mmj.House, tile: Mmj.TileId, riichi = false): Promise<void> {
 		const res = mj.commit_dahai(house, tile, riichi);
 		room.gameState = mj.getState();
+		await this.clearTurnWaitingTimer(room.id);
 		await this.saveRoom(room);
 
-		const aiHouses = [[1, room.user1Ai], [2, room.user2Ai], [3, room.user3Ai], [4, room.user4Ai]].filter(([id, ai]) => ai).map(([id, ai]) => mj.getHouse(id));
+		const aiHouses = this.getAiHouses(room, mj);
 
 		if (res.ryuukyoku) {
-			this.endKyoku(room, mj);
-			this.globalEventService.publishMahjongRoomStream(room.id, 'ryuukyoku', {
-			});
-		} else if (res.asking) {
+			this.globalEventService.publishMahjongRoomStream(room.id, 'ryuukyoku', {});
+			await this.endKyoku(room, mj);
+			return;
+		}
+
+		if (res.asking) {
 			const answers: CallingAnswers = {
 				pon: null,
 				cii: null,
@@ -406,40 +541,40 @@ export class MahjongService implements OnApplicationShutdown, OnModuleInit {
 			};
 
 			// リーチ中はポン、チー、カンできない
-			if (res.canPonHouse != null && mj.riichis[res.canPonHouse]) {
-				answers.pon = false;
+			if (res.canPonHouse != null) {
+				answers.pon = mj.riichis[res.canPonHouse] ? false : null;
 			}
-			if (res.canCiiHouse != null && mj.riichis[res.canCiiHouse]) {
-				answers.cii = false;
+			if (res.canCiiHouse != null) {
+				answers.cii = mj.riichis[res.canCiiHouse] ? false : null;
 			}
-			if (res.canKanHouse != null && mj.riichis[res.canKanHouse]) {
-				answers.kan = false;
+			if (res.canKanHouse != null) {
+				answers.kan = mj.riichis[res.canKanHouse] ? false : null;
 			}
 
-			if (aiHouses.includes(res.canPonHouse)) {
-				// TODO: ちゃんと思考するようにする
-				answers.pon = Math.random() < 0.25;
+			if (res.canPonHouse != null && aiHouses.includes(res.canPonHouse)) {
+				answers.pon = Math.random() < 0.5;
 			}
-			if (aiHouses.includes(res.canCiiHouse)) {
-				// TODO: ちゃんと思考するようにする
-				//answers.cii = Math.random() < 0.25;
+			if (res.canCiiHouse != null && aiHouses.includes(res.canCiiHouse)) {
 				answers.cii = false;
 			}
-			if (aiHouses.includes(res.canKanHouse)) {
-				// TODO: ちゃんと思考するようにする
-				answers.kan = Math.random() < 0.25;
+			if (res.canKanHouse != null && aiHouses.includes(res.canKanHouse)) {
+				answers.kan = Math.random() < 0.5;
 			}
 			for (const h of res.canRonHouses) {
 				if (aiHouses.includes(h)) {
-				// TODO: ちゃんと思考するようにする
+					answers.ron[h] = true;
 				}
 			}
 
-			this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(answers));
+			await this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(answers));
 			const waitingStartedAt = Date.now();
 			const interval = setInterval(async () => {
 				const current = await this.redisClient.get(`mahjong:gameCallingAsking:${room.id}`);
-				if (current == null) throw new Error('arienai (gameCallingAsking)');
+				if (current == null) {
+					clearInterval(interval);
+					this.removeTimer(this.otherTimers, room.id, interval);
+					return;
+				}
 				const currentAnswers = JSON.parse(current) as CallingAnswers;
 				const allAnswered = !(
 					(res.canPonHouse != null && currentAnswers.pon == null) ||
@@ -451,284 +586,316 @@ export class MahjongService implements OnApplicationShutdown, OnModuleInit {
 					(res.canRonHouses.includes('n') && currentAnswers.ron.n == null)
 				);
 				if (allAnswered || (Date.now() - waitingStartedAt > CALL_AND_RON_ASKING_TIMEOUT_MS)) {
-					console.log(allAnswered ? 'ask all answerd' : 'ask timeout');
-					await this.redisClient.del(`mahjong:gameCallingAsking:${room.id}`);
 					clearInterval(interval);
-					this.answer(room, mj, currentAnswers);
-					return;
+					this.removeTimer(this.otherTimers, room.id, interval);
+					await this.redisClient.del(`mahjong:gameCallingAsking:${room.id}`);
+					try {
+						await this.answer(room, mj, currentAnswers);
+					} catch (err) {
+						console.error('mahjong: failed to resolve asking', err);
+					}
 				}
-			}, 1000);
+			}, 500);
+			this.addTimer(this.otherTimers, room.id, interval);
 
-			this.globalEventService.publishMahjongRoomStream(room.id, 'dahai', { house: house, tile, riichi });
-		} else {
-			this.globalEventService.publishMahjongRoomStream(room.id, 'dahaiAndTsumo', { dahaiHouse: house, dahaiTile: tile, tsumoTile: res.tsumoTile, riichi });
-
-			this.waitForTurn(room, res.next, mj);
+			this.globalEventService.publishMahjongRoomStream(room.id, 'dahai', { house, tile, riichi });
+			return;
 		}
+
+		this.globalEventService.publishMahjongRoomStream(room.id, 'dahaiAndTsumo', { dahaiHouse: house, dahaiTile: tile, tsumoTile: res.tsumoTile, riichi });
+		this.waitForTurn(room, res.next, mj);
 	}
 
 	@bindThis
-	public async confirmNextKyoku(roomId: Room['id'], user: MiUser) {
-		const room = await this.getRoom(roomId);
-		if (room == null) return;
-		if (room.gameState == null) return;
-
-		// TODO: この辺の処理はアトミックに行いたいけどJSONサポートはRedis Stackが必要
-		const confirmationRaw = await this.redisClient.get(`mahjong:gameNextKyokuConfirmation:${room.id}`);
-		if (confirmationRaw == null) return;
-		const confirmation = JSON.parse(confirmationRaw) as NextKyokuConfirmation;
-		if (user.id === room.user1Id) confirmation.user1 = true;
-		if (user.id === room.user2Id) confirmation.user2 = true;
-		if (user.id === room.user3Id) confirmation.user3 = true;
-		if (user.id === room.user4Id) confirmation.user4 = true;
-		await this.redisClient.set(`mahjong:gameNextKyokuConfirmation:${room.id}`, JSON.stringify(confirmation));
-	}
-
-	@bindThis
-	public async commit_dahai(roomId: MiMahjongGame['id'], user: MiUser, tile: Mmj.TileId, riichi = false) {
-		const room = await this.getRoom(roomId);
-		if (room == null) return;
-		if (room.gameState == null) return;
-
-		const mj = new Mmj.MasterGameEngine(room.gameState);
-		const myHouse = getHouseOfUserId(room, mj, user.id);
-
-		await this.clearTurnWaitingTimer(room.id);
-
-		await this.dahai(room, mj, myHouse, tile, riichi);
-	}
-
-	@bindThis
-	public async commit_ankan(roomId: MiMahjongGame['id'], user: MiUser, tile: Mmj.TileId) {
-		const room = await this.getRoom(roomId);
-		if (room == null) return;
-		if (room.gameState == null) return;
-
-		const mj = new Mmj.MasterGameEngine(room.gameState);
-		const myHouse = getHouseOfUserId(room, mj, user.id);
-
-		await this.clearTurnWaitingTimer(room.id);
-
-		const res = mj.commit_ankan(myHouse, tile);
+	private async tsumoHoraByHouse(room: MahjongRoom, mj: Mmj.MasterGameEngine, house: Mmj.House): Promise<void> {
+		const res = mj.commit_tsumoHora(house);
 		room.gameState = mj.getState();
+		await this.clearTurnWaitingTimer(room.id);
 		await this.saveRoom(room);
 
-		this.globalEventService.publishMahjongRoomStream(room.id, 'ankanned', { house: myHouse, tiles: res.tiles, rinsyan: res.rinsyan });
-
-		this.waitForTurn(room, myHouse, mj);
+		this.globalEventService.publishMahjongRoomStream(room.id, 'tsumoHora', { house, handTiles: res.handTiles, tsumoTile: res.tsumoTile });
+		await this.endKyoku(room, mj);
 	}
 
 	@bindThis
-	public async commit_kakan(roomId: MiMahjongGame['id'], user: MiUser, tile: Mmj.TileId) {
-		const room = await this.getRoom(roomId);
-		if (room == null) return;
-		if (room.gameState == null) return;
+	private async waitForTurn(room: MahjongRoom, house: Mmj.House, mj: Mmj.MasterGameEngine): Promise<void> {
+		const aiHouses = this.getAiHouses(room, mj);
 
-		const mj = new Mmj.MasterGameEngine(room.gameState);
-		const myHouse = getHouseOfUserId(room, mj, user.id);
+		if (aiHouses.includes(house)) {
+			if (Mmj.isAgarikei(mj.handTileTypes[house])) {
+				const timer = setTimeout(() => {
+					void this.tsumoHoraByHouse(room, mj, house).catch(async (err) => {
+						console.error('mahjong: AI failed to tsumoHora, discarding instead', err);
+						const handTiles = mj.handTiles[house];
+						await this.dahai(room, mj, house, handTiles.at(-1)!).catch(e => console.error('mahjong: AI failed to dahai', e));
+					});
+				}, 500);
+				this.addTimer(this.turnTimers, room.id, timer);
+				return;
+			}
 
-		await this.clearTurnWaitingTimer(room.id);
-
-		const res = mj.commit_kakan(myHouse, tile);
-		room.gameState = mj.getState();
-		await this.saveRoom(room);
-
-		this.globalEventService.publishMahjongRoomStream(room.id, 'kakanned', { house: myHouse, tiles: res.tiles, rinsyan: res.rinsyan, from: res.from });
-	}
-
-	@bindThis
-	public async commit_tsumoHora(roomId: MiMahjongGame['id'], user: MiUser) {
-		const room = await this.getRoom(roomId);
-		if (room == null) return;
-		if (room.gameState == null) return;
-
-		const mj = new Mmj.MasterGameEngine(room.gameState);
-		const myHouse = getHouseOfUserId(room, mj, user.id);
-
-		await this.clearTurnWaitingTimer(room.id);
-
-		const res = mj.commit_tsumoHora(myHouse);
-		room.gameState = mj.getState();
-		await this.saveRoom(room);
-
-		this.globalEventService.publishMahjongRoomStream(room.id, 'tsumoHora', { house: myHouse, handTiles: res.handTiles, tsumoTile: res.tsumoTile });
-
-		this.endKyoku(room, mj);
-	}
-
-	@bindThis
-	public async commit_ronHora(roomId: MiMahjongGame['id'], user: MiUser) {
-		const room = await this.getRoom(roomId);
-		if (room == null) return;
-		if (room.gameState == null) return;
-
-		const mj = new Mmj.MasterGameEngine(room.gameState);
-		const myHouse = getHouseOfUserId(room, mj, user.id);
-
-		// TODO: 自分に回答する権利がある状態かバリデーション
-
-		// TODO: この辺の処理はアトミックに行いたいけどJSONサポートはRedis Stackが必要
-		const current = await this.redisClient.get(`mahjong:gameCallingAsking:${room.id}`);
-		if (current == null) throw new Error('no asking found');
-		const currentAnswers = JSON.parse(current) as CallingAnswers;
-		currentAnswers.ron[myHouse] = true;
-		await this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(currentAnswers));
-	}
-
-	@bindThis
-	public async commit_pon(roomId: MiMahjongGame['id'], user: MiUser) {
-		const room = await this.getRoom(roomId);
-		if (room == null) return;
-		if (room.gameState == null) return;
-
-		// TODO: 自分に回答する権利がある状態かバリデーション
-
-		// TODO: この辺の処理はアトミックに行いたいけどJSONサポートはRedis Stackが必要
-		const current = await this.redisClient.get(`mahjong:gameCallingAsking:${room.id}`);
-		if (current == null) throw new Error('no asking found');
-		const currentAnswers = JSON.parse(current) as CallingAnswers;
-		currentAnswers.pon = true;
-		await this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(currentAnswers));
-	}
-
-	@bindThis
-	public async commit_kan(roomId: MiMahjongGame['id'], user: MiUser) {
-		const room = await this.getRoom(roomId);
-		if (room == null) return;
-		if (room.gameState == null) return;
-
-		// TODO: 自分に回答する権利がある状態かバリデーション
-
-		// TODO: この辺の処理はアトミックに行いたいけどJSONサポートはRedis Stackが必要
-		const current = await this.redisClient.get(`mahjong:gameCallingAsking:${room.id}`);
-		if (current == null) throw new Error('no asking found');
-		const currentAnswers = JSON.parse(current) as CallingAnswers;
-		currentAnswers.kan = true;
-		await this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(currentAnswers));
-	}
-
-	@bindThis
-	public async commit_cii(roomId: MiMahjongGame['id'], user: MiUser, pattern: 'x__' | '_x_' | '__x') {
-		const room = await this.getRoom(roomId);
-		if (room == null) return;
-		if (room.gameState == null) return;
-
-		// TODO: 自分に回答する権利がある状態かバリデーション
-
-		// TODO: この辺の処理はアトミックに行いたいけどJSONサポートはRedis Stackが必要
-		const current = await this.redisClient.get(`mahjong:gameCallingAsking:${room.id}`);
-		if (current == null) throw new Error('no asking found');
-		const currentAnswers = JSON.parse(current) as CallingAnswers;
-		currentAnswers.cii = pattern;
-		await this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(currentAnswers));
-	}
-
-	@bindThis
-	public async commit_nop(roomId: MiMahjongGame['id'], user: MiUser) {
-		const room = await this.getRoom(roomId);
-		if (room == null) return;
-		if (room.gameState == null) return;
-
-		const mj = new Mmj.MasterGameEngine(room.gameState);
-		const myHouse = getHouseOfUserId(room, mj, user.id);
-
-		// TODO: この辺の処理はアトミックに行いたいけどJSONサポートはRedis Stackが必要
-		const current = await this.redisClient.get(`mahjong:gameCallingAsking:${room.id}`);
-		if (current == null) throw new Error('no asking found');
-		const currentAnswers = JSON.parse(current) as CallingAnswers;
-		if (mj.askings.pon?.caller === myHouse) currentAnswers.pon = false;
-		if (mj.askings.cii?.caller === myHouse) currentAnswers.cii = false;
-		if (mj.askings.kan?.caller === myHouse) currentAnswers.kan = false;
-		if (mj.askings.ron != null && mj.askings.ron.callers.includes(myHouse)) currentAnswers.ron[myHouse] = false;
-		await this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(currentAnswers));
-	}
-
-	/**
-	 * プレイヤーの行動(打牌、加槓、暗槓、ツモ和了)を待つ
-	 * 制限時間が過ぎたらツモ切り
-	 * NOTE: 時間切れチェックが行われたときにタイミングによっては次のwaitingが始まっている場合があることを考慮し、Setに一意のIDを格納する構造としている
-	 * @param room
-	 * @param house
-	 * @param mj
-	 */
-	@bindThis
-	private async waitForTurn(room: Room, house: Mmj.House, mj: Mmj.MasterGameEngine) {
-		const aiHouses = [[1, room.user1Ai], [2, room.user2Ai], [3, room.user3Ai], [4, room.user4Ai]].filter(([id, ai]) => ai).map(([id, ai]) => mj.getHouse(id));
+			const timer = setTimeout(() => {
+				const handTiles = mj.handTiles[house];
+				void this.dahai(room, mj, house, handTiles.at(-1)!).catch(err => console.error('mahjong: AI failed to dahai', err));
+			}, 500);
+			this.addTimer(this.turnTimers, room.id, timer);
+			return;
+		}
 
 		if (mj.riichis[house]) {
 			// リーチ時はアガリ牌でない限りツモ切り
 			if (!Mmj.isAgarikei(mj.handTileTypes[house])) {
-				setTimeout(() => {
-					this.dahai(room, mj, house, mj.handTiles[house].at(-1));
+				const timer = setTimeout(() => {
+					const handTiles = mj.handTiles[house];
+					void this.dahai(room, mj, house, handTiles.at(-1)!).catch(err => console.error('mahjong: failed to dahai after riichi', err));
 				}, 500);
+				this.addTimer(this.turnTimers, room.id, timer);
 				return;
 			}
 		}
 
-		if (aiHouses.includes(house)) {
-			setTimeout(() => {
-				this.dahai(room, mj, house, mj.handTiles[house].at(-1));
-			}, 500);
-			return;
-		}
-
 		const id = Math.random().toString(36).slice(2);
-		console.log('waitForTurn', house, id);
-		this.redisClient.sadd(`mahjong:gameTurnWaiting:${room.id}`, id);
+		await this.redisClient.sadd(`mahjong:gameTurnWaiting:${room.id}`, id);
 		const waitingStartedAt = Date.now();
+		const timeoutMs = room.timeLimitForEachTurn * 1000;
 		const interval = setInterval(async () => {
 			const waiting = await this.redisClient.sismember(`mahjong:gameTurnWaiting:${room.id}`, id);
 			if (waiting === 0) {
 				clearInterval(interval);
+				this.removeTimer(this.turnTimers, room.id, interval);
 				return;
 			}
-			if (Date.now() - waitingStartedAt > TURN_TIMEOUT_MS) {
+			if (Date.now() - waitingStartedAt > timeoutMs) {
 				await this.redisClient.srem(`mahjong:gameTurnWaiting:${room.id}`, id);
-				console.log('turn timeout', house, id);
 				clearInterval(interval);
+				this.removeTimer(this.turnTimers, room.id, interval);
 				const handTiles = mj.handTiles[house];
-				await this.dahai(room, mj, house, handTiles.at(-1));
-				return;
+				try {
+					await this.dahai(room, mj, house, handTiles.at(-1)!);
+				} catch (err) {
+					console.error('mahjong: failed to dahai on timeout', err);
+				}
 			}
-		}, 2000);
-	}
-
-	/**
-	 * プレイヤーが行動(打牌、加槓、暗槓、ツモ和了)したら呼ぶ
-	 * @param roomId
-	 */
-	@bindThis
-	private async clearTurnWaitingTimer(roomId: Room['id']) {
-		await this.redisClient.del(`mahjong:gameTurnWaiting:${roomId}`);
+		}, 500);
+		this.addTimer(this.turnTimers, room.id, interval);
 	}
 
 	@bindThis
-	public packState(room: Room, me: MiUser) {
+	public async confirmNextKyoku(roomId: MahjongRoom['id'], user: MiUser): Promise<void> {
+		return await this.withRoomLock(roomId, () => this.confirmNextKyokuLocked(roomId, user));
+	}
+
+	private async confirmNextKyokuLocked(roomId: MahjongRoom['id'], user: MiUser): Promise<void> {
+		const room = await this.getRoom(roomId);
+		if (room == null) return;
+		if (room.gameState == null) return;
+
+		const slot = getSlotOfUserId(room, user.id);
+		if (slot == null) return;
+
+		const confirmationRaw = await this.redisClient.get(`mahjong:gameNextKyokuConfirmation:${room.id}`);
+		if (confirmationRaw == null) return;
+		const confirmation = JSON.parse(confirmationRaw) as NextKyokuConfirmation;
+		confirmation[`user${slot}` as keyof NextKyokuConfirmation] = true;
+		await this.redisClient.set(`mahjong:gameNextKyokuConfirmation:${room.id}`, JSON.stringify(confirmation));
+	}
+
+	@bindThis
+	public async commit_dahai(roomId: MahjongRoom['id'], user: MiUser, tile: Mmj.TileId, riichi = false): Promise<void> {
+		const room = await this.getRoom(roomId);
+		if (room == null) return;
+		if (room.gameState == null) return;
+		if (room.isEnded) return;
+
 		const mj = new Mmj.MasterGameEngine(room.gameState);
-		const myIndex = room.user1Id === me.id ? 1 : room.user2Id === me.id ? 2 : room.user3Id === me.id ? 3 : 4;
-		return mj.createPlayerState(myIndex);
-	}
+		const myHouse = getHouseOfUserId(room, mj, user.id);
 
-	@bindThis
-	public async packRoom(room: Room, me: MiUser) {
-		if (room.gameState) {
-			return {
-				...room,
-				gameState: this.packState(room, me),
-			};
-		} else {
-			return {
-				...room,
-			};
+		try {
+			await this.dahai(room, mj, myHouse, tile, riichi);
+		} catch (err) {
+			console.error('mahjong: failed to dahai', err);
 		}
 	}
 
 	@bindThis
-	public dispose(): void {
+	public async commit_ankan(roomId: MahjongRoom['id'], user: MiUser, tile: Mmj.TileId): Promise<void> {
+		const room = await this.getRoom(roomId);
+		if (room == null) return;
+		if (room.gameState == null) return;
+		if (room.isEnded) return;
+
+		const mj = new Mmj.MasterGameEngine(room.gameState);
+		const myHouse = getHouseOfUserId(room, mj, user.id);
+
+		try {
+			const res = mj.commit_ankan(myHouse, tile);
+			room.gameState = mj.getState();
+			await this.clearTurnWaitingTimer(room.id);
+			await this.saveRoom(room);
+			this.globalEventService.publishMahjongRoomStream(room.id, 'ankanned', { house: myHouse, tiles: res.tiles, rinsyan: res.rinsyan });
+			this.waitForTurn(room, myHouse, mj);
+		} catch (err) {
+			console.error('mahjong: failed to ankan', err);
+		}
 	}
 
 	@bindThis
-	public onApplicationShutdown(signal?: string | undefined): void {
+	public async commit_kakan(roomId: MahjongRoom['id'], user: MiUser, tile: Mmj.TileId): Promise<void> {
+		const room = await this.getRoom(roomId);
+		if (room == null) return;
+		if (room.gameState == null) return;
+		if (room.isEnded) return;
+
+		const mj = new Mmj.MasterGameEngine(room.gameState);
+		const myHouse = getHouseOfUserId(room, mj, user.id);
+
+		try {
+			const res = mj.commit_kakan(myHouse, tile);
+			room.gameState = mj.getState();
+			await this.clearTurnWaitingTimer(room.id);
+			await this.saveRoom(room);
+			this.globalEventService.publishMahjongRoomStream(room.id, 'kakanned', { house: myHouse, tiles: res.tiles, rinsyan: res.rinsyan, from: res.from });
+			this.waitForTurn(room, myHouse, mj);
+		} catch (err) {
+			console.error('mahjong: failed to kakan', err);
+		}
+	}
+
+	@bindThis
+	public async commit_tsumoHora(roomId: MahjongRoom['id'], user: MiUser): Promise<void> {
+		const room = await this.getRoom(roomId);
+		if (room == null) return;
+		if (room.gameState == null) return;
+		if (room.isEnded) return;
+
+		const mj = new Mmj.MasterGameEngine(room.gameState);
+		const myHouse = getHouseOfUserId(room, mj, user.id);
+
+		try {
+			await this.tsumoHoraByHouse(room, mj, myHouse);
+		} catch (err) {
+			console.error('mahjong: failed to tsumoHora', err);
+		}
+	}
+
+	@bindThis
+	private async updateAnswer(roomId: MahjongRoom['id'], user: MiUser, update: (answers: CallingAnswers, house: Mmj.House, mj: Mmj.MasterGameEngine) => boolean): Promise<void> {
+		return await this.withRoomLock(roomId, () => this.updateAnswerLocked(roomId, user, update));
+	}
+
+	private async updateAnswerLocked(roomId: MahjongRoom['id'], user: MiUser, update: (answers: CallingAnswers, house: Mmj.House, mj: Mmj.MasterGameEngine) => boolean): Promise<void> {
+		const room = await this.getRoom(roomId);
+		if (room == null) return;
+		if (room.gameState == null) return;
+
+		const mj = new Mmj.MasterGameEngine(room.gameState);
+		const myHouse = getHouseOfUserId(room, mj, user.id);
+
+		const current = await this.redisClient.get(`mahjong:gameCallingAsking:${room.id}`);
+		if (current == null) return;
+		const currentAnswers = JSON.parse(current) as CallingAnswers;
+		if (!update(currentAnswers, myHouse, mj)) return;
+		await this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(currentAnswers));
+	}
+
+	@bindThis
+	public async commit_ronHora(roomId: MahjongRoom['id'], user: MiUser): Promise<void> {
+		await this.updateAnswer(roomId, user, (answers, house, mj) => {
+			if (mj.askings.ron == null || !mj.askings.ron.callers.includes(house)) return false;
+			answers.ron[house] = true;
+			return true;
+		});
+	}
+
+	@bindThis
+	public async commit_pon(roomId: MahjongRoom['id'], user: MiUser): Promise<void> {
+		await this.updateAnswer(roomId, user, (answers, house, mj) => {
+			if (mj.askings.pon == null || mj.askings.pon.caller !== house) return false;
+			answers.pon = true;
+			return true;
+		});
+	}
+
+	@bindThis
+	public async commit_kan(roomId: MahjongRoom['id'], user: MiUser): Promise<void> {
+		await this.updateAnswer(roomId, user, (answers, house, mj) => {
+			if (mj.askings.kan == null || mj.askings.kan.caller !== house) return false;
+			answers.kan = true;
+			return true;
+		});
+	}
+
+	@bindThis
+	public async commit_cii(roomId: MahjongRoom['id'], user: MiUser, pattern: 'x__' | '_x_' | '__x'): Promise<void> {
+		await this.updateAnswer(roomId, user, (answers, house, mj) => {
+			if (mj.askings.cii == null || mj.askings.cii.caller !== house) return false;
+			answers.cii = pattern;
+			return true;
+		});
+	}
+
+	@bindThis
+	public async commit_nop(roomId: MahjongRoom['id'], user: MiUser): Promise<void> {
+		await this.updateAnswer(roomId, user, (answers, house, mj) => {
+			let updated = false;
+			if (mj.askings.pon?.caller === house) {
+				answers.pon = false;
+				updated = true;
+			}
+			if (mj.askings.cii?.caller === house) {
+				answers.cii = false;
+				updated = true;
+			}
+			if (mj.askings.kan?.caller === house) {
+				answers.kan = false;
+				updated = true;
+			}
+			if (mj.askings.ron?.callers.includes(house)) {
+				answers.ron[house] = false;
+				updated = true;
+			}
+			return updated;
+		});
+	}
+
+	/**
+	 * プレイヤーの行動(打牌、加槓、暗槓、ツモ和了)が行われたときに呼ぶ
+	 */
+	@bindThis
+	private async clearTurnWaitingTimer(roomId: MahjongRoom['id']): Promise<void> {
+		this.clearTurnTimers(roomId);
+		await this.redisClient.del(`mahjong:gameTurnWaiting:${roomId}`);
+	}
+
+	@bindThis
+	public packState(room: MahjongRoom, me: MiUser): Mmj.PlayerState {
+		if (room.gameState == null) throw new Error('game is not started');
+		const mj = new Mmj.MasterGameEngine(room.gameState);
+		const slot = getSlotOfUserId(room, me.id);
+		if (slot == null) throw new Error('user is not a member of the room');
+		return mj.createPlayerState(slot);
+	}
+
+	@bindThis
+	public async packRoom(room: MahjongRoom, me: MiUser): Promise<Packed<'MahjongRoomDetailed'>> {
+		return {
+			...room,
+			gameState: room.gameState != null ? this.packState(room, me) : null,
+		} as Packed<'MahjongRoomDetailed'>;
+	}
+
+	@bindThis
+	public dispose(): void {
+		for (const roomId of this.turnTimers.keys()) {
+			this.clearTimers(this.turnTimers, roomId);
+		}
+		for (const roomId of this.otherTimers.keys()) {
+			this.clearTimers(this.otherTimers, roomId);
+		}
+	}
+
+	@bindThis
+	public onApplicationShutdown(_signal?: string | undefined): void {
 		this.dispose();
 	}
 }

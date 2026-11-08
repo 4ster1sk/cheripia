@@ -1,9 +1,15 @@
 {
 	"extends": "./tsconfig.json",
 	"compilerOptions": {
-		"types": ["jest", "node"]
+		"rootDir": ".",
+		"types": ["node", "vitest/globals"]
 	},
 	"include": [
+		"src/**/*",
 		"test/**/*"
 	],
+	"exclude": [
+		"node_modules",
+		"built"
+	]
 }

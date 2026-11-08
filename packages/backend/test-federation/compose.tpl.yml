@@ -72,20 +72,20 @@ services:
         target: /cherrypick/packages/i18n/package.json
         read_only: true
       - type: bind
-        source: ../../misskey-mahjong/built
-        target: /misskey/packages/misskey-mahjong/built
-        read_only: true
-      - type: bind
-        source: ../../misskey-mahjong/package.json
-        target: /misskey/packages/misskey-mahjong/package.json
-        read_only: true
-      - type: bind
         source: ../../misskey-reversi/built
         target: /cherrypick/packages/misskey-reversi/built
         read_only: true
       - type: bind
         source: ../../misskey-reversi/package.json
         target: /cherrypick/packages/misskey-reversi/package.json
+        read_only: true
+      - type: bind
+        source: ../../misskey-mahjong/built
+        target: /cherrypick/packages/misskey-mahjong/built
+        read_only: true
+      - type: bind
+        source: ../../misskey-mahjong/package.json
+        target: /cherrypick/packages/misskey-mahjong/package.json
         read_only: true
       - type: bind
         source: ../../../healthcheck.sh

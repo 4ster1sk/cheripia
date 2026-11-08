@@ -4,13 +4,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 -->
 
 <template>
-<div v-if="room == null || (!room.isEnded && connection == null)"><MkLoading/></div>
-<RoomSetting v-else-if="!room.isStarted" :room="room" :connection="connection!"/>
+<div v-if="room == null"><MkLoading/></div>
+<RoomSetting v-else-if="!room.isStarted && !room.isEnded" :room="room" :connection="connection!"/>
 <RoomGame v-else :room="room" :connection="connection"/>
 </template>
 
 <script lang="ts" setup>
-import { computed, watch, ref, onMounted, shallowRef, onUnmounted } from 'vue';
+import { computed, watch, onMounted, shallowRef, onUnmounted } from 'vue';
 import * as Misskey from 'misskey-js';
 import { useInterval } from '@@/js/use-interval.js';
 import RoomSetting from './room.setting.vue';
@@ -32,29 +32,36 @@ const props = defineProps<{
 }>();
 
 const room = shallowRef<Misskey.entities.MahjongRoomDetailed | null>(null);
-const connection = shallowRef<Misskey.ChannelConnection<Misskey.Channels['mahjongRoom']> | null>(null);
-const shareWhenStart = ref(false);
+const connection = shallowRef<Misskey.IChannelConnection<Misskey.Channels['mahjongRoom']> | null>(null);
 
 watch(() => props.roomId, () => {
 	fetchGame();
 });
 
 function start(_room: Misskey.entities.MahjongRoomDetailed) {
-	if (room.value?.isStarted) return;
-
 	room.value = _room;
 }
 
 async function fetchGame() {
-	const _room = await misskeyApi('mahjong/show-room', {
-		roomId: props.roomId,
-	});
+	try {
+		const _room = await misskeyApi('mahjong/join-room', {
+			roomId: props.roomId,
+		});
 
-	room.value = _room;
-	shareWhenStart.value = false;
+		room.value = _room;
+	} catch (err) {
+		console.error(err);
+		await os.alert({
+			type: 'warning',
+			text: 'ルームに参加できませんでした。対局が開始されているか、ルームが存在しない可能性があります。',
+		});
+		router.pushByPath('/mahjong');
+		return;
+	}
 
 	if (connection.value) {
 		connection.value.dispose();
+		connection.value = null;
 	}
 	if (!room.value.isEnded) {
 		connection.value = useStream().useChannel('mahjongRoom', {
@@ -65,13 +72,14 @@ async function fetchGame() {
 		});
 		connection.value.on('canceled', x => {
 			connection.value?.dispose();
+			connection.value = null;
 
 			if (x.userId !== $i.id) {
 				os.alert({
 					type: 'warning',
 					text: i18n.ts._mahjong.roomCanceled,
 				});
-				router.push('/mahjong');
+				router.pushByPath('/mahjong');
 			}
 		});
 	}
@@ -86,12 +94,12 @@ useInterval(async () => {
 		roomId: props.roomId,
 	});
 
-	if (_room.isStarted) {
+	if (_room.isStarted || _room.isEnded) {
 		start(_room);
 	} else {
 		room.value = _room;
 	}
-}, 1000 * 10, {
+}, 1000 * 5, {
 	immediate: false,
 	afterMounted: true,
 });
@@ -108,6 +116,6 @@ onUnmounted(() => {
 
 definePage(computed(() => ({
 	title: i18n.ts._mahjong.mahjong,
-	icon: 'ti ti-device-roompad',
+	icon: 'ti ti-device-gamepad',
 })));
 </script>

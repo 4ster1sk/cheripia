@@ -170,6 +170,7 @@ describe('Master game engine', () => {
 		tsumogiriAndIgnore(engine);
 		tsumogiriAndIgnore(engine);
 		tsumogiriAndIgnore(engine);
+		engine.$state.kingTiles[0] = 125; // ドラ表示牌を白にして、和了者の手牌にドラが乗らないようにする
 		expect(engine.commit_tsumoHora('e', false).yakus.yakuNames).toEqual(['tsumo', 'double-riichi', 'ippatsu']);
 		expect(engine.$state.points).toEqual({
 			e: INITIAL_POINT + 12000,
@@ -213,6 +214,7 @@ describe('Master game engine', () => {
 			tsumogiriAndIgnore(engine);
 		}
 		tsumogiri(engine);
+		engine.$state.kingTiles[0] = 125; // ドラ表示牌を白にして、和了者の手牌にドラが乗らないようにする
 		expect(engine.commit_resolveCallingInterruption({
 			pon: false,
 			cii: false,

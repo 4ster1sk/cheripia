@@ -1,8 +1,3 @@
-/*
- * version: 2024.2.0-beta.7
- * generatedAt: 2024-01-26T07:53:15.923Z
- */
-
 import type { SwitchCaseResponseType } from '../api.js';
 import type { Endpoints } from '../api.types.js';
 
@@ -3886,29 +3881,7 @@ declare module '../api.js' {
      * 
      * **Credential required**: *Yes* / **Permission**: *write:account*
      */
-    request<E extends 'mahjong/cancel-match', P extends Endpoints[E]['req']>(
-      endpoint: E,
-      params: P,
-      credential?: string | null,
-    ): Promise<SwitchCaseResponseType<E, P>>;
-
-    /**
-     * No description provided.
-     * 
-     * **Credential required**: *Yes* / **Permission**: *write:account*
-     */
     request<E extends 'mahjong/create-room', P extends Endpoints[E]['req']>(
-      endpoint: E,
-      params: P,
-      credential?: string | null,
-    ): Promise<SwitchCaseResponseType<E, P>>;
-
-    /**
-     * No description provided.
-     * 
-     * **Credential required**: *No*
-     */
-    request<E extends 'mahjong/games', P extends Endpoints[E]['req']>(
       endpoint: E,
       params: P,
       credential?: string | null,
@@ -3931,17 +3904,6 @@ declare module '../api.js' {
      * **Credential required**: *Yes* / **Permission**: *read:account*
      */
     request<E extends 'mahjong/show-room', P extends Endpoints[E]['req']>(
-      endpoint: E,
-      params: P,
-      credential?: string | null,
-    ): Promise<SwitchCaseResponseType<E, P>>;
-
-    /**
-     * No description provided.
-     * 
-     * **Credential required**: *No*
-     */
-    request<E extends 'mahjong/verify', P extends Endpoints[E]['req']>(
       endpoint: E,
       params: P,
       credential?: string | null,
@@ -5488,6 +5450,17 @@ declare module '../api.js' {
      * **Credential required**: *Yes* / **Permission**: *read:admin:emoji*
      */
     request<E extends 'v2/admin/emoji/list', P extends Endpoints[E]['req']>(
+      endpoint: E,
+      params: P,
+      credential?: string | null,
+    ): Promise<SwitchCaseResponseType<E, P>>;
+
+    /**
+     * No description provided.
+     * 
+     * **Credential required**: *No*
+     */
+    request<E extends 'verify-email', P extends Endpoints[E]['req']>(
       endpoint: E,
       params: P,
       credential?: string | null,

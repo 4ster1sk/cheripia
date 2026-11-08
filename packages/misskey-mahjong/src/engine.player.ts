@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import CRC32 from 'crc-32';
 import { TileType, House, Huro, TileId } from './common.js';
 import * as Common from './common.js';
 import { calcYakusWithDetail, convertHuroForCalcYaku } from './common.yaku.js';
@@ -210,6 +209,10 @@ export class PlayerGameEngine {
 		console.log('commit_tsumo', this.state.turn, house, tid);
 		this.state.tilesCount--;
 		this.state.turn = house;
+		this.state.canRon = null;
+		this.state.canPon = null;
+		this.state.canKan = null;
+		this.state.canCii = null;
 		if (house === this.myHouse) {
 			this.myHandTiles.push(tid);
 		} else {
@@ -222,8 +225,16 @@ export class PlayerGameEngine {
 		if (this.state.turn !== house) throw new PlayerGameEngine.InvalidOperationError();
 
 		if (riichi) {
+			if (this.state.firstTurnFlags[house]) this.state.doubleRiichis[house] = true;
 			this.state.riichis[house] = true;
+			this.state.ippatsus[house] = true;
+		} else if (this.state.riichis[house]) {
+			this.state.ippatsus[house] = false;
+		} else {
+			this.state.firstTurnFlags[house] = false;
 		}
+		this.state.firstTurnFlags[house] = false;
+		this.state.rinshanFlags[house] = false;
 
 		if (house === this.myHouse) {
 			this.myHandTiles.splice(this.myHandTiles.indexOf(tid), 1);
@@ -241,7 +252,21 @@ export class PlayerGameEngine {
 			this.state.canKan = null;
 			this.state.canCii = null;
 		} else {
-			const canRon = Common.isAgarikei(this.myHandTiles.concat(tid).map(id => $type(id)));
+			const ronTile = $type(tid);
+			const ronYakus = calcYakusWithDetail({
+				seatWind: this.myHouse,
+			fieldWind: this.state.round,
+				handTiles: this.myHandTileTypes.concat([ronTile]),
+				huros: this.state.huros[this.myHouse].map(convertHuroForCalcYaku),
+				tsumoTile: null,
+				ronTile,
+				firstTurn: this.state.firstTurnFlags[this.myHouse],
+				riichi: this.state.riichis[this.myHouse],
+				doubleRiichi: this.state.doubleRiichis[this.myHouse],
+				ippatsu: this.state.ippatsus[this.myHouse],
+				hotei: this.state.tilesCount === 0,
+			});
+			const canRon = Common.isAgarikei(this.myHandTiles.concat(tid).map(id => $type(id))) && ronYakus.yakuNames.length > 0;
 			const canPon = !this.isMeRiichi && this.myHandTileTypes.filter(t => t === $type(tid)).length === 2;
 			const canKan = !this.isMeRiichi && this.myHandTileTypes.filter(t => t === $type(tid)).length === 3;
 			const canCii = !this.isMeRiichi && house === Common.prevHouse(this.myHouse) &&
@@ -256,11 +281,34 @@ export class PlayerGameEngine {
 		}
 	}
 
+	public canTsumoHora(): boolean {
+		if (this.state.turn !== this.myHouse) return false;
+		const tsumoTile = this.myHandTiles.at(-1);
+		if (tsumoTile == null) return false;
+		const yakus = calcYakusWithDetail({
+			seatWind: this.myHouse,
+			fieldWind: this.state.round,
+			handTiles: this.myHandTileTypes,
+			huros: this.state.huros[this.myHouse].map(convertHuroForCalcYaku),
+			tsumoTile: $type(tsumoTile),
+			ronTile: null,
+			firstTurn: this.state.firstTurnFlags[this.myHouse],
+			riichi: this.state.riichis[this.myHouse],
+			doubleRiichi: this.state.doubleRiichis[this.myHouse],
+			ippatsu: this.state.ippatsus[this.myHouse],
+			rinshan: this.state.rinshanFlags[this.myHouse],
+			haitei: this.state.tilesCount === 0,
+		});
+		return yakus.yakuNames.length > 0;
+	}
+
 	public commit_tsumoHora(house: House, handTiles: TileId[], tsumoTile: TileId): KyokuResult {
 		console.log('commit_tsumoHora', this.state.turn, house);
+		this.clearCalls();
 
 		const yakus = calcYakusWithDetail({
 			seatWind: house,
+				fieldWind: this.state.round,
 			handTiles: handTiles.map(id => $type(id)),
 			huros: this.state.huros[house].map(convertHuroForCalcYaku),
 			tsumoTile: $type(tsumoTile),
@@ -275,7 +323,7 @@ export class PlayerGameEngine {
 		const doraCount =
 			Common.calcOwnedDoraCount(handTiles.map(id => $type(id)), this.state.huros[house], this.doras) +
 			Common.calcRedDoraCount(handTiles, this.state.huros[house]);
-		const pointDeltas = Common.calcTsumoHoraPointDeltas(house, yakus);
+		const pointDeltas = Common.calcTsumoHoraPointDeltas(house, yakus, doraCount);
 		this.state.points.e += pointDeltas.e;
 		this.state.points.s += pointDeltas.s;
 		this.state.points.w += pointDeltas.w;
@@ -301,7 +349,7 @@ export class PlayerGameEngine {
 	}): Record<House, KyokuResult | null> {
 		console.log('commit_ronHora', this.state.turn, callers, callee);
 
-		this.state.canRon = null;
+		this.clearCalls();
 
 		const resultMap: Record<House, KyokuResult> = {
 			e: { yakus: [], doraCount: 0, pointDeltas: { e: 0, s: 0, w: 0, n: 0 } },
@@ -310,10 +358,12 @@ export class PlayerGameEngine {
 			n: { yakus: [], doraCount: 0, pointDeltas: { e: 0, s: 0, w: 0, n: 0 } },
 		};
 
-		const ronTile = $type(this.state.hoTiles[callee].at(-1)!);
+		const ronTileId = this.state.hoTiles[callee].at(-1)!;
+		const ronTile = $type(ronTileId);
 		for (const house of callers) {
 			const yakus = calcYakusWithDetail({
 				seatWind: house,
+				fieldWind: this.state.round,
 				handTiles: handTiles[house].map(id => $type(id)).concat([ronTile]),
 				huros: this.state.huros[house].map(convertHuroForCalcYaku),
 				tsumoTile: null,
@@ -325,9 +375,9 @@ export class PlayerGameEngine {
 				hotei: this.state.tilesCount === 0,
 			});
 			const doraCount =
-				Common.calcOwnedDoraCount(handTiles[house].map(id => $type(id)), this.state.huros[house], this.doras) +
-				Common.calcRedDoraCount(handTiles[house], this.state.huros[house]);
-			const point = Common.calcPoint(yakus, house === 'e');
+				Common.calcOwnedDoraCount(handTiles[house].map(id => $type(id)).concat([ronTile]), this.state.huros[house], this.doras) +
+				Common.calcRedDoraCount(handTiles[house].concat([ronTileId]), this.state.huros[house]);
+			const point = Common.calcPoint(yakus, house === 'e', doraCount);
 			this.state.points[callee] -= point;
 			this.state.points[house] += point;
 			resultMap[house].yakus = yakus.yakus;
@@ -344,13 +394,28 @@ export class PlayerGameEngine {
 		};
 	}
 
+	private clearCalls() {
+		this.state.canRon = null;
+		this.state.canPon = null;
+		this.state.canKan = null;
+		this.state.canCii = null;
+	}
+
+	private clearFirstTurnAndIppatsus() {
+		for (const house of ['e', 's', 'w', 'n'] as const) {
+			this.state.firstTurnFlags[house] = false;
+			this.state.ippatsus[house] = false;
+		}
+	}
+
 	/**
 	 * ポンします
 	 * @param caller ポンした人
 	 * @param callee 牌を捨てた人
 	 */
 	public commit_pon(caller: House, callee: House, tiles: readonly [TileId, TileId, TileId]) {
-		this.state.canPon = null;
+		this.clearCalls();
+		this.clearFirstTurnAndIppatsus();
 
 		this.state.hoTiles[callee].pop();
 		if (caller === this.myHouse) {
@@ -358,8 +423,7 @@ export class PlayerGameEngine {
 			if (this.myHandTiles.includes(tiles[1])) this.myHandTiles.splice(this.myHandTiles.indexOf(tiles[1]), 1);
 			if (this.myHandTiles.includes(tiles[2])) this.myHandTiles.splice(this.myHandTiles.indexOf(tiles[2]), 1);
 		} else {
-			this.state.handTiles[caller].unshift();
-			this.state.handTiles[caller].unshift();
+			this.state.handTiles[caller].splice(0, 2);
 		}
 		this.state.huros[caller].push({ type: 'pon', tiles: tiles, from: callee });
 
@@ -372,7 +436,8 @@ export class PlayerGameEngine {
 	 * @param callee 牌を捨てた人
 	 */
 	public commit_kan(caller: House, callee: House, tiles: readonly [TileId, TileId, TileId, TileId], rinsyan: TileId) {
-		this.state.canKan = null;
+		this.clearCalls();
+		this.clearFirstTurnAndIppatsus();
 
 		this.state.hoTiles[callee].pop();
 		if (caller === this.myHouse) {
@@ -381,21 +446,71 @@ export class PlayerGameEngine {
 			if (this.myHandTiles.includes(tiles[2])) this.myHandTiles.splice(this.myHandTiles.indexOf(tiles[2]), 1);
 			if (this.myHandTiles.includes(tiles[3])) this.myHandTiles.splice(this.myHandTiles.indexOf(tiles[3]), 1);
 		} else {
-			this.state.handTiles[caller].unshift();
-			this.state.handTiles[caller].unshift();
-			this.state.handTiles[caller].unshift();
+			this.state.handTiles[caller].splice(0, 3);
+			this.state.handTiles[caller].push(0);
 		}
+		if (caller === this.myHouse) {
+			this.myHandTiles.push(rinsyan);
+		}
+		this.state.tilesCount--;
 		this.state.huros[caller].push({ type: 'minkan', tiles: tiles, from: callee });
 
 		this.state.turn = caller;
 	}
 
-	public commit_kakan(house: House, tiles: TileId[], rinsyan: TileId) {
+	public commit_kakan(house: House, tiles: readonly TileId[], rinsyan: TileId) {
 		console.log('commit_kakan', this.state.turn, house, tiles);
+		this.clearCalls();
+		this.clearFirstTurnAndIppatsus();
+		this.state.rinshanFlags[house] = true;
+
+		const pon = this.state.huros[house].find((h): h is Huro & { type: 'pon' } => h.type === 'pon' && $type(h.tiles[0]) === $type(tiles[0]));
+		if (house === this.myHouse) {
+			const tile = this.myHandTiles.find(t => $type(t) === $type(tiles[0]));
+			if (tile != null) this.myHandTiles.splice(this.myHandTiles.indexOf(tile), 1);
+			this.myHandTiles.push(rinsyan);
+		} else {
+			this.state.handTiles[house].pop();
+			this.state.handTiles[house].push(0);
+		}
+		if (pon != null) {
+			const index = this.state.huros[house].indexOf(pon);
+			this.state.huros[house][index] = { type: 'minkan', tiles: [tiles[0], tiles[1], tiles[2], tiles[3]], from: pon.from };
+		}
+		this.state.tilesCount--;
+		this.state.turn = house;
+		this.state.canRon = null;
+		this.state.canPon = null;
+		this.state.canKan = null;
+		this.state.canCii = null;
 	}
 
-	public commit_ankan(house: House, tiles: TileId[], rinsyan: TileId) {
-		console.log('commit_kakan', this.state.turn, house, tiles);
+	public commit_ankan(house: House, tiles: readonly TileId[], rinsyan: TileId) {
+		console.log('commit_ankan', this.state.turn, house, tiles);
+		this.clearCalls();
+		this.clearFirstTurnAndIppatsus();
+		this.state.rinshanFlags[house] = true;
+
+		if (house === this.myHouse) {
+			for (const tile of tiles) {
+				const index = this.myHandTiles.indexOf(tile);
+				if (index !== -1) this.myHandTiles.splice(index, 1);
+			}
+			this.myHandTiles.push(rinsyan);
+		} else {
+			this.state.handTiles[house].splice(0, 4);
+			this.state.handTiles[house].push(0);
+		}
+		this.state.huros[house].push({
+			type: 'ankan',
+			tiles: house === this.myHouse ? [tiles[0], tiles[1], tiles[2], tiles[3]] : [0, 0, 0, 0],
+		});
+		this.state.tilesCount--;
+		this.state.turn = house;
+		this.state.canRon = null;
+		this.state.canPon = null;
+		this.state.canKan = null;
+		this.state.canCii = null;
 	}
 
 	/**
@@ -404,7 +519,8 @@ export class PlayerGameEngine {
 	 * @param callee 牌を捨てた人
 	 */
 	public commit_cii(caller: House, callee: House, tiles: readonly [TileId, TileId, TileId]) {
-		this.state.canCii = null;
+		this.clearCalls();
+		this.clearFirstTurnAndIppatsus();
 
 		this.state.hoTiles[callee].pop();
 		if (caller === this.myHouse) {
@@ -412,8 +528,7 @@ export class PlayerGameEngine {
 			if (this.myHandTiles.includes(tiles[1])) this.myHandTiles.splice(this.myHandTiles.indexOf(tiles[1]), 1);
 			if (this.myHandTiles.includes(tiles[2])) this.myHandTiles.splice(this.myHandTiles.indexOf(tiles[2]), 1);
 		} else {
-			this.state.handTiles[caller].unshift();
-			this.state.handTiles[caller].unshift();
+			this.state.handTiles[caller].splice(0, 2);
 		}
 		this.state.huros[caller].push({ type: 'cii', tiles: tiles, from: callee });
 

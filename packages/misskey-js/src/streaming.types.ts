@@ -4,7 +4,6 @@ import {
 	ChatMessageLite,
 	DriveFile,
 	DriveFolder,
-	MahjongRoomDetailed,
 	Note,
 	Notification,
 	Signin,
@@ -13,6 +12,7 @@ import {
 	UserDetailed,
 	UserDetailedNotMe,
 	UserLite,
+	MahjongRoomDetailed,
 } from './autogen/models.js';
 import {
 	AnnouncementCreated,
@@ -35,8 +35,6 @@ type ReversiUpdateSettings<K extends ReversiUpdateKey> = {
 	key: K;
 	value: ReversiGameDetailed[K];
 };
-
-type MmjHouse = 'e' | 's' | 'w' | 'n';
 
 export type Channels = {
 	main: {
@@ -348,74 +346,83 @@ export type Channels = {
 				index: number;
 				user: UserLite | null;
 			}) => void;
+			left: (payload: {
+				index: number;
+			}) => void;
+			canceled: (payload: {
+				userId: string;
+			}) => void;
 			changeReadyStates: (payload: {
 				user1: boolean;
 				user2: boolean;
 				user3: boolean;
 				user4: boolean;
 			}) => void;
-			started: (payload: { room: MahjongRoomDetailed }) => void;
-			nextKyoku: (payload: { room: MahjongRoomDetailed }) => void;
+			started: (payload: {
+				room: MahjongRoomDetailed;
+			}) => void;
+			nextKyoku: (payload: {
+				room: MahjongRoomDetailed;
+			}) => void;
+			ended: (payload: {
+				room: MahjongRoomDetailed;
+			}) => void;
 			tsumo: (payload: {
-				house: MmjHouse;
+				house: MahjongHouse;
 				tile: number;
 			}) => void;
 			dahai: (payload: {
-				house: MmjHouse;
+				house: MahjongHouse;
 				tile: number;
 				riichi: boolean;
 			}) => void;
 			dahaiAndTsumo: (payload: {
-				dahaiHouse: MmjHouse;
+				dahaiHouse: MahjongHouse;
 				dahaiTile: number;
 				tsumoTile: number;
 				riichi: boolean;
 			}) => void;
 			ponned: (payload: {
-				caller: MmjHouse;
-				callee: MmjHouse;
+				caller: MahjongHouse;
+				callee: MahjongHouse;
 				tiles: readonly [number, number, number];
 			}) => void;
 			kanned: (payload: {
-				caller: MmjHouse;
-				callee: MmjHouse;
+				caller: MahjongHouse;
+				callee: MahjongHouse;
 				tiles: readonly [number, number, number, number];
 				rinsyan: number;
 			}) => void;
 			ciied: (payload: {
-				caller: MmjHouse;
-				callee: MmjHouse;
+				caller: MahjongHouse;
+				callee: MahjongHouse;
 				tiles: readonly [number, number, number];
 			}) => void;
 			ronned: (payload: {
-				callers: MmjHouse[];
-				callee: MmjHouse;
-				handTiles: Record<MmjHouse, number[]>;
+				callers: MahjongHouse[];
+				callee: MahjongHouse;
+				handTiles: Record<MahjongHouse, number[]>;
 			}) => void;
 			ryuukyoku: (payload: unknown) => void;
 			ankanned: (payload: {
-				house: MmjHouse;
+				house: MahjongHouse;
 				tiles: readonly [number, number, number, number];
 				rinsyan: number;
 			}) => void;
 			kakanned: (payload: {
-				house: MmjHouse;
+				house: MahjongHouse;
 				tiles: readonly [number, number, number, number];
 				rinsyan: number;
-				from: MmjHouse;
+				from: MahjongHouse;
 			}) => void;
 			tsumoHora: (payload: {
-				house: MmjHouse;
+				house: MahjongHouse;
 				handTiles: number[];
 				tsumoTile: number;
 			}) => void;
 		};
 		receives: {
 			ready: boolean;
-			updateSettings: {
-				key: string;
-				body: unknown;
-			};
 			addAi: Record<string, never>;
 			leave: Record<string, never>;
 			confirmNextKyoku: Record<string, never>;
@@ -427,7 +434,7 @@ export type Channels = {
 			ronHora: Record<string, never>;
 			pon: Record<string, never>;
 			cii: {
-				pattern: string;
+				pattern: 'x__' | '_x_' | '__x';
 			};
 			kan: Record<string, never>;
 			ankan: {
@@ -437,10 +444,11 @@ export type Channels = {
 				tile: number;
 			};
 			nop: Record<string, never>;
-			claimTimeIsUp: Record<string, never>;
 		};
 	};
 };
+
+type MahjongHouse = 'e' | 's' | 'w' | 'n';
 
 export type NoteUpdatedEvent = { id: Note['id'] } & ({
 	type: 'reacted';

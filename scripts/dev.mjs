@@ -213,17 +213,11 @@ try {
 		stderr: process.stderr,
 	});
 
-await execa('pnpm', ['--filter', 'misskey-mahjong', 'build:tsc'], {
-	cwd: _dirname + '/../',
-	stdout: process.stdout,
-	stderr: process.stderr,
-});
-
-execa('pnpm', ['build-pre', '--watch'], {
-	cwd: _dirname + '/../',
-	stdout: process.stdout,
-	stderr: process.stderr,
-});
+	startChildProcess('pnpm', ['build-assets', '--watch'], {
+		cwd: _dirname + '/../',
+		stdout: process.stdout,
+		stderr: process.stderr,
+	});
 
 	startChildProcess('pnpm', ['--filter', 'backend', 'dev'], {
 		cwd: _dirname + '/../',
@@ -255,14 +249,35 @@ execa('pnpm', ['build-pre', '--watch'], {
 		stderr: process.stderr,
 	});
 
-execa('pnpm', ['--filter', 'misskey-bubble-game', 'watch'], {
-	cwd: _dirname + '/../',
-	stdout: process.stdout,
-	stderr: process.stderr,
-});
+	startChildProcess('pnpm', ['--filter', 'i18n', 'watch', '--no-clean'], {
+		cwd: _dirname + '/../',
+		stdout: process.stdout,
+		stderr: process.stderr,
+	});
 
-execa('pnpm', ['--filter', 'misskey-mahjong', 'watch'], {
-	cwd: _dirname + '/../',
-	stdout: process.stdout,
-	stderr: process.stderr,
-});
+	startChildProcess('pnpm', ['--filter', 'misskey-reversi', 'watch', '--no-clean'], {
+		cwd: _dirname + '/../',
+		stdout: process.stdout,
+		stderr: process.stderr,
+	});
+
+	startChildProcess('pnpm', ['--filter', 'misskey-bubble-game', 'watch', '--no-clean'], {
+		cwd: _dirname + '/../',
+		stdout: process.stdout,
+		stderr: process.stderr,
+	});
+
+	startChildProcess('pnpm', ['--filter', 'misskey-mahjong', 'watch', '--no-clean'], {
+		cwd: _dirname + '/../',
+		stdout: process.stdout,
+		stderr: process.stderr,
+	});
+
+	persistentChildProcessesStarted = true;
+	shutdownIfAllPersistentChildProcessesStopped();
+} catch (error) {
+	if (!shuttingDown) {
+		console.error(error);
+		await shutdown(1);
+	}
+}

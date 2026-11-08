@@ -6,7 +6,6 @@
 import { Injectable } from '@nestjs/common';
 import { Endpoint } from '@/server/api/endpoint-base.js';
 import { MahjongService } from '@/core/MahjongService.js';
-import { ApiError } from '../../error.js';
 
 export const meta = {
 	requireCredential: true,
@@ -14,7 +13,6 @@ export const meta = {
 	kind: 'write:account',
 
 	errors: {
-
 	},
 
 	res: {
@@ -36,7 +34,7 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 	constructor(
 		private mahjongService: MahjongService,
 	) {
-		super(meta, paramDef, async (ps, me) => {
+		super(meta, paramDef, async (_ps, me) => {
 			const room = await this.mahjongService.createRoom(me);
 			return await this.mahjongService.packRoom(room, me);
 		});

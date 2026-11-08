@@ -21,14 +21,14 @@ SPDX-License-Identifier: AGPL-3.0-only
 	<div
 		v-if="separateLast"
 		style="display: inline-block; margin-left: 5px;"
-		:class="[$style.tile, { [$style.tileNonSelectable]: selectableTiles != null && !selectableTiles.includes(mj$type(tiles.at(-1))), [$style.tileDora]: doras.includes(mj$type(tiles.at(-1))) }]"
-		@click="chooseTile(tiles.at(-1), $event)"
+		:class="[$style.tile, { [$style.tileNonSelectable]: selectableTiles != null && !selectableTiles.includes(mj$type(tiles[tiles.length - 1])), [$style.tileDora]: doras.includes(mj$type(tiles[tiles.length - 1])) }]"
+		@click="chooseTile(tiles[tiles.length - 1], $event)"
 	>
 		<div :class="$style.tileInner">
 			<div :class="$style.tileBg1"></div>
 			<div :class="$style.tileBg2"></div>
 			<div :class="$style.tileBg3"></div>
-			<img :src="`/client-assets/mahjong/tiles/${mj$(tiles.at(-1)).red ? mj$type(tiles.at(-1)) + 'r' : mj$type(tiles.at(-1))}.png`" :class="$style.tileFg1"/>
+			<img :src="`/client-assets/mahjong/tiles/${mj$(tiles[tiles.length - 1]).red ? mj$type(tiles[tiles.length - 1]) + 'r' : mj$type(tiles[tiles.length - 1])}.png`" :class="$style.tileFg1"/>
 			<div :class="$style.tileFg2"></div>
 		</div>
 	</div>
@@ -36,7 +36,6 @@ SPDX-License-Identifier: AGPL-3.0-only
 </template>
 
 <script lang="ts" setup>
-import { computed } from 'vue';
 import * as Mmj from 'misskey-mahjong';
 
 //#region syntax suger
@@ -57,12 +56,12 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-	(event: 'choose', tile: Mmj.TileId): void;
+	(event: 'choose', tile: Mmj.TileId, ev: MouseEvent): void;
 }>();
 
 function chooseTile(tile: Mmj.TileId, event: MouseEvent) {
 	if (props.selectableTiles != null && !props.selectableTiles.includes(mj$type(tile))) return;
-	emit('choose', tile);
+	emit('choose', tile, event);
 }
 </script>
 

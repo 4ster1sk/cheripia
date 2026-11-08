@@ -341,11 +341,11 @@ export function fanToPoint(fan: number, isParent: boolean): number {
 	return point;
 }
 
-export function calcPoint(factor: PointFactor, isParent: boolean): number {
+export function calcPoint(factor: PointFactor, isParent: boolean, doraCount = 0): number {
 	if (factor.isYakuman) {
 		return 32000 * factor.value * (isParent ? 1.5 : 1);
 	} else {
-		return fanToPoint(factor.fan, isParent);
+		return fanToPoint(factor.fan + doraCount, isParent);
 	}
 }
 
@@ -376,7 +376,7 @@ export function calcRedDoraCount(handTiles: TileId[], huros: Huro[]): number {
 	return count;
 }
 
-export function calcTsumoHoraPointDeltas(house: House, fansOrFactor: number | PointFactor): Record<House, number> {
+export function calcTsumoHoraPointDeltas(house: House, fansOrFactor: number | PointFactor, doraCount = 0): Record<House, number> {
 	const isParent = house === 'e';
 
 	const deltas: Record<House, number> = {
@@ -386,7 +386,7 @@ export function calcTsumoHoraPointDeltas(house: House, fansOrFactor: number | Po
 		n: 0,
 	};
 
-	const point = typeof fansOrFactor === 'number' ? fanToPoint(fansOrFactor, isParent) : calcPoint(fansOrFactor, isParent);
+	const point = typeof fansOrFactor === 'number' ? fanToPoint(fansOrFactor + doraCount, isParent) : calcPoint(fansOrFactor, isParent, doraCount);
 	deltas[house] = point;
 	if (isParent) {
 		const childPoint = Math.ceil(point / 3);

@@ -1082,7 +1082,7 @@ export function calcYakusWithDetail(state: EnvForCalcYaku): YakuSet {
 		).map(yakuDef => NORMAL_YAKU_DATA_MAP.get(yakuDef.name)!),
 	).filter(yakus => yakus.length > 0);
 
-	const isMenzen = state.huros.some(huro => includes(CALL_HURO_TYPES, huro.type));
+	const isMenzen = !state.huros.some(huro => includes(CALL_HURO_TYPES, huro.type));
 
 	if (yakuPatterns.length === 0) {
 		return new NormalYakuSet(isMenzen, []);

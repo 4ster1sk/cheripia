@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import CRC32 from 'crc-32';
 import { TileType, House, Huro, TileId } from './common.js';
 import * as Common from './common.js';
 import { PlayerState } from './engine.player.js';
@@ -113,11 +112,21 @@ class StateManager {
 
 		if (!Common.isAgarikei(this.handTileTypes[house].concat($type(tid)))) return false; // 完成形じゃない
 
-		// TODO
-		//const yakus = YAKU_DEFINITIONS.filter(yaku => yaku.calc(this.state, { tsumoTile: null, ronTile: tile }));
-		//if (yakus.length === 0) return false; // 役がない
+		const yakus = calcYakusWithDetail({
+			seatWind: house,
+			fieldWind: this.$state.round,
+			handTiles: this.handTileTypes[house].concat($type(tid)),
+			huros: this.$state.huros[house].map(convertHuroForCalcYaku),
+			tsumoTile: null,
+			ronTile: $type(tid),
+			firstTurn: this.$state.firstTurnFlags[house],
+			riichi: this.$state.riichis[house],
+			doubleRiichi: this.$state.doubleRiichis[house],
+			ippatsu: this.$state.ippatsus[house],
+			hotei: this.$state.tiles.length === 0,
+		});
 
-		return true;
+		return yakus.yakuNames.length > 0; // 役がない
 	}
 
 	public canPon(house: House, tid: TileId): boolean {
@@ -677,6 +686,7 @@ export class MasterGameEngine {
 
 		const yakus = calcYakusWithDetail({
 			seatWind: house,
+			fieldWind: this.$state.round,
 			handTiles: tx.handTileTypes[house],
 			huros: tx.$state.huros[house].map(convertHuroForCalcYaku),
 			tsumoTile: tx.handTileTypes[house].at(-1)!,
@@ -691,11 +701,13 @@ export class MasterGameEngine {
 		const doraCount =
 			Common.calcOwnedDoraCount(tx.handTileTypes[house], tx.$state.huros[house], tx.doras) +
 			Common.calcRedDoraCount(tx.$state.handTiles[house], tx.$state.huros[house]);
-		const pointDeltas = Common.calcTsumoHoraPointDeltas(house, yakus);
+		if (yakus.yakuNames.length === 0) throw new Error('No yaku');
+		const pointDeltas = Common.calcTsumoHoraPointDeltas(house, yakus, doraCount);
 		tx.$state.points.e += pointDeltas.e;
 		tx.$state.points.s += pointDeltas.s;
 		tx.$state.points.w += pointDeltas.w;
 		tx.$state.points.n += pointDeltas.n;
+		tx.$state.turn = null;
 		if (doLog) console.log('yakus', house, yakus);
 
 		tx.$commit();
@@ -732,9 +744,11 @@ export class MasterGameEngine {
 			const callee = ron.callee;
 
 			const yakus: { [K in House]?: YakuSet } = Object.fromEntries(callers.map(house => {
-				const ronTile = tx.hoTileTypes[callee].at(-1)!;
+				const ronTileId = tx.$state.hoTiles[callee].at(-1)!;
+				const ronTile = $type(ronTileId);
 				const yakus = calcYakusWithDetail({
 					seatWind: house,
+			fieldWind: this.$state.round,
 					handTiles: tx.handTileTypes[house].concat([ronTile]),
 					huros: tx.$state.huros[house].map(convertHuroForCalcYaku),
 					tsumoTile: null,
@@ -746,9 +760,9 @@ export class MasterGameEngine {
 					hotei: tx.$state.tiles.length === 0,
 				});
 				const doraCount =
-					Common.calcOwnedDoraCount(tx.handTileTypes[house], tx.$state.huros[house], tx.doras) +
-					Common.calcRedDoraCount(tx.$state.handTiles[house], tx.$state.huros[house]);
-				const point = Common.calcPoint(yakus, house === 'e');
+					Common.calcOwnedDoraCount(tx.handTileTypes[house].concat([ronTile]), tx.$state.huros[house], tx.doras) +
+					Common.calcRedDoraCount(tx.$state.handTiles[house].concat([ronTileId]), tx.$state.huros[house]);
+				const point = Common.calcPoint(yakus, house === 'e', doraCount);
 				tx.$state.points[callee] -= point;
 				tx.$state.points[house] += point;
 				if (doLog) {
@@ -757,11 +771,12 @@ export class MasterGameEngine {
 				return [house, yakus] as const;
 			}));
 
+			tx.$state.turn = null;
 			tx.$commit();
 
 			return {
 				type: 'ronned' as const,
-				callers: ron.callers,
+				callers: answers.ron,
 				callee: ron.callee,
 				turn: null,
 				yakus,
@@ -788,9 +803,8 @@ export class MasterGameEngine {
 
 			tx.$state.activatedDorasCount++;
 
-			const rinsyan = tx.rinshanTsumo();
-
 			tx.$state.turn = kan.caller;
+			const rinsyan = tx.rinshanTsumo();
 
 			tx.$commit();
 
@@ -923,6 +937,13 @@ export class MasterGameEngine {
 	public createPlayerState(index: 1 | 2 | 3 | 4): PlayerState {
 		const house = this.getHouse(index);
 
+		const hideAnkan = (huros: Huro[]): Huro[] => huros.map(huro => huro.type === 'ankan' ? {
+			...huro,
+			tiles: [0, 0, 0, 0] as const,
+		} : huro);
+
+		const askings = this.$state.askings;
+
 		return {
 			user1House: this.$state.user1House,
 			user2House: this.$state.user2House,
@@ -946,10 +967,10 @@ export class MasterGameEngine {
 				n: this.$state.hoTiles.n,
 			},
 			huros: {
-				e: this.$state.huros.e,
-				s: this.$state.huros.s,
-				w: this.$state.huros.w,
-				n: this.$state.huros.n,
+				e: house === 'e' ? this.$state.huros.e : hideAnkan(this.$state.huros.e),
+				s: house === 's' ? this.$state.huros.s : hideAnkan(this.$state.huros.s),
+				w: house === 'w' ? this.$state.huros.w : hideAnkan(this.$state.huros.w),
+				n: house === 'n' ? this.$state.huros.n : hideAnkan(this.$state.huros.n),
 			},
 			firstTurnFlags: {
 				e: this.$state.firstTurnFlags.e,
@@ -989,10 +1010,10 @@ export class MasterGameEngine {
 			},
 			latestDahaiedTile: null,
 			turn: this.$state.turn,
-			canPon: null,
-			canCii: null,
-			canKan: null,
-			canRon: null,
+			canPon: askings.pon?.caller === house ? { callee: askings.pon.callee } : null,
+			canCii: askings.cii?.caller === house ? { callee: askings.cii.callee } : null,
+			canKan: askings.kan?.caller === house ? { callee: askings.kan.callee } : null,
+			canRon: askings.ron?.callers.includes(house) ? { callee: askings.ron.callee } : null,
 		};
 	}
 

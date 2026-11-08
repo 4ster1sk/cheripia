@@ -6,7 +6,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 import * as Redis from 'ioredis';
 import * as Reversi from 'misskey-reversi';
-import * as Mmj from 'misskey-mahjong';
+import type { House as MahjongHouse } from 'misskey-mahjong';
+import type { MahjongRoom } from '@/core/MahjongService.js';
 import type { MiChannel } from '@/models/Channel.js';
 import type { MiUser } from '@/models/User.js';
 import type { MiAnnouncement } from '@/models/Announcement.js';
@@ -246,6 +247,12 @@ export interface MahjongRoomEventTypes {
 		index: number;
 		user: Packed<'UserLite'> | null;
 	};
+	left: {
+		index: number;
+	};
+	canceled: {
+		userId: MiUser['id'];
+	};
 	changeReadyStates: {
 		user1: boolean;
 		user2: boolean;
@@ -253,61 +260,64 @@ export interface MahjongRoomEventTypes {
 		user4: boolean;
 	};
 	started: {
-		room: Packed<'MahjongRoomDetailed'>;
+		room: MahjongRoom;
 	};
 	nextKyoku: {
-		room: Packed<'MahjongRoomDetailed'>;
+		room: MahjongRoom;
+	};
+	ended: {
+		room: MahjongRoom;
 	};
 	tsumo: {
-		house: Mmj.House;
+		house: MahjongHouse;
 		tile: number;
 	};
 	dahai: {
-		house: Mmj.House;
+		house: MahjongHouse;
 		tile: number;
 		riichi: boolean;
 	};
 	dahaiAndTsumo: {
-		dahaiHouse: Mmj.House;
+		dahaiHouse: MahjongHouse;
 		dahaiTile: number;
 		tsumoTile: number;
 		riichi: boolean;
 	};
 	ponned: {
-		caller: Mmj.House;
-		callee: Mmj.House;
+		caller: MahjongHouse;
+		callee: MahjongHouse;
 		tiles: readonly [number, number, number];
 	};
 	kanned: {
-		caller: Mmj.House;
-		callee: Mmj.House;
+		caller: MahjongHouse;
+		callee: MahjongHouse;
 		tiles: readonly [number, number, number, number];
 		rinsyan: number;
 	};
 	ciied: {
-		caller: Mmj.House;
-		callee: Mmj.House;
+		caller: MahjongHouse;
+		callee: MahjongHouse;
 		tiles: readonly [number, number, number];
 	};
 	ronned: {
-		callers: Mmj.House[];
-		callee: Mmj.House;
-		handTiles: Record<Mmj.House, number[]>;
+		callers: MahjongHouse[];
+		callee: MahjongHouse;
+		handTiles: Record<MahjongHouse, number[]>;
 	};
 	ryuukyoku: object;
 	ankanned: {
-		house: Mmj.House;
+		house: MahjongHouse;
 		tiles: readonly [number, number, number, number];
 		rinsyan: number;
 	};
 	kakanned: {
-		house: Mmj.House;
+		house: MahjongHouse;
 		tiles: readonly [number, number, number, number];
 		rinsyan: number;
-		from: Mmj.House;
+		from: MahjongHouse;
 	};
 	tsumoHora: {
-		house: Mmj.House;
+		house: MahjongHouse;
 		handTiles: number[];
 		tsumoTile: number;
 	};
@@ -442,7 +452,7 @@ export type GlobalEvents = {
 	};
 	mahjongRoom: {
 		name: `mahjongRoomStream:${string}`;
-		payload: EventUnionFromDictionary<SerializedAll<MahjongRoomEventTypes>>;
+		payload: EventTypesToEventPayload<MahjongRoomEventTypes>;
 	};
 };
 

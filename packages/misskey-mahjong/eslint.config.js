@@ -1,6 +1,8 @@
 import tsParser from '@typescript-eslint/parser';
 import sharedConfig from '../shared/eslint.config.js';
 
+// eslint-disable-next-line import/no-default-export
+// biome-ignore lint/style/noDefaultExport: ESLint config requires default export
 export default [
 	...sharedConfig,
 	{
@@ -8,7 +10,6 @@ export default [
 			'**/node_modules',
 			'built',
 			'coverage',
-			'jest.config.ts',
 		],
 	},
 	{

@@ -5,6 +5,19 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 <template>
 <div :class="$style.root">
+	<div v-if="room.isEnded" :class="$style.kyokuResult">
+		<div style="font-size: 1.4em; margin-bottom: 16px;">対局終了</div>
+		<div v-for="house in houses" :key="house" style="margin-bottom: 8px;">
+			<span style="display: inline-block; width: 2em;">{{ houseLabel(house) }}</span>
+			<template v-if="houseToUser(house) != null">
+				<MkAvatar :user="houseToUser(house)!" style="width: 24px; height: 24px; vertical-align: middle;"/>
+				<span style="margin-left: 8px;">{{ houseToUser(house)!.name ?? houseToUser(house)!.username }}</span>
+			</template>
+			<span v-else style="margin-left: 8px;">CPU</span>
+			<span style="margin-left: 12px;">{{ mj.points[house] }}点</span>
+		</div>
+		<MkButton primary @click="backToLobby">ロビーに戻る</MkButton>
+	</div>
 	<div :class="$style.taku">
 		<div :class="$style.centerPanel">
 			<div style="text-align: center;">
@@ -77,19 +90,19 @@ SPDX-License-Identifier: AGPL-3.0-only
 		</div>
 
 		<div :class="$style.huroTilesOfToimen">
-			<XHuro v-for="huro in mj.huros[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]" :huro="huro" :variation="1" :doras="mj.doras"/>
+			<XHuro v-for="huro in mj.huros[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]" :huro="huro" variation="1" :doras="mj.doras"/>
 		</div>
 
 		<div :class="$style.huroTilesOfKamitya">
-			<XHuro v-for="huro in mj.huros[Mmj.prevHouse(mj.myHouse)]" :huro="huro" :variation="1" :doras="mj.doras"/>
+			<XHuro v-for="huro in mj.huros[Mmj.prevHouse(mj.myHouse)]" :huro="huro" variation="1" :doras="mj.doras"/>
 		</div>
 
 		<div :class="$style.huroTilesOfSimotya">
-			<XHuro v-for="huro in mj.huros[Mmj.nextHouse(mj.myHouse)]" :huro="huro" :variation="1" :doras="mj.doras"/>
+			<XHuro v-for="huro in mj.huros[Mmj.nextHouse(mj.myHouse)]" :huro="huro" variation="1" :doras="mj.doras"/>
 		</div>
 
 		<div :class="$style.huroTilesOfMe">
-			<XHuro v-for="huro in mj.huros[mj.myHouse]" :huro="huro" :variation="1" :doras="mj.doras"/>
+			<XHuro v-for="huro in mj.huros[mj.myHouse]" :huro="huro" variation="1" :doras="mj.doras"/>
 		</div>
 
 		<div :class="$style.hoTilesContainer">
@@ -126,7 +139,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 		<div :class="$style.playersContainer">
 			<div :class="[$style.playerOfToimen, $style.player]">
 				<template v-if="users[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))] != null">
-					<MkAvatar :user="users[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]" style="width: 30px; height: 30px;"/>
+					<MkAvatar :user="users[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]!" style="width: 30px; height: 30px;"/>
 				</template>
 				<template v-else>
 					CPU
@@ -134,7 +147,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</div>
 			<div :class="[$style.playerOfKamitya, $style.player]">
 				<template v-if="users[Mmj.prevHouse(mj.myHouse)] != null">
-					<MkAvatar :user="users[Mmj.prevHouse(mj.myHouse)]" style="width: 30px; height: 30px;"/>
+					<MkAvatar :user="users[Mmj.prevHouse(mj.myHouse)]!" style="width: 30px; height: 30px;"/>
 				</template>
 				<template v-else>
 					CPU
@@ -142,7 +155,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</div>
 			<div :class="[$style.playerOfSimotya, $style.player]">
 				<template v-if="users[Mmj.nextHouse(mj.myHouse)] != null">
-					<MkAvatar :user="users[Mmj.nextHouse(mj.myHouse)]" style="width: 30px; height: 30px;"/>
+					<MkAvatar :user="users[Mmj.nextHouse(mj.myHouse)]!" style="width: 30px; height: 30px;"/>
 				</template>
 				<template v-else>
 					CPU
@@ -255,14 +268,14 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<div>
 					<div>{{ house === 'e' ? i18n.ts._mahjong.east : house === 's' ? i18n.ts._mahjong.south : house === 'w' ? i18n.ts._mahjong.west : i18n.ts._mahjong.north }}</div>
 					<template v-if="houseToUser(house) != null">
-						<MkAvatar :user="houseToUser(house)" style="width: 30px; height: 30px;"/>
+						<MkAvatar :user="houseToUser(house)!" style="width: 30px; height: 30px;"/>
 					</template>
 					<template v-else>
 						CPU
 					</template>
 				</div>
 				<div v-for="yaku in res.yakus">
-					<div>{{ i18n.ts._mahjong._yakus[yaku.name] }} {{ yaku.fan }}{{ i18n.ts._mahjong.fan }}</div>
+					<div>{{ (i18n.ts._mahjong._yakus as Record<string, string>)[yaku.name] }} {{ yaku.fan }}{{ i18n.ts._mahjong.fan }}</div>
 				</div>
 				<div>{{ i18n.ts._mahjong.dora }} {{ res.doraCount }}{{ i18n.ts._mahjong.fan }}</div>
 				<div>{{ res.pointDeltas.e }} / {{ res.pointDeltas.s }} / {{ res.pointDeltas.w }} / {{ res.pointDeltas.n }}</div>
@@ -274,24 +287,19 @@ SPDX-License-Identifier: AGPL-3.0-only
 </template>
 
 <script lang="ts" setup>
-import { computed, onActivated, onDeactivated, onMounted, onUnmounted, reactive, ref, shallowRef, triggerRef, watch } from 'vue';
+import { computed, onActivated, onDeactivated, onMounted, onUnmounted, reactive, ref, shallowRef, triggerRef } from 'vue';
 import * as Misskey from 'misskey-js';
 import * as Mmj from 'misskey-mahjong';
-import { useInterval } from '@@/js/use-interval.js';
 import XTile from './tile.vue';
 import XHuro from './huro.vue';
 import XHandTiles from './hand-tiles.vue';
 import MkButton from '@/components/MkButton.vue';
-import MkFolder from '@/components/MkFolder.vue';
-import MkSwitch from '@/components/MkSwitch.vue';
 import { deepClone } from '@/utility/clone.js';
 import { ensureSignin } from '@/i.js';
 import { i18n } from '@/i18n.js';
-import { misskeyApi } from '@/utility/misskey-api.js';
-import { userPage } from '@/filters/user.js';
+import { useRouter } from '@/router.js';
 import * as sound from '@/utility/sound.js';
 import * as os from '@/os.js';
-import { confetti } from '@/utility/confetti.js';
 
 //#region syntax suger
 function mj$(tid: Mmj.TileId): Mmj.TileInstance {
@@ -304,22 +312,24 @@ function mj$type(tid: Mmj.TileId): Mmj.TileType {
 //#endregion
 
 const $i = ensureSignin();
+const router = useRouter();
 
 const props = defineProps<{
 	room: Misskey.entities.MahjongRoomDetailed;
-	connection?: Misskey.ChannelConnection<Misskey.Channels['mahjongRoom']> | null;
+	connection?: Misskey.IChannelConnection<Misskey.Channels['mahjongRoom']> | null;
 }>();
 
 const room = ref<Misskey.entities.MahjongRoomDetailed>(deepClone(props.room));
 const myUserNumber = computed(() => room.value.user1Id === $i.id ? 1 : room.value.user2Id === $i.id ? 2 : room.value.user3Id === $i.id ? 3 : 4);
-const mj = shallowRef(new Mmj.PlayerGameEngine(myUserNumber.value, room.value.gameState));
+const mj = shallowRef(new Mmj.PlayerGameEngine(myUserNumber.value, room.value.gameState as unknown as Mmj.PlayerState));
+const houses: Mmj.House[] = ['e', 's', 'w', 'n'];
 
 const isMyTurn = computed(() => {
 	return mj.value.turn === mj.value.myHouse;
 });
 
 const canHora = computed(() => {
-	return Mmj.isAgarikei(mj.value.myHandTileTypes);
+	return iTsumoed.value && mj.value.canTsumoHora();
 });
 
 const users = computed(() => ({
@@ -341,7 +351,8 @@ const showKyokuResults = ref(false);
 const kyokuResults = ref<Record<Mmj.House, {
 	yakus: {
 		name: string;
-		fan: number;
+		fan: number | null;
+		isYakuman?: boolean;
 	}[];
 	doraCount: number;
 	pointDeltas: Record<Mmj.House, number>;
@@ -397,6 +408,14 @@ if (!props.room.isEnded) {
 
 function houseToUser(house: Mmj.House) {
 	return mj.value.user1House === house ? room.value.user1 : mj.value.user2House === house ? room.value.user2 : mj.value.user3House === house ? room.value.user3 : room.value.user4;
+}
+
+function houseLabel(house: Mmj.House): string {
+	return house === 'e' ? i18n.ts._mahjong.east : house === 's' ? i18n.ts._mahjong.south : house === 'w' ? i18n.ts._mahjong.west : i18n.ts._mahjong.north;
+}
+
+function backToLobby() {
+	router.push('/mahjong');
 }
 
 let riichiSelect = false;
@@ -495,7 +514,7 @@ function kan() {
 }
 
 function skip() {
-	mj.value.commit_nop(mj.value.myHouse);
+	mj.value.commit_nop();
 	triggerRef(mj);
 
 	props.connection!.send('nop', {});
@@ -505,7 +524,7 @@ function confirmKyokuResult() {
 	props.connection!.send('confirmNextKyoku', {});
 }
 
-function onStreamDahai(log) {
+function onStreamDahai(log: { house: Mmj.House; tile: number; riichi: boolean }) {
 	console.log('onStreamDahai', log);
 
 	sound.playUrl('/client-assets/mahjong/dahai.mp3', {
@@ -532,7 +551,7 @@ function onStreamDahai(log) {
 	myTurnTimerRmain.value = room.value.timeLimitForEachTurn;
 }
 
-function onStreamTsumo(log) {
+function onStreamTsumo(log: { house: Mmj.House; tile: number }) {
 	console.log('onStreamTsumo', log);
 
 	//if (log.house !== mj.value.state.turn) { // = desyncが発生している
@@ -553,7 +572,7 @@ function onStreamTsumo(log) {
 	myTurnTimerRmain.value = room.value.timeLimitForEachTurn;
 }
 
-function onStreamDahaiAndTsumo(log) {
+function onStreamDahaiAndTsumo(log: { dahaiHouse: Mmj.House; dahaiTile: number; tsumoTile: number; riichi: boolean }) {
 	console.log('onStreamDahaiAndTsumo', log);
 
 	//if (log.house !== mj.value.state.turn) { // = desyncが発生している
@@ -589,7 +608,7 @@ function onStreamDahaiAndTsumo(log) {
 	myTurnTimerRmain.value = room.value.timeLimitForEachTurn;
 }
 
-function onStreamPonned(log) {
+function onStreamPonned(log: { caller: Mmj.House; callee: Mmj.House; tiles: readonly [number, number, number] }) {
 	console.log('onStreamPonned', log);
 
 	//if (log.house !== mj.value.state.turn) { // = desyncが発生している
@@ -611,43 +630,49 @@ function onStreamPonned(log) {
 	myTurnTimerRmain.value = room.value.timeLimitForEachTurn;
 }
 
-function onStreamKanned(log) {
+function onStreamKanned(log: { caller: Mmj.House; callee: Mmj.House; tiles: readonly [number, number, number, number]; rinsyan: number }) {
 	console.log('onStreamKanned', log);
 
 	mj.value.commit_kan(log.caller, log.callee, log.tiles, log.rinsyan);
 	triggerRef(mj);
 
+	if (log.caller === mj.value.myHouse) iTsumoed.value = true;
+
 	kanSerifHouses[log.caller] = true;
 	window.setTimeout(() => {
 		kanSerifHouses[log.caller] = false;
 	}, 2000);
 }
 
-function onStreamKakanned(log) {
+function onStreamKakanned(log: { house: Mmj.House; tiles: readonly [number, number, number, number]; rinsyan: number; from: Mmj.House }) {
 	console.log('onStreamKakanned', log);
 
 	mj.value.commit_kakan(log.house, log.tiles, log.rinsyan);
 	triggerRef(mj);
 
-	kanSerifHouses[log.caller] = true;
+	if (log.house === mj.value.myHouse) iTsumoed.value = true;
+
+	kanSerifHouses[log.house] = true;
 	window.setTimeout(() => {
-		kanSerifHouses[log.caller] = false;
+		kanSerifHouses[log.house] = false;
 	}, 2000);
 }
 
-function onStreamAnkanned(log) {
+function onStreamAnkanned(log: { house: Mmj.House; tiles: readonly [number, number, number, number]; rinsyan: number }) {
 	console.log('onStreamAnkanned', log);
 
 	mj.value.commit_ankan(log.house, log.tiles, log.rinsyan);
 	triggerRef(mj);
 
-	kanSerifHouses[log.caller] = true;
+	if (log.house === mj.value.myHouse) iTsumoed.value = true;
+
+	kanSerifHouses[log.house] = true;
 	window.setTimeout(() => {
-		kanSerifHouses[log.caller] = false;
+		kanSerifHouses[log.house] = false;
 	}, 2000);
 }
 
-function onStreamCiied(log) {
+function onStreamCiied(log: { caller: Mmj.House; callee: Mmj.House; tiles: readonly [number, number, number] }) {
 	console.log('onStreamCiied', log);
 
 	mj.value.commit_cii(log.caller, log.callee, log.tiles);
@@ -659,7 +684,7 @@ function onStreamCiied(log) {
 	}, 2000);
 }
 
-function onStreamRonned(log) {
+function onStreamRonned(log: { callers: Mmj.House[]; callee: Mmj.House; handTiles: Record<Mmj.House, number[]> }) {
 	console.log('onStreamRonned', log);
 
 	const res = mj.value.commit_ronHora(log.callers, log.callee, log.handTiles);
@@ -682,7 +707,7 @@ function onStreamRonned(log) {
 	console.log('ronned', res);
 }
 
-function onStreamTsumoHora(log) {
+function onStreamTsumoHora(log: { house: Mmj.House; handTiles: number[]; tsumoTile: number }) {
 	console.log('onStreamTsumoHora', log);
 
 	const res = mj.value.commit_tsumoHora(log.house, log.handTiles, log.tsumoTile);
@@ -702,7 +727,7 @@ function onStreamTsumoHora(log) {
 	console.log('tsumohora', res);
 }
 
-function onStreamRyuukyoku(log) {
+function onStreamRyuukyoku(log: unknown) {
 	console.log('onStreamRyuukyoku', log);
 
 	ryuukyokued.value = true;
@@ -712,10 +737,11 @@ function onStreamRyuukyoku(log) {
 	}, 1500);
 }
 
-function onStreamNextKyoku(log) {
+function onStreamNextKyoku(log: { room: Misskey.entities.MahjongRoomDetailed }) {
 	console.log('onStreamNextKyoku', log);
 
-	const res = mj.value.commit_nextKyoku(log.state);
+	room.value = log.room;
+	mj.value.commit_nextKyoku(log.room.gameState as unknown as Mmj.PlayerState);
 	triggerRef(mj);
 
 	iTsumoed.value = false;
@@ -729,79 +755,58 @@ function onStreamNextKyoku(log) {
 	ryuukyokued.value = false;
 }
 
-function restoreRoom(_room) {
-	room.value = deepClone(_room);
-
-	mj.value = new Mmj.PlayerGameEngine(myUserNumber, room.value.gameState);
+function onStreamEnded(log: { room: Misskey.entities.MahjongRoomDetailed }) {
+	room.value = log.room;
+	if (room.value.gameState != null) {
+		mj.value = new Mmj.PlayerGameEngine(myUserNumber.value, room.value.gameState as unknown as Mmj.PlayerState);
+		triggerRef(mj);
+	}
+	showKyokuResults.value = false;
 }
 
-onMounted(() => {
-	if (props.connection != null) {
-		props.connection.on('dahai', onStreamDahai);
-		props.connection.on('tsumo', onStreamTsumo);
-		props.connection.on('dahaiAndTsumo', onStreamDahaiAndTsumo);
-		props.connection.on('ponned', onStreamPonned);
-		props.connection.on('kanned', onStreamKanned);
-		props.connection.on('kakanned', onStreamKakanned);
-		props.connection.on('ankanned', onStreamAnkanned);
-		props.connection.on('ciied', onStreamCiied);
-		props.connection.on('ronned', onStreamRonned);
-		props.connection.on('tsumoHora', onStreamTsumoHora);
-		props.connection.on('ryuukyoku', onStreamRyuukyoku);
-		props.connection.on('nextKyoku', onStreamNextKyoku);
-	}
-});
+let listening = false;
 
-onActivated(() => {
-	if (props.connection != null) {
-		props.connection.on('dahai', onStreamDahai);
-		props.connection.on('tsumo', onStreamTsumo);
-		props.connection.on('dahaiAndTsumo', onStreamDahaiAndTsumo);
-		props.connection.on('ponned', onStreamPonned);
-		props.connection.on('kanned', onStreamKanned);
-		props.connection.on('kakanned', onStreamKakanned);
-		props.connection.on('ankanned', onStreamAnkanned);
-		props.connection.on('ciied', onStreamCiied);
-		props.connection.on('ronned', onStreamRonned);
-		props.connection.on('tsumoHora', onStreamTsumoHora);
-		props.connection.on('ryuukyoku', onStreamRyuukyoku);
-		props.connection.on('nextKyoku', onStreamNextKyoku);
-	}
-});
+function attachListeners() {
+	if (listening || props.connection == null) return;
+	listening = true;
+	props.connection.on('dahai', onStreamDahai);
+	props.connection.on('tsumo', onStreamTsumo);
+	props.connection.on('dahaiAndTsumo', onStreamDahaiAndTsumo);
+	props.connection.on('ponned', onStreamPonned);
+	props.connection.on('kanned', onStreamKanned);
+	props.connection.on('kakanned', onStreamKakanned);
+	props.connection.on('ankanned', onStreamAnkanned);
+	props.connection.on('ciied', onStreamCiied);
+	props.connection.on('ronned', onStreamRonned);
+	props.connection.on('tsumoHora', onStreamTsumoHora);
+	props.connection.on('ryuukyoku', onStreamRyuukyoku);
+	props.connection.on('nextKyoku', onStreamNextKyoku);
+	props.connection.on('ended', onStreamEnded);
+}
 
-onDeactivated(() => {
-	if (props.connection != null) {
-		props.connection.off('dahai', onStreamDahai);
-		props.connection.off('tsumo', onStreamTsumo);
-		props.connection.off('dahaiAndTsumo', onStreamDahaiAndTsumo);
-		props.connection.off('ponned', onStreamPonned);
-		props.connection.off('kanned', onStreamKanned);
-		props.connection.off('kakanned', onStreamKakanned);
-		props.connection.off('ankanned', onStreamAnkanned);
-		props.connection.off('ciied', onStreamCiied);
-		props.connection.off('ronned', onStreamRonned);
-		props.connection.off('tsumoHora', onStreamTsumoHora);
-		props.connection.off('ryuukyoku', onStreamRyuukyoku);
-		props.connection.off('nextKyoku', onStreamNextKyoku);
-	}
-});
+function detachListeners() {
+	if (!listening || props.connection == null) return;
+	listening = false;
+	props.connection.off('dahai', onStreamDahai);
+	props.connection.off('tsumo', onStreamTsumo);
+	props.connection.off('dahaiAndTsumo', onStreamDahaiAndTsumo);
+	props.connection.off('ponned', onStreamPonned);
+	props.connection.off('kanned', onStreamKanned);
+	props.connection.off('kakanned', onStreamKakanned);
+	props.connection.off('ankanned', onStreamAnkanned);
+	props.connection.off('ciied', onStreamCiied);
+	props.connection.off('ronned', onStreamRonned);
+	props.connection.off('tsumoHora', onStreamTsumoHora);
+	props.connection.off('ryuukyoku', onStreamRyuukyoku);
+	props.connection.off('nextKyoku', onStreamNextKyoku);
+	props.connection.off('ended', onStreamEnded);
+}
 
-onUnmounted(() => {
-	if (props.connection != null) {
-		props.connection.off('dahai', onStreamDahai);
-		props.connection.off('tsumo', onStreamTsumo);
-		props.connection.off('dahaiAndTsumo', onStreamDahaiAndTsumo);
-		props.connection.off('ponned', onStreamPonned);
-		props.connection.off('kanned', onStreamKanned);
-		props.connection.off('kakanned', onStreamKakanned);
-		props.connection.off('ankanned', onStreamAnkanned);
-		props.connection.off('ciied', onStreamCiied);
-		props.connection.off('ronned', onStreamRonned);
-		props.connection.off('tsumoHora', onStreamTsumoHora);
-		props.connection.off('ryuukyoku', onStreamRyuukyoku);
-		props.connection.off('nextKyoku', onStreamNextKyoku);
-	}
-});
+onMounted(attachListeners);
+onActivated(attachListeners);
+onDeactivated(detachListeners);
+onUnmounted(detachListeners);
+
 </script>
 
 <style lang="scss" module>

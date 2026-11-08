@@ -36,7 +36,7 @@ export const packedMahjongRoomDetailedSchema = {
 		},
 		user1Id: {
 			type: 'string',
-			optional: false, nullable: false,
+			optional: false, nullable: true,
 			format: 'id',
 		},
 		user2Id: {
@@ -57,22 +57,22 @@ export const packedMahjongRoomDetailedSchema = {
 		user1: {
 			type: 'object',
 			optional: false, nullable: true,
-			ref: 'User',
+			ref: 'UserLite',
 		},
 		user2: {
 			type: 'object',
 			optional: false, nullable: true,
-			ref: 'User',
+			ref: 'UserLite',
 		},
 		user3: {
 			type: 'object',
 			optional: false, nullable: true,
-			ref: 'User',
+			ref: 'UserLite',
 		},
 		user4: {
 			type: 'object',
 			optional: false, nullable: true,
-			ref: 'User',
+			ref: 'UserLite',
 		},
 		user1Ai: {
 			type: 'boolean',
@@ -109,6 +109,11 @@ export const packedMahjongRoomDetailedSchema = {
 		timeLimitForEachTurn: {
 			type: 'number',
 			optional: false, nullable: false,
+		},
+		gameState: {
+			type: 'object',
+			optional: false, nullable: true,
+			additionalProperties: true,
 		},
 	},
 } as const;

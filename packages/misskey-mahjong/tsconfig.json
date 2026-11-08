@@ -6,15 +6,20 @@
 		"moduleResolution": "nodenext",
 		"declaration": true,
 		"declarationMap": true,
-		"sourceMap": true,
-		"outDir": "./built/",
+		"sourceMap": false,
+		"outDir": "./built",
 		"removeComments": true,
+		"skipLibCheck": true,
 		"strict": true,
 		"strictFunctionTypes": true,
 		"strictNullChecks": true,
 		"experimentalDecorators": true,
 		"noImplicitReturns": true,
 		"esModuleInterop": true,
+		"rootDir": "./src",
+		"typeRoots": [
+			"./node_modules/@types"
+		],
 		"lib": [
 			"esnext",
 			"dom"
@@ -24,6 +29,7 @@
 		"src/**/*"
 	],
 	"exclude": [
-		"node_modules"
+		"node_modules",
+		"test/**/*"
 	]
 }

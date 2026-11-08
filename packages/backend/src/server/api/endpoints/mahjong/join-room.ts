@@ -19,6 +19,16 @@ export const meta = {
 			code: 'NO_SUCH_ROOM',
 			id: '370e42b0-2a67-4306-9328-51c5f568f110',
 		},
+		roomFull: {
+			message: 'The room is full.',
+			code: 'ROOM_FULL',
+			id: 'c8e8b4f1-5b4f-4f0e-9a3e-2a8c0f0d0f11',
+		},
+		gameStarted: {
+			message: 'The game has already started.',
+			code: 'GAME_STARTED',
+			id: '3f7d2b0a-1b4a-4f6e-8c1d-9e2a5b7c8d90',
+		},
 	},
 
 	res: {
@@ -48,9 +58,17 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 				throw new ApiError(meta.errors.noSuchRoom);
 			}
 
-			await this.mahjongService.joinRoom(room.id, me);
+			if (room.isStarted && !this.mahjongService.isMember(room, me)) {
+				throw new ApiError(meta.errors.gameStarted);
+			}
 
-			return await this.mahjongService.packRoom(room, me);
+			const joined = await this.mahjongService.joinRoom(room.id, me);
+
+			if (joined == null) {
+				throw new ApiError(meta.errors.roomFull);
+			}
+
+			return await this.mahjongService.packRoom(joined, me);
 		});
 	}
 }

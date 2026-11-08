@@ -1079,6 +1079,12 @@ export type Channels = {
                 index: number;
                 user: UserLite | null;
             }) => void;
+            left: (payload: {
+                index: number;
+            }) => void;
+            canceled: (payload: {
+                userId: string;
+            }) => void;
             changeReadyStates: (payload: {
                 user1: boolean;
                 user2: boolean;
@@ -1091,66 +1097,65 @@ export type Channels = {
             nextKyoku: (payload: {
                 room: MahjongRoomDetailed;
             }) => void;
+            ended: (payload: {
+                room: MahjongRoomDetailed;
+            }) => void;
             tsumo: (payload: {
-                house: MmjHouse;
+                house: MahjongHouse;
                 tile: number;
             }) => void;
             dahai: (payload: {
-                house: MmjHouse;
+                house: MahjongHouse;
                 tile: number;
                 riichi: boolean;
             }) => void;
             dahaiAndTsumo: (payload: {
-                dahaiHouse: MmjHouse;
+                dahaiHouse: MahjongHouse;
                 dahaiTile: number;
                 tsumoTile: number;
                 riichi: boolean;
             }) => void;
             ponned: (payload: {
-                caller: MmjHouse;
-                callee: MmjHouse;
+                caller: MahjongHouse;
+                callee: MahjongHouse;
                 tiles: readonly [number, number, number];
             }) => void;
             kanned: (payload: {
-                caller: MmjHouse;
-                callee: MmjHouse;
+                caller: MahjongHouse;
+                callee: MahjongHouse;
                 tiles: readonly [number, number, number, number];
                 rinsyan: number;
             }) => void;
             ciied: (payload: {
-                caller: MmjHouse;
-                callee: MmjHouse;
+                caller: MahjongHouse;
+                callee: MahjongHouse;
                 tiles: readonly [number, number, number];
             }) => void;
             ronned: (payload: {
-                callers: MmjHouse[];
-                callee: MmjHouse;
-                handTiles: Record<MmjHouse, number[]>;
+                callers: MahjongHouse[];
+                callee: MahjongHouse;
+                handTiles: Record<MahjongHouse, number[]>;
             }) => void;
             ryuukyoku: (payload: unknown) => void;
             ankanned: (payload: {
-                house: MmjHouse;
+                house: MahjongHouse;
                 tiles: readonly [number, number, number, number];
                 rinsyan: number;
             }) => void;
             kakanned: (payload: {
-                house: MmjHouse;
+                house: MahjongHouse;
                 tiles: readonly [number, number, number, number];
                 rinsyan: number;
-                from: MmjHouse;
+                from: MahjongHouse;
             }) => void;
             tsumoHora: (payload: {
-                house: MmjHouse;
+                house: MahjongHouse;
                 handTiles: number[];
                 tsumoTile: number;
             }) => void;
         };
         receives: {
             ready: boolean;
-            updateSettings: {
-                key: string;
-                body: unknown;
-            };
             addAi: Record<string, never>;
             leave: Record<string, never>;
             confirmNextKyoku: Record<string, never>;
@@ -1162,7 +1167,7 @@ export type Channels = {
             ronHora: Record<string, never>;
             pon: Record<string, never>;
             cii: {
-                pattern: string;
+                pattern: 'x__' | '_x_' | '__x';
             };
             kan: Record<string, never>;
             ankan: {
@@ -1172,7 +1177,6 @@ export type Channels = {
                 tile: number;
             };
             nop: Record<string, never>;
-            claimTimeIsUp: Record<string, never>;
         };
     };
 };
@@ -2303,16 +2307,11 @@ declare namespace entities {
         InviteLimitResponse,
         InviteListRequest,
         InviteListResponse,
-        MahjongCancelMatchRequest,
         MahjongCreateRoomResponse,
-        MahjongGamesRequest,
-        MahjongGamesResponse,
         MahjongJoinRoomRequest,
         MahjongJoinRoomResponse,
         MahjongShowRoomRequest,
         MahjongShowRoomResponse,
-        MahjongVerifyRequest,
-        MahjongVerifyResponse,
         MetaRequest,
         MetaResponse,
         MiauthGenTokenRequest,
@@ -2530,32 +2529,9 @@ declare namespace entities {
         UsersTranslateRequest,
         UsersTranslateResponse,
         UsersUpdateMemoRequest,
-        FetchRssRequest,
-        FetchRssResponse,
-        FetchExternalResourcesRequest,
-        FetchExternalResourcesResponse,
-        RetentionResponse,
-        BubbleGameRegisterRequest,
-        BubbleGameRegisterResponse,
-        BubbleGameRankingRequest,
-        BubbleGameRankingResponse,
-        ReversiCancelMatchRequest,
-        ReversiCancelMatchResponse,
-        ReversiGamesRequest,
-        ReversiGamesResponse,
-        ReversiMatchRequest,
-        ReversiMatchResponse,
-        ReversiInvitationsResponse,
-        ReversiShowGameRequest,
-        ReversiShowGameResponse,
-        ReversiSurrenderRequest,
-        ReversiVerifyRequest,
-        ReversiVerifyResponse,
-        MahjongCreateRoomResponse,
-        MahjongJoinRoomRequest,
-        MahjongJoinRoomResponse,
-        MahjongShowRoomRequest,
-        MahjongShowRoomResponse,
+        V2AdminEmojiListRequest,
+        V2AdminEmojiListResponse,
+        VerifyEmailRequest,
         Error_2 as Error,
         UserLite,
         UserDetailedNotMeOnly,
@@ -2614,7 +2590,22 @@ declare namespace entities {
         RolePolicies,
         ReversiGameLite,
         ReversiGameDetailed,
-        MahjongRoomDetailed
+        MetaLite,
+        MetaDetailedOnly,
+        MetaDetailed,
+        MetaClientOptions,
+        UserWebhook,
+        SystemWebhook,
+        AbuseReportNotificationRecipient,
+        ChatMessage,
+        ChatMessageLite,
+        ChatMessageLiteFor1on1,
+        ChatMessageLiteForRoom,
+        ChatRoom,
+        ChatRoomInvitation,
+        ChatRoomMembership,
+        MahjongRoomDetailed,
+        NoteHistory
     }
 }
 export { entities }
@@ -3228,16 +3219,7 @@ type IWebhooksTestRequest = operations['i___webhooks___test']['requestBody']['co
 type IWebhooksUpdateRequest = operations['i___webhooks___update']['requestBody']['content']['application/json'];
 
 // @public (undocumented)
-type MahjongCancelMatchRequest = operations['mahjong___cancel-match']['requestBody']['content']['application/json'];
-
-// @public (undocumented)
 type MahjongCreateRoomResponse = operations['mahjong___create-room']['responses']['200']['content']['application/json'];
-
-// @public (undocumented)
-type MahjongGamesRequest = operations['mahjong___games']['requestBody']['content']['application/json'];
-
-// @public (undocumented)
-type MahjongGamesResponse = operations['mahjong___games']['responses']['200']['content']['application/json'];
 
 // @public (undocumented)
 type MahjongJoinRoomRequest = operations['mahjong___join-room']['requestBody']['content']['application/json'];
@@ -3253,12 +3235,6 @@ type MahjongShowRoomRequest = operations['mahjong___show-room']['requestBody']['
 
 // @public (undocumented)
 type MahjongShowRoomResponse = operations['mahjong___show-room']['responses']['200']['content']['application/json'];
-
-// @public (undocumented)
-type MahjongVerifyRequest = operations['mahjong___verify']['requestBody']['content']['application/json'];
-
-// @public (undocumented)
-type MahjongVerifyResponse = operations['mahjong___verify']['responses']['200']['content']['application/json'];
 
 // @public (undocumented)
 type MeDetailed = components['schemas']['MeDetailed'];
@@ -4300,9 +4276,9 @@ type VerifyEmailRequest = operations['verify-email']['requestBody']['content']['
 // Warnings were encountered during analysis:
 //
 // src/streaming.ts:57:3 - (ae-forgotten-export) The symbol "ReconnectingWebSocket" needs to be exported by the entry point index.d.ts
-// src/streaming.types.ts:221:4 - (ae-forgotten-export) The symbol "ReversiUpdateKey" needs to be exported by the entry point index.d.ts
-// src/streaming.types.ts:231:4 - (ae-forgotten-export) The symbol "ReversiUpdateSettings" needs to be exported by the entry point index.d.ts
-// src/streaming.types.ts:301:5 - (ae-forgotten-export) The symbol "MmjHouse" needs to be exported by the entry point index.d.ts
+// src/streaming.types.ts:271:4 - (ae-forgotten-export) The symbol "ReversiUpdateKey" needs to be exported by the entry point index.d.ts
+// src/streaming.types.ts:287:4 - (ae-forgotten-export) The symbol "ReversiUpdateSettings" needs to be exported by the entry point index.d.ts
+// src/streaming.types.ts:371:5 - (ae-forgotten-export) The symbol "MahjongHouse" needs to be exported by the entry point index.d.ts
 
 // (No @packageDocumentation comment for this package)
 

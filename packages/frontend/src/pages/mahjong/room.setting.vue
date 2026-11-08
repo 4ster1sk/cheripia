@@ -7,29 +7,35 @@ SPDX-License-Identifier: AGPL-3.0-only
 <MkStickyContainer>
 	<MkSpacer :contentMax="600">
 		<div class="_gaps">
-			<div class="_panel">
-				<MkAvatar v-if="room.user1" :user="room.user1" :class="$style.userAvatar"/>
-				<div v-else-if="room.user1Ai">AI</div>
-				<div v-if="room.user1Ready">OK</div>
+			<div class="_panel" style="padding: 16px;">
+				<div style="font-size: 90%; opacity: 0.8; margin-bottom: 8px;">
+					このURLを同じインスタンスのユーザーに共有してください。
+				</div>
+				<div style="display: flex; gap: 8px; align-items: center;">
+					<code style="flex: 1; overflow: hidden; text-overflow: ellipsis;">{{ roomUrl }}</code>
+					<MkButton small @click="copyUrl">コピー</MkButton>
+				</div>
 			</div>
-			<div class="_panel">
-				<MkAvatar v-if="room.user2" :user="room.user2" :class="$style.userAvatar"/>
-				<div v-else-if="room.user2Ai">AI</div>
-				<div v-if="room.user2Ready">OK</div>
+
+			<div class="_panel _gaps" style="padding: 16px;">
+				<div v-for="index in [1, 2, 3, 4]" :key="index" style="display: flex; align-items: center; gap: 12px;">
+					<template v-if="seatUser(index) != null">
+						<MkAvatar :user="seatUser(index)!" style="width: 40px; height: 40px;"/>
+						<span>{{ seatUser(index)!.name ?? seatUser(index)!.username }}</span>
+					</template>
+					<template v-else-if="seatAi(index)">
+						<span style="width: 40px; text-align: center;">CPU</span>
+					</template>
+					<template v-else>
+						<span style="width: 40px; text-align: center; opacity: 0.5;">空席</span>
+					</template>
+					<span v-if="seatReady(index)" style="margin-left: auto; color: var(--MI_THEME-success);">準備完了</span>
+				</div>
 			</div>
-			<div class="_panel">
-				<MkAvatar v-if="room.user3" :user="room.user3" :class="$style.userAvatar"/>
-				<div v-else-if="room.user3Ai">AI</div>
-				<div v-if="room.user3Ready">OK</div>
+
+			<div v-if="isOwner" class="_buttonsCenter">
+				<MkButton rounded @click="addCpu">{{ i18n.ts._mahjong.addCpu }}</MkButton>
 			</div>
-			<div class="_panel">
-				<MkAvatar v-if="room.user4" :user="room.user4" :class="$style.userAvatar"/>
-				<div v-else-if="room.user4Ai">AI</div>
-				<div v-if="room.user4Ready">OK</div>
-			</div>
-		</div>
-		<div>
-			<MkButton rounded primary @click="addCpu">{{ i18n.ts._mahjong.addCpu }}</MkButton>
 		</div>
 	</MkSpacer>
 	<template #footer>
@@ -49,30 +55,30 @@ SPDX-License-Identifier: AGPL-3.0-only
 </template>
 
 <script lang="ts" setup>
-import { computed, watch, ref, onMounted, shallowRef, onUnmounted } from 'vue';
+import { computed, ref, onUnmounted } from 'vue';
 import * as Misskey from 'misskey-js';
-import * as Mmj from 'misskey-mahjong';
-import type { MenuItem } from '@/types/menu.js';
+import { url } from '@@/js/config.js';
 import { i18n } from '@/i18n.js';
 import { ensureSignin } from '@/i.js';
 import { deepClone } from '@/utility/clone.js';
+import { copyToClipboard } from '@/utility/copy-to-clipboard.js';
 import MkButton from '@/components/MkButton.vue';
-import MkRadios from '@/components/MkRadios.vue';
-import MkSwitch from '@/components/MkSwitch.vue';
-import MkFolder from '@/components/MkFolder.vue';
 import * as os from '@/os.js';
 import { useRouter } from '@/router.js';
 
 const $i = ensureSignin();
 
-const router = useRouter();
-
 const props = defineProps<{
 	room: Misskey.entities.MahjongRoomDetailed;
-	connection: Misskey.ChannelConnection<Misskey.Channels['mahjongRoom']>;
+	connection: Misskey.IChannelConnection<Misskey.Channels['mahjongRoom']>;
 }>();
 
+const router = useRouter();
+
 const room = ref<Misskey.entities.MahjongRoomDetailed>(deepClone(props.room));
+
+const roomUrl = computed(() => `${url}/mahjong/g/${room.value.id}`);
+const isOwner = computed(() => room.value.user1Id === $i.id);
 
 const isReady = computed(() => {
 	if (room.value.user1Id === $i.id && room.value.user1Ready) return true;
@@ -82,6 +88,41 @@ const isReady = computed(() => {
 	return false;
 });
 
+function seatUser(index: number): Misskey.entities.UserLite | null {
+	switch (index) {
+		case 1: return room.value.user1;
+		case 2: return room.value.user2;
+		case 3: return room.value.user3;
+		case 4: return room.value.user4;
+		default: return null;
+	}
+}
+
+function seatAi(index: number): boolean {
+	switch (index) {
+		case 1: return room.value.user1Ai;
+		case 2: return room.value.user2Ai;
+		case 3: return room.value.user3Ai;
+		case 4: return room.value.user4Ai;
+		default: return false;
+	}
+}
+
+function seatReady(index: number): boolean {
+	switch (index) {
+		case 1: return room.value.user1Ready;
+		case 2: return room.value.user2Ready;
+		case 3: return room.value.user3Ready;
+		case 4: return room.value.user4Ready;
+		default: return false;
+	}
+}
+
+async function copyUrl() {
+	await copyToClipboard(roomUrl.value);
+	os.success();
+}
+
 async function leave() {
 	const { canceled } = await os.confirm({
 		type: 'warning',
@@ -90,7 +131,6 @@ async function leave() {
 	if (canceled) return;
 
 	props.connection.send('leave', {});
-
 	router.push('/mahjong');
 }
 
@@ -106,56 +146,77 @@ function addCpu() {
 	props.connection.send('addAi', {});
 }
 
-function onChangeReadyStates(states) {
+function onChangeReadyStates(states: {
+	user1: boolean;
+	user2: boolean;
+	user3: boolean;
+	user4: boolean;
+}) {
 	room.value.user1Ready = states.user1;
 	room.value.user2Ready = states.user2;
 	room.value.user3Ready = states.user3;
 	room.value.user4Ready = states.user4;
 }
 
-function onJoined(x) {
+function onJoined(x: {
+	index: number;
+	user: Misskey.entities.UserLite | null;
+}) {
 	switch (x.index) {
 		case 1:
 			room.value.user1 = x.user;
 			room.value.user1Ai = x.user == null;
-			room.value.user1Ready = room.value.user1Ai;
 			break;
 		case 2:
 			room.value.user2 = x.user;
 			room.value.user2Ai = x.user == null;
-			room.value.user2Ready = room.value.user2Ai;
 			break;
 		case 3:
 			room.value.user3 = x.user;
 			room.value.user3Ai = x.user == null;
-			room.value.user3Ready = room.value.user3Ai;
 			break;
 		case 4:
 			room.value.user4 = x.user;
 			room.value.user4Ai = x.user == null;
-			room.value.user4Ready = room.value.user4Ai;
 			break;
+	}
+}
 
-		default:
+function onLeft(x: { index: number }) {
+	switch (x.index) {
+		case 1:
+			room.value.user1 = null;
+			break;
+		case 2:
+			room.value.user2 = null;
+			room.value.user2Ai = false;
+			room.value.user2Ready = false;
+			break;
+		case 3:
+			room.value.user3 = null;
+			room.value.user3Ai = false;
+			room.value.user3Ready = false;
+			break;
+		case 4:
+			room.value.user4 = null;
+			room.value.user4Ai = false;
+			room.value.user4Ready = false;
 			break;
 	}
 }
 
 props.connection.on('changeReadyStates', onChangeReadyStates);
 props.connection.on('joined', onJoined);
+props.connection.on('left', onLeft);
 
 onUnmounted(() => {
 	props.connection.off('changeReadyStates', onChangeReadyStates);
 	props.connection.off('joined', onJoined);
+	props.connection.off('left', onLeft);
 });
 </script>
 
 <style lang="scss" module>
-.userAvatar {
-	width: 48px;
-	height: 48px;
-}
-
 .footer {
 	-webkit-backdrop-filter: var(--blur, blur(15px));
 	backdrop-filter: var(--blur, blur(15px));

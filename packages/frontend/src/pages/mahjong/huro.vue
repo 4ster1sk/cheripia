@@ -4,7 +4,10 @@ SPDX-License-Identifier: AGPL-3.0-only
 -->
 
 <template>
-<div v-if="huro.type === 'ankan'" :class="[$style.root]">
+<div v-if="huro.type === 'ankan' && huro.tiles[0] === 0" :class="[$style.root]">
+	<img v-for="i in 4" :key="i" src="/client-assets/mahjong/tile-back.png" style="display: inline-block; width: 32px;"/>
+</div>
+<div v-else-if="huro.type === 'ankan'" :class="[$style.root]">
 	<XTile :tile="Mmj.findTileByIdOrFail(huro.tiles[0])" :variation="variation" :doras="doras"/>
 	<XTile :tile="Mmj.findTileByIdOrFail(huro.tiles[1])" :variation="variation" :doras="doras"/>
 	<XTile :tile="Mmj.findTileByIdOrFail(huro.tiles[2])" :variation="variation" :doras="doras"/>
@@ -29,7 +32,6 @@ SPDX-License-Identifier: AGPL-3.0-only
 </template>
 
 <script lang="ts" setup>
-import { computed } from 'vue';
 import * as Mmj from 'misskey-mahjong';
 import XTile from './tile.vue';
 
