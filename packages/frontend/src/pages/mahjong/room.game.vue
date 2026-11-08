@@ -130,28 +130,28 @@ SPDX-License-Identifier: AGPL-3.0-only
 		<div :class="$style.hoTilesContainer">
 			<div :class="$style.hoTilesContainerOfToimen">
 				<div :class="$style.hoTilesOfToimen">
-					<div v-for="(tile, i) in mj.hoTiles[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]" :class="$style.hoTile" :style="{ zIndex: mj.hoTiles[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))].length - i }">
+					<div v-for="(tile, i) in mj.hoTiles[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]" :class="[$style.hoTile, { [$style.callTarget]: isCallTarget(Mmj.prevHouse(Mmj.prevHouse(mj.myHouse)), i, mj.hoTiles[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))].length) }]" :style="{ zIndex: mj.hoTiles[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))].length - i }">
 						<XTile :tile="mj$(tile)" variation="2" :doras="mj.doras"/>
 					</div>
 				</div>
 			</div>
 			<div :class="$style.hoTilesContainerOfKamitya">
 				<div :class="$style.hoTilesOfKamitya">
-					<div v-for="tile in mj.hoTiles[Mmj.prevHouse(mj.myHouse)]" :class="$style.hoTile">
+					<div v-for="(tile, i) in mj.hoTiles[Mmj.prevHouse(mj.myHouse)]" :class="[$style.hoTile, { [$style.callTarget]: isCallTarget(Mmj.prevHouse(mj.myHouse), i, mj.hoTiles[Mmj.prevHouse(mj.myHouse)].length) }]">
 						<XTile :tile="mj$(tile)" variation="4" :doras="mj.doras"/>
 					</div>
 				</div>
 			</div>
 			<div :class="$style.hoTilesContainerOfSimotya">
 				<div :class="$style.hoTilesOfSimotya">
-					<div v-for="(tile, i) in mj.hoTiles[Mmj.nextHouse(mj.myHouse)]" :class="$style.hoTile" :style="{ zIndex: mj.hoTiles[Mmj.nextHouse(mj.myHouse)].length - i }">
+					<div v-for="(tile, i) in mj.hoTiles[Mmj.nextHouse(mj.myHouse)]" :class="[$style.hoTile, { [$style.callTarget]: isCallTarget(Mmj.nextHouse(mj.myHouse), i, mj.hoTiles[Mmj.nextHouse(mj.myHouse)].length) }]" :style="{ zIndex: mj.hoTiles[Mmj.nextHouse(mj.myHouse)].length - i }">
 						<XTile :tile="mj$(tile)" variation="5" :doras="mj.doras"/>
 					</div>
 				</div>
 			</div>
 			<div :class="$style.hoTilesContainerOfMe">
 				<div :class="$style.hoTilesOfMe">
-					<div v-for="tile in mj.hoTiles[mj.myHouse]" :class="$style.hoTile">
+					<div v-for="(tile, i) in mj.hoTiles[mj.myHouse]" :class="[$style.hoTile, { [$style.callTarget]: isCallTarget(mj.myHouse, i, mj.hoTiles[mj.myHouse].length) }]">
 						<XTile :tile="mj$(tile)" variation="1" :doras="mj.doras"/>
 					</div>
 				</div>
@@ -481,6 +481,21 @@ type TimerMode = 'turn' | 'call' | 'confirm' | 'hidden';
 const hasCall = computed(() => {
 	return mj.value.canRon != null || mj.value.canPon != null || mj.value.canCii != null || mj.value.canKan != null;
 });
+
+/**
+ * 鳴き・ロンの確認対象となっている捨て牌の家
+ */
+const callTargetHouse = computed<Mmj.House | null>(() => {
+	return mj.value.canRon?.callee
+		?? mj.value.canPon?.callee
+		?? mj.value.canCii?.callee
+		?? mj.value.canKan?.callee
+		?? null;
+});
+
+function isCallTarget(house: Mmj.House, index: number, length: number): boolean {
+	return callTargetHouse.value === house && index === length - 1;
+}
 
 const timerMode = ref<TimerMode>('turn');
 const timerDeadline = ref<number>(0);
@@ -1657,6 +1672,37 @@ onUnmounted(detachListeners);
 	position: relative;
 	display: inline-block;
 	margin-bottom: -8px;
+}
+
+.callTarget {
+	z-index: 100 !important;
+	outline: 2px solid #ffd54f;
+	outline-offset: 2px;
+	border-radius: 4px;
+	animation: callTargetBlink 900ms ease-in-out infinite;
+}
+
+@keyframes callTargetBlink {
+	0%, 100% {
+		filter: brightness(1);
+		scale: 1;
+		box-shadow: 0 0 0 0 transparent;
+	}
+
+	50% {
+		filter: brightness(1.6);
+		scale: 1.08;
+		box-shadow: 0 0 12px 3px #ffd54f;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.callTarget {
+		animation: none;
+		filter: brightness(1.15);
+		scale: 1;
+		box-shadow: 0 0 8px 2px #ffd54f;
+	}
 }
 
 .actions {
