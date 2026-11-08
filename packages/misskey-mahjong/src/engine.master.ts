@@ -6,7 +6,7 @@
 import { TileType, House, Huro, TileId } from './common.js';
 import * as Common from './common.js';
 import { PlayerState } from './engine.player.js';
-import { calcYakusWithDetail, convertHuroForCalcYaku, YakuData, YakuSet } from './common.yaku.js';
+import { calcYakusWithDetail, convertHuroForCalcYaku, isAgarikeiWithHuros, YakuData, YakuSet } from './common.yaku.js';
 
 export const INITIAL_POINT = 25000;
 
@@ -110,13 +110,14 @@ class StateManager {
 		// TODO: ポンされるなどして自分の河にない場合の考慮
 		if (this.hoTileTypes[house].includes($type(tid))) return false;
 
-		if (!Common.isAgarikei(this.handTileTypes[house].concat($type(tid)))) return false; // 完成形じゃない
+		const huros = this.$state.huros[house].map(convertHuroForCalcYaku);
+		if (!isAgarikeiWithHuros(this.handTileTypes[house].concat($type(tid)), huros)) return false; // 完成形じゃない
 
 		const yakus = calcYakusWithDetail({
 			seatWind: house,
 			fieldWind: this.$state.round,
 			handTiles: this.handTileTypes[house].concat($type(tid)),
-			huros: this.$state.huros[house].map(convertHuroForCalcYaku),
+			huros,
 			tsumoTile: null,
 			ronTile: $type(tid),
 			firstTurn: this.$state.firstTurnFlags[house],
@@ -684,11 +685,14 @@ export class MasterGameEngine {
 
 		if (tx.$state.turn !== house) throw new Error('Not your turn');
 
+		const huros = tx.$state.huros[house].map(convertHuroForCalcYaku);
+		if (!isAgarikeiWithHuros(tx.handTileTypes[house], huros)) throw new Error('Not an agari hand');
+
 		const yakus = calcYakusWithDetail({
 			seatWind: house,
 			fieldWind: this.$state.round,
 			handTiles: tx.handTileTypes[house],
-			huros: tx.$state.huros[house].map(convertHuroForCalcYaku),
+			huros,
 			tsumoTile: tx.handTileTypes[house].at(-1)!,
 			ronTile: null,
 			firstTurn: tx.$state.firstTurnFlags[house],

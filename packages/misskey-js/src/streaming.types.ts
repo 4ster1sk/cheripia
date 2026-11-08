@@ -424,6 +424,9 @@ export type Channels = {
 		receives: {
 			ready: boolean;
 			addAi: Record<string, never>;
+			removeAi: {
+				index: number;
+			};
 			leave: Record<string, never>;
 			confirmNextKyoku: Record<string, never>;
 			dahai: {

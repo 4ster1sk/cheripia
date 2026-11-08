@@ -5,7 +5,7 @@
 
 import { TileType, House, Huro, TileId } from './common.js';
 import * as Common from './common.js';
-import { calcYakusWithDetail, convertHuroForCalcYaku } from './common.yaku.js';
+import { calcYakusWithDetail, convertHuroForCalcYaku, isAgarikeiWithHuros } from './common.yaku.js';
 
 //#region syntax suger
 function $(tid: TileId): Common.TileInstance {
@@ -118,6 +118,10 @@ export class PlayerGameEngine {
 
 	public get doras(): TileType[] {
 		return this.state.doraIndicateTiles.map(t => Common.nextTileForDora($type(t)));
+	}
+
+	public get doraIndicateTiles(): TileId[] {
+		return this.state.doraIndicateTiles;
 	}
 
 	public get points(): Record<House, number> {
@@ -253,11 +257,12 @@ export class PlayerGameEngine {
 			this.state.canCii = null;
 		} else {
 			const ronTile = $type(tid);
+			const huros = this.state.huros[this.myHouse].map(convertHuroForCalcYaku);
 			const ronYakus = calcYakusWithDetail({
 				seatWind: this.myHouse,
-			fieldWind: this.state.round,
+				fieldWind: this.state.round,
 				handTiles: this.myHandTileTypes.concat([ronTile]),
-				huros: this.state.huros[this.myHouse].map(convertHuroForCalcYaku),
+				huros,
 				tsumoTile: null,
 				ronTile,
 				firstTurn: this.state.firstTurnFlags[this.myHouse],
@@ -266,7 +271,7 @@ export class PlayerGameEngine {
 				ippatsu: this.state.ippatsus[this.myHouse],
 				hotei: this.state.tilesCount === 0,
 			});
-			const canRon = Common.isAgarikei(this.myHandTiles.concat(tid).map(id => $type(id))) && ronYakus.yakuNames.length > 0;
+			const canRon = isAgarikeiWithHuros(this.myHandTileTypes.concat([ronTile]), huros) && ronYakus.yakuNames.length > 0;
 			const canPon = !this.isMeRiichi && this.myHandTileTypes.filter(t => t === $type(tid)).length === 2;
 			const canKan = !this.isMeRiichi && this.myHandTileTypes.filter(t => t === $type(tid)).length === 3;
 			const canCii = !this.isMeRiichi && house === Common.prevHouse(this.myHouse) &&
@@ -283,23 +288,29 @@ export class PlayerGameEngine {
 
 	public canTsumoHora(): boolean {
 		if (this.state.turn !== this.myHouse) return false;
+		const huros = this.state.huros[this.myHouse].map(convertHuroForCalcYaku);
+		if (!isAgarikeiWithHuros(this.myHandTileTypes, huros)) return false;
 		const tsumoTile = this.myHandTiles.at(-1);
 		if (tsumoTile == null) return false;
-		const yakus = calcYakusWithDetail({
-			seatWind: this.myHouse,
-			fieldWind: this.state.round,
-			handTiles: this.myHandTileTypes,
-			huros: this.state.huros[this.myHouse].map(convertHuroForCalcYaku),
-			tsumoTile: $type(tsumoTile),
-			ronTile: null,
-			firstTurn: this.state.firstTurnFlags[this.myHouse],
-			riichi: this.state.riichis[this.myHouse],
-			doubleRiichi: this.state.doubleRiichis[this.myHouse],
-			ippatsu: this.state.ippatsus[this.myHouse],
-			rinshan: this.state.rinshanFlags[this.myHouse],
-			haitei: this.state.tilesCount === 0,
-		});
-		return yakus.yakuNames.length > 0;
+		try {
+			const yakus = calcYakusWithDetail({
+				seatWind: this.myHouse,
+				fieldWind: this.state.round,
+				handTiles: this.myHandTileTypes,
+				huros,
+				tsumoTile: $type(tsumoTile),
+				ronTile: null,
+				firstTurn: this.state.firstTurnFlags[this.myHouse],
+				riichi: this.state.riichis[this.myHouse],
+				doubleRiichi: this.state.doubleRiichis[this.myHouse],
+				ippatsu: this.state.ippatsus[this.myHouse],
+				rinshan: this.state.rinshanFlags[this.myHouse],
+				haitei: this.state.tilesCount === 0,
+			});
+			return yakus.yakuNames.length > 0;
+		} catch {
+			return false;
+		}
 	}
 
 	public commit_tsumoHora(house: House, handTiles: TileId[], tsumoTile: TileId): KyokuResult {

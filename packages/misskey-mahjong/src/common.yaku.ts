@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { CALL_HURO_TYPES, CHAR_TILES, FourMentsuOneJyantou, House, MANZU_TILES, PINZU_TILES, SOUZU_TILES, TileType, YAOCHU_TILES, TILE_TYPES, analyzeFourMentsuOneJyantou, isShuntu, isManzu, isPinzu, isSameNumberTile, isSouzu, isKotsu, includes, TERMINAL_TILES, mentsuEquals, Huro, TILE_ID_MAP } from './common.js';
+import { CALL_HURO_TYPES, CHAR_TILES, FourMentsuOneJyantou, House, MANZU_TILES, PINZU_TILES, SOUZU_TILES, TileType, YAOCHU_TILES, TILE_TYPES, analyzeFourMentsuOneJyantou, isAgarikei, isShuntu, isManzu, isPinzu, isSameNumberTile, isSouzu, isKotsu, includes, TERMINAL_TILES, mentsuEquals, Huro, TILE_ID_MAP } from './common.js';
 import { calcWaitPatterns, isRyanmen, isToitsu, FourMentsuOneJyantouWithWait } from './common.fu.js';
 
 const RYUISO_TILES: TileType[] = ['s2', 's3', 's4', 's6', 's8', 'hatsu'];
@@ -95,6 +95,25 @@ type Minkan = {
 };
 
 export type HuroForCalcYaku = Pon | Cii | Ankan | Minkan;
+
+export function isAgarikeiWithHuros(handTiles: TileType[], huros: HuroForCalcYaku[]): boolean {
+	const tiles = [...handTiles];
+	for (const huro of huros) {
+		switch (huro.type) {
+			case 'pon':
+				tiles.push(huro.tile, huro.tile, huro.tile);
+				break;
+			case 'cii':
+				tiles.push(...huro.tiles);
+				break;
+			case 'ankan':
+			case 'minkan':
+				tiles.push(huro.tile, huro.tile, huro.tile);
+				break;
+		}
+	}
+	return isAgarikei(tiles);
+}
 
 export type EnvForCalcYaku = {
 	/**
@@ -1053,6 +1072,12 @@ export function calcYakusWithDetail(state: EnvForCalcYaku): YakuSet {
 		throw new TypeError('Invalid tile count');
 	}
 
+	const isMenzen = !state.huros.some(huro => includes(CALL_HURO_TYPES, huro.type));
+
+	if (!isAgarikeiWithHuros(state.handTiles, state.huros)) {
+		return new NormalYakuSet(isMenzen, []);
+	}
+
 	const oneHeadFourMentsuPatterns: (FourMentsuOneJyantou | null)[] = analyzeFourMentsuOneJyantou(state.handTiles);
 	if (oneHeadFourMentsuPatterns.length === 0) oneHeadFourMentsuPatterns.push(null);
 
@@ -1081,8 +1106,6 @@ export function calcYakusWithDetail(state: EnvForCalcYaku): YakuSet {
 			yakuDef => yakuDef.calc(state, fourMentsuOneJyantouWithWait),
 		).map(yakuDef => NORMAL_YAKU_DATA_MAP.get(yakuDef.name)!),
 	).filter(yakus => yakus.length > 0);
-
-	const isMenzen = !state.huros.some(huro => includes(CALL_HURO_TYPES, huro.type));
 
 	if (yakuPatterns.length === 0) {
 		return new NormalYakuSet(isMenzen, []);

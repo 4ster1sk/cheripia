@@ -81,6 +81,11 @@ export class MahjongRoomChannel extends Channel {
 			case 'addAi':
 				this.addAi();
 				break;
+			case 'removeAi':
+				if (!isJsonObject(body)) return;
+				if (body.index !== 2 && body.index !== 3 && body.index !== 4) return;
+				this.removeAi(body.index);
+				break;
 			case 'leave':
 				this.leaveRoom();
 				break;
@@ -142,6 +147,12 @@ export class MahjongRoomChannel extends Channel {
 	private async addAi() {
 		if (this.user == null) return;
 		await this.mahjongService.addAi(this.roomId!, this.user);
+	}
+
+	@bindThis
+	private async removeAi(index: 2 | 3 | 4) {
+		if (this.user == null) return;
+		await this.mahjongService.removeAi(this.roomId!, this.user, index);
 	}
 
 	@bindThis

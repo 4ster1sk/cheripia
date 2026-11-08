@@ -280,6 +280,36 @@ export class MahjongService implements OnApplicationShutdown {
 	}
 
 	@bindThis
+	public async removeAi(roomId: MahjongRoom['id'], user: MiUser, index: 2 | 3 | 4): Promise<MahjongRoom | null> {
+		return await this.withRoomLock(roomId, () => this.removeAiLocked(roomId, user, index));
+	}
+
+	private async removeAiLocked(roomId: MahjongRoom['id'], user: MiUser, index: 2 | 3 | 4): Promise<MahjongRoom | null> {
+		const room = await this.getRoom(roomId);
+		if (room == null) return null;
+		if (room.user1Id !== user.id) throw new Error('access denied');
+		if (room.isStarted || room.isEnded) return null;
+
+		const idKey = `user${index}Id` as const;
+		const aiKey = `user${index}Ai` as const;
+		const readyKey = `user${index}Ready` as const;
+		if (room[idKey] != null || !room[aiKey]) return null;
+
+		room[aiKey] = false;
+		room[readyKey] = false;
+		await this.saveRoom(room);
+
+		this.globalEventService.publishMahjongRoomStream(room.id, 'left', { index });
+		this.globalEventService.publishMahjongRoomStream(room.id, 'changeReadyStates', {
+			user1: room.user1Ready,
+			user2: room.user2Ready,
+			user3: room.user3Ready,
+			user4: room.user4Ready,
+		});
+		return room;
+	}
+
+	@bindThis
 	public async leaveRoom(roomId: MahjongRoom['id'], user: MiUser): Promise<MahjongRoom | null> {
 		return await this.withRoomLock(roomId, () => this.leaveRoomLocked(roomId, user));
 	}

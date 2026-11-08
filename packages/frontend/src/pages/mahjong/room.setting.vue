@@ -29,7 +29,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 					<template v-else>
 						<span style="width: 40px; text-align: center; opacity: 0.5;">空席</span>
 					</template>
-					<span v-if="seatReady(index)" style="margin-left: auto; color: var(--MI_THEME-success);">準備完了</span>
+					<div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+						<span v-if="seatReady(index)" style="color: var(--MI_THEME-success);">準備完了</span>
+						<MkButton v-if="isOwner && !room.isStarted && !room.isEnded && seatAi(index)" small danger @click="removeCpu(index)">削除</MkButton>
+					</div>
+				</div>
+				<div style="margin-top: 8px; font-size: 90%; opacity: 0.8;">
+					持ち時間: {{ room.timeLimitForEachTurn }}秒
 				</div>
 			</div>
 
@@ -144,6 +150,10 @@ function unready() {
 
 function addCpu() {
 	props.connection.send('addAi', {});
+}
+
+function removeCpu(index: number) {
+	props.connection.send('removeAi', { index });
 }
 
 function onChangeReadyStates(states: {

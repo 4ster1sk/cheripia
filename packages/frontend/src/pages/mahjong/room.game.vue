@@ -71,6 +71,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</div>
 		</div>
 
+		<div :class="$style.doraIndicators">
+			<span :class="$style.doraIndicatorLabel">{{ i18n.ts._mahjong.dora }}</span>
+			<XTile v-for="tile in mj.doraIndicateTiles" :key="tile" :tile="mj$(tile)" variation="1" :doras="[]"/>
+		</div>
+
+		<div v-if="!room.isEnded && !showKyokuResults" :class="$style.turnTimer">残り {{ myTurnTimerRmain }}s</div>
+
 		<div :class="$style.handTilesOfToimen">
 			<div v-for="tile in mj.handTiles[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]" style="display: inline-block;">
 				<img :src="`/client-assets/mahjong/tile-back.png`" :class="$style.handTileImgOfToimen"/>
@@ -140,6 +147,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<div :class="[$style.playerOfToimen, $style.player]">
 				<template v-if="users[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))] != null">
 					<MkAvatar :user="users[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]!" style="width: 30px; height: 30px;"/>
+					<span :class="$style.playerName">{{ users[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]!.name ?? users[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]!.username }}</span>
 				</template>
 				<template v-else>
 					CPU
@@ -148,6 +156,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<div :class="[$style.playerOfKamitya, $style.player]">
 				<template v-if="users[Mmj.prevHouse(mj.myHouse)] != null">
 					<MkAvatar :user="users[Mmj.prevHouse(mj.myHouse)]!" style="width: 30px; height: 30px;"/>
+					<span :class="$style.playerName">{{ users[Mmj.prevHouse(mj.myHouse)]!.name ?? users[Mmj.prevHouse(mj.myHouse)]!.username }}</span>
 				</template>
 				<template v-else>
 					CPU
@@ -156,6 +165,16 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<div :class="[$style.playerOfSimotya, $style.player]">
 				<template v-if="users[Mmj.nextHouse(mj.myHouse)] != null">
 					<MkAvatar :user="users[Mmj.nextHouse(mj.myHouse)]!" style="width: 30px; height: 30px;"/>
+					<span :class="$style.playerName">{{ users[Mmj.nextHouse(mj.myHouse)]!.name ?? users[Mmj.nextHouse(mj.myHouse)]!.username }}</span>
+				</template>
+				<template v-else>
+					CPU
+				</template>
+			</div>
+			<div :class="[$style.playerOfMe, $style.player]">
+				<template v-if="users[mj.myHouse] != null">
+					<MkAvatar :user="users[mj.myHouse]!" style="width: 30px; height: 30px;"/>
+					<span :class="$style.playerName">{{ users[mj.myHouse]!.name ?? users[mj.myHouse]!.username }}</span>
 				</template>
 				<template v-else>
 					CPU
@@ -290,6 +309,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 import { computed, onActivated, onDeactivated, onMounted, onUnmounted, reactive, ref, shallowRef, triggerRef } from 'vue';
 import * as Misskey from 'misskey-js';
 import * as Mmj from 'misskey-mahjong';
+import { useInterval } from '@@/js/use-interval.js';
 import XTile from './tile.vue';
 import XHuro from './huro.vue';
 import XHandTiles from './hand-tiles.vue';
@@ -329,7 +349,7 @@ const isMyTurn = computed(() => {
 });
 
 const canHora = computed(() => {
-	return iTsumoed.value && mj.value.canTsumoHora();
+	return isMyTurn.value && iTsumoed.value && mj.value.canTsumoHora();
 });
 
 const users = computed(() => ({
@@ -385,6 +405,15 @@ if (room.value.isStarted && !room.value.isEnded) {
 */
 
 const myTurnTimerRmain = ref<number>(room.value.timeLimitForEachTurn);
+
+function resetTurnTimer() {
+	myTurnTimerRmain.value = room.value.timeLimitForEachTurn;
+}
+
+useInterval(() => {
+	if (room.value.isEnded || showKyokuResults.value || ryuukyokued.value) return;
+	if (myTurnTimerRmain.value > 0) myTurnTimerRmain.value--;
+}, 1000, { immediate: false, afterMounted: true });
 
 /*
 const TIMER_INTERVAL_SEC = 3;
@@ -548,7 +577,7 @@ function onStreamDahai(log: { house: Mmj.House; tile: number; riichi: boolean })
 		riichiSerifHouses[log.house] = false;
 	}, 2000);
 
-	myTurnTimerRmain.value = room.value.timeLimitForEachTurn;
+	resetTurnTimer();
 }
 
 function onStreamTsumo(log: { house: Mmj.House; tile: number }) {
@@ -569,7 +598,7 @@ function onStreamTsumo(log: { house: Mmj.House; tile: number }) {
 		iTsumoed.value = true;
 	}
 
-	myTurnTimerRmain.value = room.value.timeLimitForEachTurn;
+	resetTurnTimer();
 }
 
 function onStreamDahaiAndTsumo(log: { dahaiHouse: Mmj.House; dahaiTile: number; tsumoTile: number; riichi: boolean }) {
@@ -605,7 +634,7 @@ function onStreamDahaiAndTsumo(log: { dahaiHouse: Mmj.House; dahaiTile: number; 
 		}
 	}, 100);
 
-	myTurnTimerRmain.value = room.value.timeLimitForEachTurn;
+	resetTurnTimer();
 }
 
 function onStreamPonned(log: { caller: Mmj.House; callee: Mmj.House; tiles: readonly [number, number, number] }) {
@@ -627,7 +656,7 @@ function onStreamPonned(log: { caller: Mmj.House; callee: Mmj.House; tiles: read
 		ponSerifHouses[log.caller] = false;
 	}, 2000);
 
-	myTurnTimerRmain.value = room.value.timeLimitForEachTurn;
+	resetTurnTimer();
 }
 
 function onStreamKanned(log: { caller: Mmj.House; callee: Mmj.House; tiles: readonly [number, number, number, number]; rinsyan: number }) {
@@ -642,6 +671,8 @@ function onStreamKanned(log: { caller: Mmj.House; callee: Mmj.House; tiles: read
 	window.setTimeout(() => {
 		kanSerifHouses[log.caller] = false;
 	}, 2000);
+
+	resetTurnTimer();
 }
 
 function onStreamKakanned(log: { house: Mmj.House; tiles: readonly [number, number, number, number]; rinsyan: number; from: Mmj.House }) {
@@ -656,6 +687,8 @@ function onStreamKakanned(log: { house: Mmj.House; tiles: readonly [number, numb
 	window.setTimeout(() => {
 		kanSerifHouses[log.house] = false;
 	}, 2000);
+
+	resetTurnTimer();
 }
 
 function onStreamAnkanned(log: { house: Mmj.House; tiles: readonly [number, number, number, number]; rinsyan: number }) {
@@ -670,6 +703,8 @@ function onStreamAnkanned(log: { house: Mmj.House; tiles: readonly [number, numb
 	window.setTimeout(() => {
 		kanSerifHouses[log.house] = false;
 	}, 2000);
+
+	resetTurnTimer();
 }
 
 function onStreamCiied(log: { caller: Mmj.House; callee: Mmj.House; tiles: readonly [number, number, number] }) {
@@ -682,6 +717,8 @@ function onStreamCiied(log: { caller: Mmj.House; callee: Mmj.House; tiles: reado
 	window.setTimeout(() => {
 		ciiSerifHouses[log.caller] = false;
 	}, 2000);
+
+	resetTurnTimer();
 }
 
 function onStreamRonned(log: { callers: Mmj.House[]; callee: Mmj.House; handTiles: Record<Mmj.House, number[]> }) {
@@ -753,6 +790,8 @@ function onStreamNextKyoku(log: { room: Misskey.entities.MahjongRoomDetailed }) 
 		n: null,
 	};
 	ryuukyokued.value = false;
+
+	resetTurnTimer();
 }
 
 function onStreamEnded(log: { room: Misskey.entities.MahjongRoomDetailed }) {
@@ -924,6 +963,43 @@ onUnmounted(detachListeners);
 }
 .centerPanelPoint {
 	margin-left: 10px;
+}
+
+.turnTimer {
+	position: absolute;
+	bottom: calc(50% + 80px);
+	left: 0;
+	right: 0;
+	z-index: 10;
+	margin: auto;
+	width: min-content;
+	padding: 4px 12px;
+	background: #0009;
+	color: #fff;
+	border-radius: 999px;
+	font-size: 90%;
+	pointer-events: none;
+}
+
+.doraIndicators {
+	position: absolute;
+	top: calc(50% + 80px);
+	left: 0;
+	right: 0;
+	z-index: 10;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin: auto;
+	width: min-content;
+	pointer-events: none;
+}
+
+.doraIndicatorLabel {
+	color: #fff;
+	font-size: 80%;
+	margin-right: 4px;
+	text-shadow: 0 1px 2px #000;
 }
 .centerPanelIndicatorContainerToi {
 	position: absolute;
@@ -1116,6 +1192,9 @@ onUnmounted(detachListeners);
 }
 .player {
 	position: absolute;
+	display: flex;
+	align-items: center;
+	gap: 8px;
 	margin: auto;
 	width: 180px;
 	height: min-content;
@@ -1125,6 +1204,11 @@ onUnmounted(detachListeners);
 	color: #fff;
 	border-radius: 5px;
 	font-size: 90%;
+}
+.playerName {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 .playerOfToimen {
 	top: 0;
@@ -1140,6 +1224,10 @@ onUnmounted(detachListeners);
 	top: 0;
 	right: 0;
 	bottom: 0;
+}
+.playerOfMe {
+	bottom: 60px;
+	left: 0;
 }
 
 .serifContainer {
