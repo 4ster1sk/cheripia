@@ -128,3 +128,17 @@ describe('Player game engine dora indicators', () => {
 		assert.deepStrictEqual(engine.doraIndicateTiles, [125, 121, 122, 123]);
 	});
 });
+
+describe('Player game engine ryuukyoku', () => {
+	it('applies point deltas and clears turn', () => {
+		const state = createState();
+		state.points = { e: 24000, s: 26000, w: 25000, n: 25000 };
+		state.turn = 'e';
+
+		const engine = new PlayerGameEngine(1, state);
+		engine.commit_ryuukyoku({ e: 3000, s: -1000, w: -1000, n: -1000 });
+
+		assert.deepStrictEqual(engine.points, { e: 27000, s: 25000, w: 24000, n: 24000 });
+		assert.strictEqual(engine.turn, null);
+	});
+});

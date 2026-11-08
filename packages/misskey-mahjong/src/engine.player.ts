@@ -211,6 +211,14 @@ export class PlayerGameEngine {
 		this.state = state;
 	}
 
+	public commit_ryuukyoku(pointDeltas: Record<House, number>) {
+		this.state.points.e += pointDeltas.e;
+		this.state.points.s += pointDeltas.s;
+		this.state.points.w += pointDeltas.w;
+		this.state.points.n += pointDeltas.n;
+		this.state.turn = null;
+	}
+
 	public commit_tsumo(house: House, tid: TileId) {
 		console.log('commit_tsumo', this.state.turn, house, tid);
 		this.state.tilesCount--;

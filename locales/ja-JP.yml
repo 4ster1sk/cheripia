@@ -4334,6 +4334,8 @@ _mahjong:
   nextKyokuConfirmation: "次局確認"
   remainingSeconds: "残り {n}s"
   waitTiles: "待ち牌"
+  tenpai: "テンパイ"
+  noten: "ノーテン"
   spectate: "観戦"
   spectating: "観戦中"
   activeRooms: "対局中のルーム"

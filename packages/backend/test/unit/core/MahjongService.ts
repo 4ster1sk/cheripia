@@ -165,8 +165,90 @@ describe('MahjongService', () => {
 
 			expect(published.map(call => call.type)).toEqual(['dahai', 'ryuukyoku']);
 			expect(published[0]!.payload).toEqual({ house: 'e', tile: 1, riichi: false });
+			const ryuukyoku = published[1]!.payload as {
+				tenpaiHouses: Mmj.House[];
+				notenHouses: Mmj.House[];
+				pointDeltas: Record<Mmj.House, number>;
+			};
+			expect([...ryuukyoku.tenpaiHouses, ...ryuukyoku.notenHouses].sort()).toEqual(['e', 'n', 's', 'w']);
+			expect(ryuukyoku.tenpaiHouses.every(house => !ryuukyoku.notenHouses.includes(house))).toBe(true);
+			expect(ryuukyoku.pointDeltas.e + ryuukyoku.pointDeltas.s + ryuukyoku.pointDeltas.w + ryuukyoku.pointDeltas.n).toBe(0);
+			expect(room.gameState?.points).toEqual({
+				e: 25000 + ryuukyoku.pointDeltas.e,
+				s: 25000 + ryuukyoku.pointDeltas.s,
+				w: 25000 + ryuukyoku.pointDeltas.w,
+				n: 25000 + ryuukyoku.pointDeltas.n,
+			});
+			expect(room.gameState?.turn).toBeNull();
 			// 最後の捨て牌がエンジン状態の河に残っている
 			expect(room.gameState?.hoTiles.e.at(-1)).toBe(1);
+		} finally {
+			service.dispose();
+		}
+	});
+
+	test('publishes ryuukyoku result when a calling interruption is declined', async () => {
+		const room = createRoom();
+		const state = createExhaustedState();
+		// 最後の捨て牌を済ませた状態で、鳴きの回答待ちから流局する
+		state.handTiles.e.pop();
+		state.hoTiles.e.push(37);
+		state.turn = null;
+		state.nextTurnAfterAsking = 's';
+		state.askings = {
+			ron: null,
+			pon: { callee: 'e', caller: 's' },
+			cii: null,
+			kan: null,
+		};
+		room.gameState = state;
+		const mj = new Mmj.MasterGameEngine(state);
+
+		const published: Array<{ type: string; payload: unknown }> = [];
+		const globalEventService = {
+			publishMahjongRoomStream: (_roomId: string, type: string, payload: unknown) => {
+				published.push({ type, payload });
+			},
+		};
+		const redisClient = {
+			del: vi.fn().mockResolvedValue(1),
+			get: vi.fn().mockResolvedValue(null),
+			set: vi.fn().mockResolvedValue('OK'),
+		};
+
+		const service = new MahjongService(
+			redisClient as unknown as ConstructorParameters<typeof MahjongService>[0],
+			{} as unknown as ConstructorParameters<typeof MahjongService>[1],
+			globalEventService as unknown as ConstructorParameters<typeof MahjongService>[2],
+			{} as unknown as ConstructorParameters<typeof MahjongService>[3],
+		);
+
+		try {
+			const answers = {
+				pon: false,
+				cii: false as const,
+				kan: false,
+				ron: { e: false, s: false, w: false, n: false },
+			};
+			await (service as unknown as {
+				answer: (room: MahjongRoom, mj: Mmj.MasterGameEngine, callingAnswers: typeof answers) => Promise<void>;
+			}).answer(room, mj, answers);
+
+			expect(published.map(call => call.type)).toEqual(['ryuukyoku']);
+			const ryuukyoku = published[0]!.payload as {
+				tenpaiHouses: Mmj.House[];
+				notenHouses: Mmj.House[];
+				pointDeltas: Record<Mmj.House, number>;
+			};
+			expect([...ryuukyoku.tenpaiHouses, ...ryuukyoku.notenHouses].sort()).toEqual(['e', 'n', 's', 'w']);
+			expect(ryuukyoku.pointDeltas.e + ryuukyoku.pointDeltas.s + ryuukyoku.pointDeltas.w + ryuukyoku.pointDeltas.n).toBe(0);
+			expect(room.gameState?.points).toEqual({
+				e: 25000 + ryuukyoku.pointDeltas.e,
+				s: 25000 + ryuukyoku.pointDeltas.s,
+				w: 25000 + ryuukyoku.pointDeltas.w,
+				n: 25000 + ryuukyoku.pointDeltas.n,
+			});
+			expect(room.gameState?.turn).toBeNull();
 		} finally {
 			service.dispose();
 		}

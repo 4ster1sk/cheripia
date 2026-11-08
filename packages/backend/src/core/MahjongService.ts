@@ -542,10 +542,14 @@ export class MahjongService implements OnApplicationShutdown {
 				});
 				await this.endKyoku(room, mj);
 				break;
-			case 'ryuukyoku':
-				this.globalEventService.publishMahjongRoomStream(room.id, 'ryuukyoku', {});
+			case 'ryuukyoku': {
+				const ryuukyokuResult = mj.commit_ryuukyoku();
+				room.gameState = mj.getState();
+				await this.saveRoom(room);
+				this.globalEventService.publishMahjongRoomStream(room.id, 'ryuukyoku', ryuukyokuResult);
 				await this.endKyoku(room, mj);
 				break;
+			}
 		}
 	}
 
@@ -618,10 +622,13 @@ export class MahjongService implements OnApplicationShutdown {
 		const aiHouses = this.getAiHouses(room, mj);
 
 		if (res.ryuukyoku) {
+			const ryuukyokuResult = mj.commit_ryuukyoku();
+			room.gameState = mj.getState();
+			await this.saveRoom(room);
 			// asking を伴わない流局では、最後の捨て牌もクライアントへ通知する
 			// asking を伴う場合は asking 分岐で解決前に dahai を publish 済み
 			this.globalEventService.publishMahjongRoomStream(room.id, 'dahai', { house, tile, riichi });
-			this.globalEventService.publishMahjongRoomStream(room.id, 'ryuukyoku', {});
+			this.globalEventService.publishMahjongRoomStream(room.id, 'ryuukyoku', ryuukyokuResult);
 			await this.endKyoku(room, mj);
 			return;
 		}

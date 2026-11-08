@@ -4,7 +4,7 @@
  */
 
 import * as Common from '../src/common.js';
-import { TileType, TileId } from '../src/common.js';
+import { House, TileType, TileId } from '../src/common.js';
 import { MasterGameEngine, MasterState, INITIAL_POINT } from '../src/engine.master.js';
 
 const TILES = [71, 132, 108, 51, 39, 19, 3, 86, 104, 18, 50, 7, 45, 82, 43, 34, 111, 78, 53, 105, 126, 91, 112, 75, 119, 55, 95, 93, 65, 9, 66, 52, 79, 32, 99, 109, 56, 5, 101, 92, 1, 37, 62, 23, 27, 117, 77, 14, 31, 96, 120, 130, 29, 135, 100, 17, 102, 124, 59, 89, 49, 115, 107, 97, 90, 48, 25, 110, 68, 15, 74, 129, 69, 61, 73, 81, 11, 41, 44, 84, 13, 40, 33, 58, 30, 8, 38, 10, 87, 125, 57, 121, 21, 2, 54, 46, 22, 4, 133, 16, 76, 70, 60, 103, 114, 122, 24, 88, 36, 123, 47, 12, 128, 118, 116, 63, 26, 94, 67, 131, 64, 35, 113, 134, 6, 127, 80, 72, 42, 98, 85, 20, 106, 136, 83, 28];
@@ -636,5 +636,158 @@ describe('Master game engine player state', () => {
 		expect(player.canCii).toEqual({ callee: 'n' });
 		expect(player.canKan).toEqual({ callee: 'w' });
 		expect(player.canRon).toEqual({ callee: 's' });
+	});
+});
+
+describe('Master game engine ryuukyoku', () => {
+	// 門前のテンパイ: m123 p666 s678 nnn + m3 待ち
+	const TENPAI_CONCEALED: TileId[] = [1, 5, 9, 57, 58, 59, 93, 97, 101, 121, 122, 123, 10];
+	// 副露ありのテンパイ: cii(m123) + p777 s999 www + m3 待ち
+	const TENPAI_WITH_HURO: TileId[] = [61, 62, 63, 105, 106, 107, 117, 118, 119, 12];
+	// 門前のテンパイ: m888 p123 s12345 haku pair + s3/s6 待ち
+	const TENPAI_2: TileId[] = [29, 30, 31, 37, 41, 45, 73, 77, 81, 85, 89, 125, 126];
+	// 門前のテンパイ: m456 m789 p789 eee + s 待ち
+	const TENPAI_3: TileId[] = [13, 17, 21, 25, 32, 33, 64, 65, 69, 109, 110, 111, 113];
+	// 明らかにノーテンな手牌 (すべてバラバラの牌)
+	const NOTEN_HANDS: TileId[][] = [
+		[13, 17, 21, 25, 33, 37, 41, 49, 53, 65, 109, 113, 125],
+		[14, 18, 22, 26, 34, 38, 42, 50, 54, 66, 110, 114, 126],
+		[15, 19, 23, 27, 35, 39, 43, 51, 55, 67, 111, 115, 127],
+		[16, 20, 24, 28, 36, 40, 44, 52, 56, 68, 112, 116, 128],
+	];
+	const NOTEN_FOR_THREE_TENPAI: TileId[] = [14, 18, 22, 26, 34, 50, 54, 66, 70, 112, 129, 133, 114];
+
+	const emptyHuros = (): MasterState['huros'] => ({ e: [], s: [], w: [], n: [] });
+
+	function createRyuukyokuState(hands: Record<House, TileId[]>, huros: MasterState['huros'] = emptyHuros()): MasterState {
+		return MasterGameEngine.createInitialState({
+			tiles: [],
+			handTiles: hands,
+			huros,
+		});
+	}
+
+	function checkRyuukyoku(
+		hands: Record<House, TileId[]>,
+		huros: MasterState['huros'],
+		expectedTenpai: House[],
+		expectedNoten: House[],
+		expectedDeltas: Record<House, number>,
+	) {
+		const engine = new MasterGameEngine(createRyuukyokuState(hands, huros));
+		const result = engine.commit_ryuukyoku();
+
+		expect(result.tenpaiHouses).toEqual(expectedTenpai);
+		expect(result.notenHouses).toEqual(expectedNoten);
+		expect(result.pointDeltas).toEqual(expectedDeltas);
+		expect(engine.$state.points).toEqual({
+			e: INITIAL_POINT + expectedDeltas.e,
+			s: INITIAL_POINT + expectedDeltas.s,
+			w: INITIAL_POINT + expectedDeltas.w,
+			n: INITIAL_POINT + expectedDeltas.n,
+		});
+		expect(result.pointDeltas.e + result.pointDeltas.s + result.pointDeltas.w + result.pointDeltas.n).toBe(0);
+		expect(engine.turn).toBeNull();
+	}
+
+	it('detects concealed and called tenpai hands', () => {
+		const engine = new MasterGameEngine(createRyuukyokuState({
+			e: TENPAI_CONCEALED,
+			s: TENPAI_WITH_HURO,
+			w: NOTEN_HANDS[0],
+			n: NOTEN_HANDS[1],
+		}, {
+			e: [],
+			s: [{ type: 'cii', tiles: [2, 6, 11], from: 'e' }],
+			w: [],
+			n: [],
+		}));
+
+		expect(engine.getTenpaiHouses()).toEqual(['e', 's']);
+	});
+
+	it('applies 3000 points to the only tenpai house', () => {
+		checkRyuukyoku({
+			e: TENPAI_CONCEALED,
+			s: NOTEN_HANDS[0],
+			w: NOTEN_HANDS[1],
+			n: NOTEN_HANDS[2],
+		}, emptyHuros(), ['e'], ['s', 'w', 'n'], {
+			e: 3000,
+			s: -1000,
+			w: -1000,
+			n: -1000,
+		});
+	});
+
+	it('applies 1500 points to each of the two tenpai houses', () => {
+		checkRyuukyoku({
+			e: TENPAI_CONCEALED,
+			s: TENPAI_WITH_HURO,
+			w: NOTEN_HANDS[0],
+			n: NOTEN_HANDS[1],
+		}, {
+			e: [],
+			s: [{ type: 'cii', tiles: [2, 6, 11], from: 'e' }],
+			w: [],
+			n: [],
+		}, ['e', 's'], ['w', 'n'], {
+			e: 1500,
+			s: 1500,
+			w: -1500,
+			n: -1500,
+		});
+	});
+
+	it('applies 1000 points to each of the three tenpai houses', () => {
+		checkRyuukyoku({
+			e: TENPAI_CONCEALED,
+			s: TENPAI_WITH_HURO,
+			w: TENPAI_2,
+			n: NOTEN_FOR_THREE_TENPAI,
+		}, {
+			e: [],
+			s: [{ type: 'cii', tiles: [2, 6, 11], from: 'e' }],
+			w: [],
+			n: [],
+		}, ['e', 's', 'w'], ['n'], {
+			e: 1000,
+			s: 1000,
+			w: 1000,
+			n: -3000,
+		});
+	});
+
+	it('does not move points when all houses are tenpai', () => {
+		checkRyuukyoku({
+			e: TENPAI_CONCEALED,
+			s: TENPAI_WITH_HURO,
+			w: TENPAI_2,
+			n: TENPAI_3,
+		}, {
+			e: [],
+			s: [{ type: 'cii', tiles: [2, 6, 11], from: 'e' }],
+			w: [],
+			n: [],
+		}, ['e', 's', 'w', 'n'], [], {
+			e: 0,
+			s: 0,
+			w: 0,
+			n: 0,
+		});
+	});
+
+	it('does not move points when all houses are noten', () => {
+		checkRyuukyoku({
+			e: NOTEN_HANDS[0],
+			s: NOTEN_HANDS[1],
+			w: NOTEN_HANDS[2],
+			n: NOTEN_HANDS[3],
+		}, emptyHuros(), [], ['e', 's', 'w', 'n'], {
+			e: 0,
+			s: 0,
+			w: 0,
+			n: 0,
+		});
 	});
 });

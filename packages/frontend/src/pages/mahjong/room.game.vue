@@ -309,6 +309,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 							<span :class="$style.kyokuResultName">{{ houseToUser(house)!.name ?? houseToUser(house)!.username }}</span>
 						</template>
 						<span v-else :class="$style.kyokuResultName">CPU</span>
+						<span :class="[$style.kyokuResultJudgement, isTenpaiHouse(house) ? $style.kyokuResultTenpai : $style.kyokuResultNoten]">{{ isTenpaiHouse(house) ? i18n.ts._mahjong.tenpai : i18n.ts._mahjong.noten }}</span>
+						<span :class="$style.kyokuResultDelta">{{ formatPointDelta(house) }}</span>
 						<span :class="$style.kyokuResultEndPoints">{{ mj.points[house] }}点</span>
 					</div>
 				</div>
@@ -428,6 +430,11 @@ const kyokuResults = ref<Record<Mmj.House, {
 	n: null,
 });
 const ryuukyokued = ref(false);
+const ryuukyokuResult = ref<{
+	tenpaiHouses: Mmj.House[];
+	notenHouses: Mmj.House[];
+	pointDeltas: Record<Mmj.House, number>;
+} | null>(null);
 const startTextShowing = ref(false);
 
 /*
@@ -545,6 +552,15 @@ function houseToUser(house: Mmj.House) {
 
 function houseLabel(house: Mmj.House): string {
 	return house === 'e' ? i18n.ts._mahjong.east : house === 's' ? i18n.ts._mahjong.south : house === 'w' ? i18n.ts._mahjong.west : i18n.ts._mahjong.north;
+}
+
+function isTenpaiHouse(house: Mmj.House): boolean {
+	return ryuukyokuResult.value?.tenpaiHouses.includes(house) ?? false;
+}
+
+function formatPointDelta(house: Mmj.House): string {
+	const delta = ryuukyokuResult.value?.pointDeltas[house] ?? 0;
+	return delta > 0 ? `+${delta}` : delta < 0 ? `${delta}` : '±0';
 }
 
 function backToLobby() {
@@ -894,8 +910,12 @@ function onStreamTsumoHora(log: { house: Mmj.House; handTiles: number[]; tsumoTi
 	startTimer(NEXT_KYOKU_SEC, 'confirm');
 }
 
-function onStreamRyuukyoku(log: unknown) {
+function onStreamRyuukyoku(log: { tenpaiHouses: Mmj.House[]; notenHouses: Mmj.House[]; pointDeltas: Record<Mmj.House, number> }) {
 	console.log('onStreamRyuukyoku', log);
+
+	ryuukyokuResult.value = log;
+	mj.value.commit_ryuukyoku(log.pointDeltas);
+	triggerRef(mj);
 
 	ryuukyokued.value = true;
 
@@ -922,6 +942,7 @@ function onStreamNextKyoku(log: { room: Misskey.entities.MahjongRoomDetailed }) 
 		n: null,
 	};
 	ryuukyokued.value = false;
+	ryuukyokuResult.value = null;
 
 	resetTurnTimer();
 }
@@ -1104,6 +1125,31 @@ onUnmounted(detachListeners);
 .kyokuResultEndPoints {
 	margin-left: auto;
 	font-weight: bold;
+	white-space: nowrap;
+}
+
+.kyokuResultJudgement {
+	flex-shrink: 0;
+	padding: 1px 6px;
+	border-radius: 4px;
+	font-size: 80%;
+	white-space: nowrap;
+}
+
+.kyokuResultTenpai {
+	background: var(--MI_THEME-accentedBg);
+	color: var(--MI_THEME-accent);
+}
+
+.kyokuResultNoten {
+	background: color-mix(in srgb, var(--MI_THEME-fg) 10%, transparent);
+	opacity: 0.75;
+}
+
+.kyokuResultDelta {
+	flex-shrink: 0;
+	font-weight: bold;
+	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
 }
 

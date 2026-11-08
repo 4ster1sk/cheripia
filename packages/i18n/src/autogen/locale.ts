@@ -16177,6 +16177,14 @@ export interface Locale extends ILocale {
          */
         "waitTiles": string;
         /**
+         * テンパイ
+         */
+        "tenpai": string;
+        /**
+         * ノーテン
+         */
+        "noten": string;
+        /**
          * 観戦
          */
         "spectate": string;

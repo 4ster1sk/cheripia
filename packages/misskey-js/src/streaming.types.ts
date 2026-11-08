@@ -407,7 +407,11 @@ export type Channels = {
 				callee: MahjongHouse;
 				handTiles: Record<MahjongHouse, number[]>;
 			}) => void;
-			ryuukyoku: (payload: unknown) => void;
+			ryuukyoku: (payload: {
+				tenpaiHouses: MahjongHouse[];
+				notenHouses: MahjongHouse[];
+				pointDeltas: Record<MahjongHouse, number>;
+			}) => void;
 			ankanned: (payload: {
 				house: MahjongHouse;
 				tiles: readonly [number, number, number, number];

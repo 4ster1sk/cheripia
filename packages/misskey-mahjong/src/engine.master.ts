@@ -6,7 +6,7 @@
 import { TileType, House, Huro, TileId } from './common.js';
 import * as Common from './common.js';
 import { PlayerState } from './engine.player.js';
-import { calcYakusWithDetail, convertHuroForCalcYaku, isAgarikeiWithHuros, YakuData, YakuSet } from './common.yaku.js';
+import { calcYakusWithDetail, convertHuroForCalcYaku, getWaitTiles, isAgarikeiWithHuros, YakuData, YakuSet } from './common.yaku.js';
 import { calcFu } from './common.fu.js';
 
 export const INITIAL_POINT = 25000;
@@ -104,6 +104,13 @@ class StateManager {
 
 	public get turn(): House | null {
 		return this.$state.turn;
+	}
+
+	public getTenpaiHouses(): House[] {
+		return (['e', 's', 'w', 'n'] as const).filter(house => {
+			const huros = this.$state.huros[house].map(convertHuroForCalcYaku);
+			return getWaitTiles(this.handTileTypes[house], huros).length > 0;
+		});
 	}
 
 	public canRon(house: House, tid: TileId): boolean {
@@ -357,6 +364,44 @@ export class MasterGameEngine {
 
 	public get turn(): House | null {
 		return this.stateManager.turn;
+	}
+
+	public getTenpaiHouses(): House[] {
+		return this.stateManager.getTenpaiHouses();
+	}
+
+	public commit_ryuukyoku(): {
+		tenpaiHouses: House[];
+		notenHouses: House[];
+		pointDeltas: Record<House, number>;
+	} {
+		const tx = this.startTransaction();
+
+		const tenpaiHouses = tx.getTenpaiHouses();
+		const notenHouses = (['e', 's', 'w', 'n'] as const).filter(house => !tenpaiHouses.includes(house));
+
+		const pointDeltas: Record<House, number> = { e: 0, s: 0, w: 0, n: 0 };
+		const tenpaiCount = tenpaiHouses.length;
+		if (tenpaiCount > 0 && tenpaiCount < 4) {
+			const tenpaiGain = tenpaiCount === 1 ? 3000 : tenpaiCount === 2 ? 1500 : 1000;
+			const notenLoss = tenpaiCount === 1 ? 1000 : tenpaiCount === 2 ? 1500 : 3000;
+			for (const house of tenpaiHouses) pointDeltas[house] = tenpaiGain;
+			for (const house of notenHouses) pointDeltas[house] = -notenLoss;
+		}
+
+		tx.$state.points.e += pointDeltas.e;
+		tx.$state.points.s += pointDeltas.s;
+		tx.$state.points.w += pointDeltas.w;
+		tx.$state.points.n += pointDeltas.n;
+		tx.$state.turn = null;
+
+		tx.$commit();
+
+		return {
+			tenpaiHouses,
+			notenHouses,
+			pointDeltas,
+		};
 	}
 
 	public static createInitialState(preset: Partial<MasterState> = {}): MasterState {
