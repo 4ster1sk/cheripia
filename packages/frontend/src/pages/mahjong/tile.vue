@@ -6,7 +6,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 <template>
 <div :class="[$style.root, { [$style.h]: ['3', '4', '5'].includes(variation), [$style.v]: ['1', '2'].includes(variation), [$style.isDora]: isDora }]">
 	<img :src="`/client-assets/mahjong/putted-tile-${variation}.png`" :class="$style.bg"/>
-	<img :src="`/client-assets/mahjong/tiles/${tile.red ? tile.t + 'r' : tile.t}.png`" :class="$style.fg"/>
+	<img v-if="tileSrc != null" :src="tileSrc" :class="$style.fg"/>
 </div>
 </template>
 
@@ -14,13 +14,21 @@ SPDX-License-Identifier: AGPL-3.0-only
 import { computed } from 'vue';
 import * as Mmj from 'misskey-mahjong';
 
-const props = defineProps<{
-	tile: Mmj.TileInstance;
+const props = withDefaults(defineProps<{
+	tile?: Mmj.TileInstance;
 	variation: string;
 	doras: Mmj.TileType[];
-}>();
+	faceDown?: boolean;
+}>(), {
+	faceDown: false,
+});
 
-const isDora = computed(() => props.doras.includes(props.tile.t));
+const tileSrc = computed(() => {
+	if (props.faceDown || props.tile == null) return null;
+	return `/client-assets/mahjong/tiles/${props.tile.red ? props.tile.t + 'r' : props.tile.t}.png`;
+});
+
+const isDora = computed(() => !props.faceDown && props.tile != null && props.doras.includes(props.tile.t));
 </script>
 
 <style lang="scss" module>
