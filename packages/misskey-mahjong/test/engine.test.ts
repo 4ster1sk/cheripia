@@ -290,6 +290,7 @@ describe('Master game engine state transitions', () => {
 			type: 'minkan',
 			tiles: [20, 17, 18, 19],
 			from: 's',
+			kakan: true,
 		});
 		expect(engine.$state.handTiles.e).toHaveLength(11);
 		expect(engine.$state.handTiles.e).not.toContain(20);
@@ -602,6 +603,7 @@ describe('Master game engine state transitions', () => {
 			type: 'cii',
 			tiles: [13, 17, 21],
 			from: 'e',
+			pattern: '_x_',
 		});
 	});
 });

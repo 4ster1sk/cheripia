@@ -125,13 +125,17 @@ export type Huro = {
 	type: 'cii';
 	tiles: readonly [TileId, TileId, TileId];
 	from: House;
+	/** 鳴いた牌の位置. 'x__' = 左端, '_x_' = 中央, '__x' = 右端 (旧データでは省略される) */
+	pattern?: 'x__' | '_x_' | '__x';
 } | {
 	type: 'ankan';
 	tiles: readonly [TileId, TileId, TileId, TileId];
 } | {
 	type: 'minkan';
 	tiles: readonly [TileId, TileId, TileId, TileId];
-	from: House | null; // null で加槓
+	from: House | null; // null で加槓 (旧データ)
+	/** true で加槓 (ポンに後付けした4枚目). 省略時は大明槓扱い */
+	kakan?: boolean;
 };
 
 export type PointFactor = {

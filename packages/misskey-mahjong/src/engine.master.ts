@@ -712,7 +712,7 @@ export class MasterGameEngine {
 
 		const tiles = [tid, ...pon.tiles] as const;
 		// 加槓は元のポンをミンカンに置換する (面子数・枚数を増やさない)
-		huros[ponIndex] = { type: 'minkan', tiles: tiles, from: pon.from };
+		huros[ponIndex] = { type: 'minkan', tiles: tiles, from: pon.from, kakan: true };
 
 		tx.clearFirstTurnAndIppatsus();
 
@@ -1037,7 +1037,7 @@ export class MasterGameEngine {
 				}
 			}
 
-			tx.$state.huros[cii.caller].push({ type: 'cii', tiles: tiles, from: cii.callee });
+			tx.$state.huros[cii.caller].push({ type: 'cii', tiles: tiles, from: cii.callee, pattern: answers.cii });
 
 			tx.clearFirstTurnAndIppatsus();
 

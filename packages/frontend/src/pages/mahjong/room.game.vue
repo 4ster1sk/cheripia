@@ -112,19 +112,19 @@ SPDX-License-Identifier: AGPL-3.0-only
 		</div>
 
 		<div :class="$style.huroTilesOfToimen">
-			<XHuro v-for="huro in mj.huros[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]" :huro="huro" variation="3" :doras="mj.doras"/>
+			<XHuro v-for="huro in mj.huros[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]" :huro="huro" :caller="Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))" :doras="mj.doras"/>
 		</div>
 
 		<div :class="$style.huroTilesOfKamitya">
-			<XHuro v-for="huro in mj.huros[Mmj.prevHouse(mj.myHouse)]" :huro="huro" variation="3" :doras="mj.doras"/>
+			<XHuro v-for="huro in mj.huros[Mmj.prevHouse(mj.myHouse)]" :huro="huro" :caller="Mmj.prevHouse(mj.myHouse)" :doras="mj.doras"/>
 		</div>
 
 		<div :class="$style.huroTilesOfSimotya">
-			<XHuro v-for="huro in mj.huros[Mmj.nextHouse(mj.myHouse)]" :huro="huro" variation="3" :doras="mj.doras"/>
+			<XHuro v-for="huro in mj.huros[Mmj.nextHouse(mj.myHouse)]" :huro="huro" :caller="Mmj.nextHouse(mj.myHouse)" :doras="mj.doras"/>
 		</div>
 
 		<div :class="$style.huroTilesOfMe">
-			<XHuro v-for="huro in mj.huros[mj.myHouse]" :huro="huro" variation="3" :doras="mj.doras"/>
+			<XHuro v-for="huro in mj.huros[mj.myHouse]" :huro="huro" :caller="mj.myHouse" :doras="mj.doras"/>
 		</div>
 
 		<div :class="$style.hoTilesContainer">

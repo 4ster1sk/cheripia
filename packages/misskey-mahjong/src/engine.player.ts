@@ -571,7 +571,7 @@ export class PlayerGameEngine {
 		}
 		if (pon != null) {
 			const index = this.state.huros[house].indexOf(pon);
-			this.state.huros[house][index] = { type: 'minkan', tiles: [tiles[0], tiles[1], tiles[2], tiles[3]], from: pon.from };
+			this.state.huros[house][index] = { type: 'minkan', tiles: [tiles[0], tiles[1], tiles[2], tiles[3]], from: pon.from, kakan: true };
 		}
 		this.state.tilesCount--;
 		this.state.turn = house;
@@ -622,6 +622,8 @@ export class PlayerGameEngine {
 		this.clearCalls();
 		this.clearFirstTurnAndIppatsus();
 
+		// pop 前の河底が鳴いた牌 (その TileId が tiles の何番目にあるかで pattern が決まる)
+		const claimedTile = this.state.hoTiles[callee].at(-1);
 		this.state.hoTiles[callee].pop();
 		if (caller === this.myHouse) {
 			if (this.myHandTiles.includes(tiles[0])) this.myHandTiles.splice(this.myHandTiles.indexOf(tiles[0]), 1);
@@ -630,7 +632,9 @@ export class PlayerGameEngine {
 		} else {
 			this.state.handTiles[caller].splice(0, 2);
 		}
-		this.state.huros[caller].push({ type: 'cii', tiles: tiles, from: callee });
+		const claimedIndex = claimedTile == null ? -1 : tiles.indexOf(claimedTile);
+		const pattern = claimedIndex === 1 ? '_x_' as const : claimedIndex === 2 ? '__x' as const : claimedIndex === 0 ? 'x__' as const : undefined;
+		this.state.huros[caller].push(pattern == null ? { type: 'cii', tiles: tiles, from: callee } : { type: 'cii', tiles: tiles, from: callee, pattern });
 
 		this.state.turn = caller;
 		this.state.drawnTile = null;

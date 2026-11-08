@@ -35,7 +35,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				</div>
 
 				<div v-if="state.huros[house].length > 0" :class="$style.tiles">
-					<XHuro v-for="(huro, i) in state.huros[house]" :key="i" :huro="huro" variation="1" :doras="doras"/>
+					<XHuro v-for="(huro, i) in state.huros[house]" :key="i" :huro="huro" :caller="house" :doras="doras"/>
 				</div>
 
 				<div :class="$style.tiles">
