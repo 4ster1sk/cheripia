@@ -467,7 +467,13 @@ export class MasterGameEngine {
 		const tx = this.startTransaction();
 		const newState = MasterGameEngine.createInitialState();
 		newState.kyoku = tx.$state.kyoku + 1;
-		newState.points = tx.$state.points;
+		// 点数は席風ではなくプレイヤーに紐づくため、席の移動に合わせて回転させる
+		newState.points = {
+			e: tx.$state.points.n,
+			s: tx.$state.points.e,
+			w: tx.$state.points.s,
+			n: tx.$state.points.w,
+		};
 		newState.turn = 'e';
 		newState.user1House = Common.nextHouse(tx.$state.user1House);
 		newState.user2House = Common.nextHouse(tx.$state.user2House);

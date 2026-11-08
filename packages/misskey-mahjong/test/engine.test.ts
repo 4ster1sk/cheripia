@@ -228,4 +228,31 @@ describe('Master game engine', () => {
 			n: INITIAL_POINT,
 		});
 	});
+
+	it('rotates points with player seats on next kyoku', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState());
+		engine.$state.points = {
+			e: 30000,
+			s: 24000,
+			w: 20000,
+			n: 16000,
+		};
+
+		engine.commit_nextKyoku();
+
+		// 席は e -> s -> w -> n -> e と移動する
+		expect(engine.$state.user1House).toBe('s');
+		expect(engine.$state.user2House).toBe('w');
+		expect(engine.$state.user3House).toBe('n');
+		expect(engine.$state.user4House).toBe('e');
+
+		// 点数は席ではなくプレイヤーに追随する
+		expect(engine.getHouse(1)).toBe('s');
+		expect(engine.$state.points).toEqual({
+			e: 16000,
+			s: 30000,
+			w: 24000,
+			n: 20000,
+		});
+	});
 });
