@@ -83,6 +83,35 @@ function getHouseOfUserId(room: MahjongRoom, mj: Mmj.MasterGameEngine, userId: M
 	throw new Error('user is not a member of the room');
 }
 
+/**
+ * チーのパターンと捨て牌から、成立に必要な順子を返す
+ */
+function getCiiTilesForPattern(pattern: 'x__' | '_x_' | '__x', targetTile: Mmj.TileType): [Mmj.TileType, Mmj.TileType, Mmj.TileType] | null {
+	switch (pattern) {
+		case 'x__': {
+			const next1 = Mmj.NEXT_TILE_FOR_SHUNTSU[targetTile];
+			const next2 = next1 != null ? Mmj.NEXT_TILE_FOR_SHUNTSU[next1] : null;
+			return next1 != null && next2 != null ? [targetTile, next1, next2] : null;
+		}
+		case '_x_': {
+			const prev1 = Mmj.PREV_TILE_FOR_SHUNTSU[targetTile];
+			const next1 = Mmj.NEXT_TILE_FOR_SHUNTSU[targetTile];
+			return prev1 != null && next1 != null ? [prev1, targetTile, next1] : null;
+		}
+		case '__x': {
+			const prev1 = Mmj.PREV_TILE_FOR_SHUNTSU[targetTile];
+			const prev2 = prev1 != null ? Mmj.PREV_TILE_FOR_SHUNTSU[prev1] : null;
+			return prev1 != null && prev2 != null ? [prev2, prev1, targetTile] : null;
+		}
+		default:
+			return null;
+	}
+}
+
+function getLastHoDiscardTileType(mj: Mmj.MasterGameEngine, callee: Mmj.House): Mmj.TileType | null {
+	return mj.hoTileTypes[callee].at(-1) ?? null;
+}
+
 @Injectable()
 export class MahjongService implements OnApplicationShutdown {
 	private readonly turnTimers = new Map<string, Set<NodeJS.Timeout>>();
@@ -596,13 +625,13 @@ export class MahjongService implements OnApplicationShutdown {
 				answers.kan = mj.riichis[res.canKanHouse] ? false : null;
 			}
 
-			if (res.canPonHouse != null && aiHouses.includes(res.canPonHouse)) {
+			if (res.canPonHouse != null && !mj.riichis[res.canPonHouse] && aiHouses.includes(res.canPonHouse)) {
 				answers.pon = Math.random() < 0.5;
 			}
 			if (res.canCiiHouse != null && aiHouses.includes(res.canCiiHouse)) {
 				answers.cii = false;
 			}
-			if (res.canKanHouse != null && aiHouses.includes(res.canKanHouse)) {
+			if (res.canKanHouse != null && !mj.riichis[res.canKanHouse] && aiHouses.includes(res.canKanHouse)) {
 				answers.kan = Math.random() < 0.5;
 			}
 			for (const h of res.canRonHouses) {
@@ -855,7 +884,22 @@ export class MahjongService implements OnApplicationShutdown {
 	@bindThis
 	public async commit_pon(roomId: MahjongRoom['id'], user: MiUser): Promise<void> {
 		await this.updateAnswer(roomId, user, (answers, house, mj) => {
-			if (mj.askings.pon == null || mj.askings.pon.caller !== house) return false;
+			const asking = mj.askings.pon;
+			if (asking == null || asking.caller !== house) return false;
+
+			// リーチ中は鳴けない
+			if (mj.riichis[house]) {
+				answers.pon = false;
+				return true;
+			}
+
+			// クライアントの申告を信頼せず、手牌に2枚あることを再検証する
+			const targetTile = getLastHoDiscardTileType(mj, asking.callee);
+			if (targetTile == null || mj.handTileTypes[house].filter(t => t === targetTile).length < 2) {
+				answers.pon = false;
+				return true;
+			}
+
 			answers.pon = true;
 			return true;
 		});
@@ -864,7 +908,22 @@ export class MahjongService implements OnApplicationShutdown {
 	@bindThis
 	public async commit_kan(roomId: MahjongRoom['id'], user: MiUser): Promise<void> {
 		await this.updateAnswer(roomId, user, (answers, house, mj) => {
-			if (mj.askings.kan == null || mj.askings.kan.caller !== house) return false;
+			const asking = mj.askings.kan;
+			if (asking == null || asking.caller !== house) return false;
+
+			// リーチ中は鳴けない
+			if (mj.riichis[house]) {
+				answers.kan = false;
+				return true;
+			}
+
+			// クライアントの申告を信頼せず、手牌に3枚あることを再検証する
+			const targetTile = getLastHoDiscardTileType(mj, asking.callee);
+			if (targetTile == null || mj.handTileTypes[house].filter(t => t === targetTile).length < 3) {
+				answers.kan = false;
+				return true;
+			}
+
 			answers.kan = true;
 			return true;
 		});
@@ -873,8 +932,28 @@ export class MahjongService implements OnApplicationShutdown {
 	@bindThis
 	public async commit_cii(roomId: MahjongRoom['id'], user: MiUser, pattern: 'x__' | '_x_' | '__x'): Promise<void> {
 		await this.updateAnswer(roomId, user, (answers, house, mj) => {
-			if (mj.askings.cii == null || mj.askings.cii.caller !== house) return false;
-			answers.cii = pattern;
+			const asking = mj.askings.cii;
+			if (asking == null || asking.caller !== house) return false;
+
+			// リーチ中は鳴けない
+			if (mj.riichis[house]) {
+				answers.cii = false;
+				return true;
+			}
+
+			// クライアントの申告したパターンが実際に成立するか検証する。
+			// 不正なパターンでも例外を投げず、不成立として安全に解決する。
+			const targetTile = getLastHoDiscardTileType(mj, asking.callee);
+			if (targetTile == null) {
+				answers.cii = false;
+				return true;
+			}
+			const expectedTiles = getCiiTilesForPattern(pattern, targetTile);
+			const availablePatterns = Mmj.getAvailableCiiPatterns(mj.handTileTypes[house], targetTile);
+			const isValid = expectedTiles != null && availablePatterns.some(tiles =>
+				tiles[0] === expectedTiles[0] && tiles[1] === expectedTiles[1] && tiles[2] === expectedTiles[2]);
+
+			answers.cii = isValid ? pattern : false;
 			return true;
 		});
 	}
