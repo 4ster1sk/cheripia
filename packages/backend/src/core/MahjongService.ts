@@ -500,7 +500,7 @@ export class MahjongService implements OnApplicationShutdown {
 				this.waitForTurn(room, res.turn, mj);
 				break;
 			case 'kanned':
-				this.globalEventService.publishMahjongRoomStream(room.id, 'kanned', { caller: res.caller, callee: res.callee, tiles: res.tiles, rinsyan: res.rinsyan });
+				this.globalEventService.publishMahjongRoomStream(room.id, 'kanned', { caller: res.caller, callee: res.callee, tiles: res.tiles, rinsyan: res.rinsyan, doraIndicateTiles: mj.doraIndicateTiles });
 				this.waitForTurn(room, res.turn, mj);
 				break;
 			case 'ciied':
@@ -806,7 +806,7 @@ export class MahjongService implements OnApplicationShutdown {
 			room.gameState = mj.getState();
 			await this.clearTurnWaitingTimer(room.id);
 			await this.saveRoom(room);
-			this.globalEventService.publishMahjongRoomStream(room.id, 'ankanned', { house: myHouse, tiles: res.tiles, rinsyan: res.rinsyan });
+			this.globalEventService.publishMahjongRoomStream(room.id, 'ankanned', { house: myHouse, tiles: res.tiles, rinsyan: res.rinsyan, doraIndicateTiles: mj.doraIndicateTiles });
 			this.waitForTurn(room, myHouse, mj);
 		} catch (err) {
 			console.error('mahjong: failed to ankan', err);
@@ -828,7 +828,7 @@ export class MahjongService implements OnApplicationShutdown {
 			room.gameState = mj.getState();
 			await this.clearTurnWaitingTimer(room.id);
 			await this.saveRoom(room);
-			this.globalEventService.publishMahjongRoomStream(room.id, 'kakanned', { house: myHouse, tiles: res.tiles, rinsyan: res.rinsyan, from: res.from });
+			this.globalEventService.publishMahjongRoomStream(room.id, 'kakanned', { house: myHouse, tiles: res.tiles, rinsyan: res.rinsyan, from: res.from, doraIndicateTiles: mj.doraIndicateTiles });
 			this.waitForTurn(room, myHouse, mj);
 		} catch (err) {
 			console.error('mahjong: failed to kakan', err);

@@ -300,6 +300,38 @@ describe('Master game engine state transitions', () => {
 		expect(hora.yakus.yakuNames).toContain('rinshan');
 	});
 
+	it('reveals an additional dora indicator after each kan', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				// m1x4 (暗槓用) + m2x4 (2回目の暗槓用) + m3x2 + 加槓する4枚目のm5
+				e: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20],
+				s: [],
+				w: [],
+				n: [],
+			},
+			huros: {
+				e: [{ type: 'pon', tiles: [17, 18, 19], from: 's' }],
+				s: [],
+				w: [],
+				n: [],
+			},
+			tiles: [33, 34], // 嶺上牌(m9)x2
+			kingTiles: [125, 121, 122, 123],
+			activatedDorasCount: 1,
+			turn: 'e',
+		}));
+
+		expect(engine.doraIndicateTiles).toEqual([125]);
+
+		engine.commit_kakan('e', 20);
+		expect(engine.doraIndicateTiles).toEqual([125, 121]);
+
+		engine.commit_ankan('e', 1);
+		expect(engine.doraIndicateTiles).toEqual([125, 121, 122]);
+
+		expect(engine.$state.activatedDorasCount).toBe(3);
+	});
+
 	it('rejects kakan when the tile is not in hand without removing the last hand tile', () => {
 		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
 			handTiles: {

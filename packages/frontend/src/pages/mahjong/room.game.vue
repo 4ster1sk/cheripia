@@ -674,10 +674,10 @@ function onStreamPonned(log: { caller: Mmj.House; callee: Mmj.House; tiles: read
 	resetTurnTimer();
 }
 
-function onStreamKanned(log: { caller: Mmj.House; callee: Mmj.House; tiles: readonly [number, number, number, number]; rinsyan: number }) {
+function onStreamKanned(log: { caller: Mmj.House; callee: Mmj.House; tiles: readonly [number, number, number, number]; rinsyan: number; doraIndicateTiles: number[] }) {
 	console.log('onStreamKanned', log);
 
-	mj.value.commit_kan(log.caller, log.callee, log.tiles, log.rinsyan);
+	mj.value.commit_kan(log.caller, log.callee, log.tiles, log.rinsyan, log.doraIndicateTiles);
 	triggerRef(mj);
 
 	if (log.caller === mj.value.myHouse) iTsumoed.value = true;
@@ -690,10 +690,10 @@ function onStreamKanned(log: { caller: Mmj.House; callee: Mmj.House; tiles: read
 	resetTurnTimer();
 }
 
-function onStreamKakanned(log: { house: Mmj.House; tiles: readonly [number, number, number, number]; rinsyan: number; from: Mmj.House }) {
+function onStreamKakanned(log: { house: Mmj.House; tiles: readonly [number, number, number, number]; rinsyan: number; from: Mmj.House; doraIndicateTiles: number[] }) {
 	console.log('onStreamKakanned', log);
 
-	mj.value.commit_kakan(log.house, log.tiles, log.rinsyan);
+	mj.value.commit_kakan(log.house, log.tiles, log.rinsyan, log.doraIndicateTiles);
 	triggerRef(mj);
 
 	if (log.house === mj.value.myHouse) iTsumoed.value = true;
@@ -706,10 +706,10 @@ function onStreamKakanned(log: { house: Mmj.House; tiles: readonly [number, numb
 	resetTurnTimer();
 }
 
-function onStreamAnkanned(log: { house: Mmj.House; tiles: readonly [number, number, number, number]; rinsyan: number }) {
+function onStreamAnkanned(log: { house: Mmj.House; tiles: readonly [number, number, number, number]; rinsyan: number; doraIndicateTiles: number[] }) {
 	console.log('onStreamAnkanned', log);
 
-	mj.value.commit_ankan(log.house, log.tiles, log.rinsyan);
+	mj.value.commit_ankan(log.house, log.tiles, log.rinsyan, log.doraIndicateTiles);
 	triggerRef(mj);
 
 	if (log.house === mj.value.myHouse) iTsumoed.value = true;

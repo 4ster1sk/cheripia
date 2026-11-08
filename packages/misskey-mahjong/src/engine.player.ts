@@ -490,7 +490,7 @@ export class PlayerGameEngine {
 	 * @param caller 大明槓した人
 	 * @param callee 牌を捨てた人
 	 */
-	public commit_kan(caller: House, callee: House, tiles: readonly [TileId, TileId, TileId, TileId], rinsyan: TileId) {
+	public commit_kan(caller: House, callee: House, tiles: readonly [TileId, TileId, TileId, TileId], rinsyan: TileId, doraIndicateTiles?: TileId[]) {
 		this.clearCalls();
 		this.clearFirstTurnAndIppatsus();
 
@@ -510,10 +510,12 @@ export class PlayerGameEngine {
 		this.state.tilesCount--;
 		this.state.huros[caller].push({ type: 'minkan', tiles: tiles, from: callee });
 
+		if (doraIndicateTiles != null) this.state.doraIndicateTiles = [...doraIndicateTiles];
+
 		this.state.turn = caller;
 	}
 
-	public commit_kakan(house: House, tiles: readonly TileId[], rinsyan: TileId) {
+	public commit_kakan(house: House, tiles: readonly TileId[], rinsyan: TileId, doraIndicateTiles?: TileId[]) {
 		console.log('commit_kakan', this.state.turn, house, tiles);
 		this.clearCalls();
 		this.clearFirstTurnAndIppatsus();
@@ -538,9 +540,10 @@ export class PlayerGameEngine {
 		this.state.canPon = null;
 		this.state.canKan = null;
 		this.state.canCii = null;
+		if (doraIndicateTiles != null) this.state.doraIndicateTiles = [...doraIndicateTiles];
 	}
 
-	public commit_ankan(house: House, tiles: readonly TileId[], rinsyan: TileId) {
+	public commit_ankan(house: House, tiles: readonly TileId[], rinsyan: TileId, doraIndicateTiles?: TileId[]) {
 		console.log('commit_ankan', this.state.turn, house, tiles);
 		this.clearCalls();
 		this.clearFirstTurnAndIppatsus();
@@ -566,6 +569,7 @@ export class PlayerGameEngine {
 		this.state.canPon = null;
 		this.state.canKan = null;
 		this.state.canCii = null;
+		if (doraIndicateTiles != null) this.state.doraIndicateTiles = [...doraIndicateTiles];
 	}
 
 	/**

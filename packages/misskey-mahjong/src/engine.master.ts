@@ -315,6 +315,10 @@ export class MasterGameEngine {
 		return this.stateManager.doras;
 	}
 
+	public get doraIndicateTiles(): TileId[] {
+		return this.$state.kingTiles.slice(0, this.$state.activatedDorasCount);
+	}
+
 	public get handTiles(): Record<House, TileId[]> {
 		return this.stateManager.handTiles;
 	}

@@ -91,3 +91,40 @@ describe('Player game engine scoring', () => {
 		});
 	});
 });
+
+describe('Player game engine dora indicators', () => {
+	it('updates dora indicators on daiminkan', () => {
+		const state = createState();
+		state.turn = 's';
+		state.handTiles.s = [1, 2, 3];
+		state.hoTiles.e = [57];
+
+		const engine = new PlayerGameEngine(1, state);
+		engine.commit_kan('s', 'e', [57, 58, 59, 60], 17, [125, 121]);
+
+		assert.deepStrictEqual(engine.doraIndicateTiles, [125, 121]);
+	});
+
+	it('updates dora indicators on kakan', () => {
+		const state = createState();
+		state.turn = 's';
+		state.handTiles.s = [1, 2, 3];
+		state.huros.s = [{ type: 'pon', tiles: [57, 58, 59], from: 'e' }];
+
+		const engine = new PlayerGameEngine(1, state);
+		engine.commit_kakan('s', [57, 58, 59, 60], 17, [125, 121, 122]);
+
+		assert.deepStrictEqual(engine.doraIndicateTiles, [125, 121, 122]);
+	});
+
+	it('updates dora indicators on ankan', () => {
+		const state = createState();
+		state.turn = 's';
+		state.handTiles.s = [1, 2, 3, 4];
+
+		const engine = new PlayerGameEngine(1, state);
+		engine.commit_ankan('s', [1, 2, 3, 4], 17, [125, 121, 122, 123]);
+
+		assert.deepStrictEqual(engine.doraIndicateTiles, [125, 121, 122, 123]);
+	});
+});
