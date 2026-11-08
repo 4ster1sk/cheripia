@@ -556,8 +556,14 @@ export class PlayerGameEngine {
 
 		const pon = this.state.huros[house].find((h): h is Huro & { type: 'pon' } => h.type === 'pon' && $type(h.tiles[0]) === $type(tiles[0]));
 		if (house === this.myHouse) {
-			const tile = this.myHandTiles.find(t => $type(t) === $type(tiles[0]));
-			if (tile != null) this.myHandTiles.splice(this.myHandTiles.indexOf(tile), 1);
+			// サーバーが実際に消費した牌IDを優先して取り除く (同種牌が複数ある場合のズレ防止)
+			const index = this.myHandTiles.indexOf(tiles[0]);
+			if (index !== -1) {
+				this.myHandTiles.splice(index, 1);
+			} else {
+				const tile = this.myHandTiles.find(t => $type(t) === $type(tiles[0]));
+				if (tile != null) this.myHandTiles.splice(this.myHandTiles.indexOf(tile), 1);
+			}
 			this.myHandTiles.push(rinsyan);
 		} else {
 			this.state.handTiles[house].pop();
@@ -660,6 +666,7 @@ export class PlayerGameEngine {
 
 	public canKakan(): boolean {
 		if (this.state.turn !== this.myHouse) return false;
+		if (this.state.riichis[this.myHouse]) return false;
 		return this.state.huros[this.myHouse].filter(h => h.type === 'pon' && this.myHandTileTypes.includes($type(h.tiles[0]))).length > 0;
 	}
 

@@ -255,3 +255,58 @@ describe('Player game engine drawn tile', () => {
 		assert.strictEqual(engine.drawnTile, 17);
 	});
 });
+
+describe('Player game engine kakan', () => {
+	it('detects kakan from a pon and returns the exact hand tile', () => {
+		const state = createState();
+		state.turn = 'e';
+		state.huros.e = [{ type: 'pon', tiles: [17, 18, 19], from: 's' }];
+		state.handTiles.e = [20, 1, 5, 9, 21, 25, 29, 33, 37, 41, 45];
+		const engine = new PlayerGameEngine(1, state);
+
+		assert.strictEqual(engine.canKakan(), true);
+		assert.deepStrictEqual(engine.getKakanableTiles(), [20]);
+	});
+
+	it('does not allow kakan out of turn or without the fourth tile', () => {
+		const state = createState();
+		state.turn = 's';
+		state.huros.e = [{ type: 'pon', tiles: [17, 18, 19], from: 's' }];
+		state.handTiles.e = [20, 1, 5, 9, 21, 25, 29, 33, 37, 41, 45];
+		const engine = new PlayerGameEngine(1, state);
+
+		assert.strictEqual(engine.canKakan(), false);
+		assert.deepStrictEqual(engine.getKakanableTiles(), [20]);
+
+		state.turn = 'e';
+		state.handTiles.e = [1, 5, 9, 21, 25, 29, 33, 37, 41, 45, 49];
+		assert.strictEqual(engine.canKakan(), false);
+		assert.deepStrictEqual(engine.getKakanableTiles(), []);
+	});
+
+	it('does not allow kakan during riichi', () => {
+		const state = createState();
+		state.turn = 'e';
+		state.riichis.e = true;
+		state.huros.e = [{ type: 'pon', tiles: [17, 18, 19], from: 's' }];
+		state.handTiles.e = [20, 1, 5, 9, 21, 25, 29, 33, 37, 41, 45];
+		const engine = new PlayerGameEngine(1, state);
+
+		assert.strictEqual(engine.canKakan(), false);
+	});
+
+	it('removes the tile id that the server actually consumed', () => {
+		const state = createState();
+		state.turn = 'e';
+		state.huros.e = [{ type: 'pon', tiles: [17, 18, 19], from: 's' }];
+		// 同種牌が複数ある異常状態でも、イベントで通知された牌IDを優先して取り除く
+		state.handTiles.e = [17, 20, 1, 5, 9, 21, 25, 29, 33, 37, 41];
+		const engine = new PlayerGameEngine(1, state);
+
+		engine.commit_kakan('e', [20, 17, 18, 19], 34);
+
+		assert.deepStrictEqual(engine.myHandTiles, [17, 1, 5, 9, 21, 25, 29, 33, 37, 41, 34]);
+		assert.strictEqual(engine.drawnTile, 34);
+		assert.strictEqual(engine.huros.e[0].type, 'minkan');
+	});
+});

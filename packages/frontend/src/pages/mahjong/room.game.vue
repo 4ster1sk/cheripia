@@ -383,7 +383,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 </template>
 
 <script lang="ts" setup>
-import { computed, onActivated, onDeactivated, onMounted, onUnmounted, reactive, ref, shallowRef, triggerRef } from 'vue';
+import { computed, onActivated, onDeactivated, onMounted, onUnmounted, reactive, ref, shallowRef, triggerRef, watch } from 'vue';
 import * as Misskey from 'misskey-js';
 import * as Mmj from 'misskey-mahjong';
 import { useInterval } from '@@/js/use-interval.js';
@@ -445,7 +445,33 @@ const users = computed(() => ({
 
 const waitTiles = computed(() => mj.value.getWaitTiles());
 
-const selectableTiles = ref<Mmj.TileType[] | null>(null);
+type TileSelection =
+	| { action: 'riichi'; }
+	| { action: 'ankan'; tiles: Mmj.TileId[]; }
+	| { action: 'kakan'; tiles: Mmj.TileId[]; };
+
+/**
+ * 手牌から牌を選んで行う操作。選択中のみ手牌の一部がクリック可能になる。
+ */
+const tileSelection = ref<TileSelection | null>(null);
+
+const selectableTiles = computed<Mmj.TileType[] | null>(() => {
+	const selection = tileSelection.value;
+	if (selection == null) return null;
+	switch (selection.action) {
+		case 'riichi':
+			return Mmj.getTilesForRiichi(mj.value.myHandTileTypes);
+		case 'ankan':
+		case 'kakan':
+			return selection.tiles.map(id => mj$type(id));
+	}
+});
+
+// 手番が終わったら選択状態を持ち越さない
+watch(isMyTurn, (myTurn) => {
+	if (!myTurn) tileSelection.value = null;
+});
+
 const ronSerifHouses = reactive<Record<Mmj.House, boolean>>({ e: false, s: false, w: false, n: false });
 const ciiSerifHouses = reactive<Record<Mmj.House, boolean>>({ e: false, s: false, w: false, n: false });
 const ponSerifHouses = reactive<Record<Mmj.House, boolean>>({ e: false, s: false, w: false, n: false });
@@ -642,60 +668,85 @@ function backToLobby() {
 	router.push('/mahjong');
 }
 
-let riichiSelect = false;
-let ankanSelect = false;
-let kakanSelect = false;
-
 function chooseTile(tile: Mmj.TileId, ev: MouseEvent) {
 	if (!isMyTurn.value) return;
 
-	iTsumoed.value = false;
+	const selection = tileSelection.value;
 
-	if (ankanSelect) {
-		props.connection!.send('ankan', {
+	if (selection == null) {
+		iTsumoed.value = false;
+		props.connection!.send('dahai', {
 			tile: tile,
+			riichi: false,
 		});
-		ankanSelect = false;
-		selectableTiles.value = null;
-		return;
-	} else if (kakanSelect) {
-		props.connection!.send('kakan', {
-			tile: tile,
-		});
-		kakanSelect = false;
-		selectableTiles.value = null;
 		return;
 	}
 
-	props.connection!.send('dahai', {
-		tile: tile,
-		riichi: riichiSelect,
-	});
+	if (selection.action === 'riichi') {
+		iTsumoed.value = false;
+		tileSelection.value = null;
+		props.connection!.send('dahai', {
+			tile: tile,
+			riichi: true,
+		});
+		return;
+	}
 
-	riichiSelect = false;
-	selectableTiles.value = null;
+	// 選択中の操作で使える牌だけを受け付ける
+	if (!selection.tiles.includes(tile)) return;
+
+	iTsumoed.value = false;
+	tileSelection.value = null;
+	if (selection.action === 'ankan') {
+		props.connection!.send('ankan', {
+			tile: tile,
+		});
+	} else {
+		props.connection!.send('kakan', {
+			tile: tile,
+		});
+	}
 }
 
 function riichi() {
 	if (!isMyTurn.value) return;
 
-	riichiSelect = true;
-	selectableTiles.value = Mmj.getTilesForRiichi(mj.value.myHandTileTypes);
-	console.log(Mmj.getTilesForRiichi(mj.value.myHandTileTypes));
+	const tiles = Mmj.getTilesForRiichi(mj.value.myHandTileTypes);
+	if (tiles.length === 0) return;
+
+	tileSelection.value = { action: 'riichi' };
 }
 
 function ankan() {
 	if (!isMyTurn.value) return;
 
-	ankanSelect = true;
-	selectableTiles.value = mj.value.getAnkanableTiles().map(id => mj$type(id));
+	const tiles = mj.value.getAnkanableTiles();
+	if (tiles.length === 0) return;
+
+	tileSelection.value = { action: 'ankan', tiles };
 }
 
 function kakan() {
-	if (!isMyTurn.value) return;
+	if (!mj.value.canKakan()) return;
 
-	kakanSelect = true;
-	selectableTiles.value = mj.value.getKakanableTiles().map(id => mj$type(id));
+	const tiles = mj.value.getKakanableTiles();
+	if (tiles.length === 0) return;
+
+	// 加槓できる牌が1つしかない場合は、牌を選ばせずそのまま加槓する
+	if (tiles.length === 1) {
+		sendKakan(tiles[0]);
+		return;
+	}
+
+	tileSelection.value = { action: 'kakan', tiles };
+}
+
+function sendKakan(tile: Mmj.TileId) {
+	tileSelection.value = null;
+	iTsumoed.value = false;
+	props.connection!.send('kakan', {
+		tile: tile,
+	});
 }
 
 function tsumoHora() {
@@ -767,6 +818,7 @@ function sendCii(choice: CiiChoice) {
 
 function closeCiiChoices() {
 	ciiChoices.value = null;
+	tileSelection.value = null;
 }
 
 function kan() {
