@@ -6,17 +6,30 @@ SPDX-License-Identifier: AGPL-3.0-only
 <template>
 <div :class="$style.root">
 	<div v-if="room.isEnded" :class="$style.kyokuResult">
-		<div style="font-size: 1.4em; margin-bottom: 16px;">対局終了</div>
-		<div v-for="house in houses" :key="house" style="margin-bottom: 8px;">
-			<span style="display: inline-block; width: 2em;">{{ houseLabel(house) }}</span>
-			<template v-if="houseToUser(house) != null">
-				<MkAvatar :user="houseToUser(house)!" style="width: 24px; height: 24px; vertical-align: middle;"/>
-				<span style="margin-left: 8px;">{{ houseToUser(house)!.name ?? houseToUser(house)!.username }}</span>
-			</template>
-			<span v-else style="margin-left: 8px;">CPU</span>
-			<span style="margin-left: 12px;">{{ mj.points[house] }}点</span>
+		<div :class="$style.kyokuResultCard">
+			<div :class="$style.kyokuResultTitle">対局終了</div>
+			<div v-for="house in houses" :key="house" :class="[$style.kyokuResultRow, $style.kyokuResultRowCompact]">
+				<div :class="$style.kyokuResultHouseRow">
+					<span :class="$style.kyokuResultHouse">{{ houseLabel(house) }}</span>
+					<template v-if="houseToUser(house) != null">
+						<MkAvatar :user="houseToUser(house)!" :class="$style.kyokuResultAvatar"/>
+						<span :class="$style.kyokuResultName">{{ houseToUser(house)!.name ?? houseToUser(house)!.username }}</span>
+					</template>
+					<span v-else :class="$style.kyokuResultName">CPU</span>
+					<span :class="$style.kyokuResultEndPoints">{{ mj.points[house] }}点</span>
+				</div>
+			</div>
+			<div :class="$style.kyokuResultFooter">
+				<MkButton primary @click="backToLobby">ロビーに戻る</MkButton>
+			</div>
 		</div>
-		<MkButton primary @click="backToLobby">ロビーに戻る</MkButton>
+	</div>
+	<div :class="$style.statusBar">
+		<div v-if="!room.isEnded && !showKyokuResults" :class="$style.turnTimer">残り {{ myTurnTimerRmain }}s</div>
+		<div :class="$style.doraIndicators">
+			<span :class="$style.doraIndicatorLabel">{{ i18n.ts._mahjong.dora }}</span>
+			<XTile v-for="tile in mj.doraIndicateTiles" :key="tile" :tile="mj$(tile)" variation="1" :doras="[]"/>
+		</div>
 	</div>
 	<div :class="$style.taku">
 		<div :class="$style.centerPanel">
@@ -76,13 +89,6 @@ SPDX-License-Identifier: AGPL-3.0-only
 				</div>
 			</div>
 		</div>
-
-		<div :class="$style.doraIndicators">
-			<span :class="$style.doraIndicatorLabel">{{ i18n.ts._mahjong.dora }}</span>
-			<XTile v-for="tile in mj.doraIndicateTiles" :key="tile" :tile="mj$(tile)" variation="1" :doras="[]"/>
-		</div>
-
-		<div v-if="!room.isEnded && !showKyokuResults" :class="$style.turnTimer">残り {{ myTurnTimerRmain }}s</div>
 
 		<div :class="$style.handTilesOfToimen">
 			<div v-for="tile in mj.handTiles[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]" style="display: inline-block;">
@@ -151,39 +157,43 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 		<div :class="$style.playersContainer">
 			<div :class="[$style.playerOfToimen, $style.player]">
+				<span :class="$style.playerHouse">{{ houseLabel(Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))) }}</span>
 				<template v-if="users[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))] != null">
 					<MkAvatar :user="users[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]!" style="width: 30px; height: 30px;"/>
 					<span :class="$style.playerName">{{ users[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]!.name ?? users[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]!.username }}</span>
 				</template>
 				<template v-else>
-					CPU
+					<span :class="$style.playerName">CPU</span>
 				</template>
 			</div>
 			<div :class="[$style.playerOfKamitya, $style.player]">
+				<span :class="$style.playerHouse">{{ houseLabel(Mmj.prevHouse(mj.myHouse)) }}</span>
 				<template v-if="users[Mmj.prevHouse(mj.myHouse)] != null">
 					<MkAvatar :user="users[Mmj.prevHouse(mj.myHouse)]!" style="width: 30px; height: 30px;"/>
 					<span :class="$style.playerName">{{ users[Mmj.prevHouse(mj.myHouse)]!.name ?? users[Mmj.prevHouse(mj.myHouse)]!.username }}</span>
 				</template>
 				<template v-else>
-					CPU
+					<span :class="$style.playerName">CPU</span>
 				</template>
 			</div>
 			<div :class="[$style.playerOfSimotya, $style.player]">
+				<span :class="$style.playerHouse">{{ houseLabel(Mmj.nextHouse(mj.myHouse)) }}</span>
 				<template v-if="users[Mmj.nextHouse(mj.myHouse)] != null">
 					<MkAvatar :user="users[Mmj.nextHouse(mj.myHouse)]!" style="width: 30px; height: 30px;"/>
 					<span :class="$style.playerName">{{ users[Mmj.nextHouse(mj.myHouse)]!.name ?? users[Mmj.nextHouse(mj.myHouse)]!.username }}</span>
 				</template>
 				<template v-else>
-					CPU
+					<span :class="$style.playerName">CPU</span>
 				</template>
 			</div>
 			<div :class="[$style.playerOfMe, $style.player]">
+				<span :class="$style.playerHouse">{{ houseLabel(mj.myHouse) }}</span>
 				<template v-if="users[mj.myHouse] != null">
 					<MkAvatar :user="users[mj.myHouse]!" style="width: 30px; height: 30px;"/>
 					<span :class="$style.playerName">{{ users[mj.myHouse]!.name ?? users[mj.myHouse]!.username }}</span>
 				</template>
 				<template v-else>
-					CPU
+					<span :class="$style.playerName">CPU</span>
 				</template>
 			</div>
 		</div>
@@ -288,25 +298,44 @@ SPDX-License-Identifier: AGPL-3.0-only
 		</div>
 	</div>
 	<div v-if="showKyokuResults" :class="$style.kyokuResult">
-		<div v-for="(res, house) in kyokuResults" :key="house">
-			<div v-if="res != null">
-				<div>
-					<div>{{ house === 'e' ? i18n.ts._mahjong.east : house === 's' ? i18n.ts._mahjong.south : house === 'w' ? i18n.ts._mahjong.west : i18n.ts._mahjong.north }}</div>
-					<template v-if="houseToUser(house) != null">
-						<MkAvatar :user="houseToUser(house)!" style="width: 30px; height: 30px;"/>
-					</template>
-					<template v-else>
-						CPU
-					</template>
+		<div :class="$style.kyokuResultCard">
+			<div :class="$style.kyokuResultTitle">{{ ryuukyokued ? '流局' : '局結果' }}</div>
+			<div v-if="ryuukyokued">
+				<div v-for="house in houses" :key="house" :class="[$style.kyokuResultRow, $style.kyokuResultRowCompact]">
+					<div :class="$style.kyokuResultHouseRow">
+						<span :class="$style.kyokuResultHouse">{{ houseLabel(house) }}</span>
+						<template v-if="houseToUser(house) != null">
+							<MkAvatar :user="houseToUser(house)!" :class="$style.kyokuResultAvatar"/>
+							<span :class="$style.kyokuResultName">{{ houseToUser(house)!.name ?? houseToUser(house)!.username }}</span>
+						</template>
+						<span v-else :class="$style.kyokuResultName">CPU</span>
+						<span :class="$style.kyokuResultEndPoints">{{ mj.points[house] }}点</span>
+					</div>
 				</div>
-				<div v-for="yaku in res.yakus">
-					<div>{{ (i18n.ts._mahjong._yakus as Record<string, string>)[yaku.name] }} {{ yaku.fan }}{{ i18n.ts._mahjong.fan }}</div>
+			</div>
+			<div v-else>
+				<div v-for="(res, house) in kyokuResults" :key="house">
+					<div v-if="res != null" :class="$style.kyokuResultRow">
+						<div :class="$style.kyokuResultHouseRow">
+							<span :class="$style.kyokuResultHouse">{{ houseLabel(house) }}</span>
+							<template v-if="houseToUser(house) != null">
+								<MkAvatar :user="houseToUser(house)!" :class="$style.kyokuResultAvatar"/>
+								<span :class="$style.kyokuResultName">{{ houseToUser(house)!.name ?? houseToUser(house)!.username }}</span>
+							</template>
+							<span v-else :class="$style.kyokuResultName">CPU</span>
+						</div>
+						<div v-for="yaku in res.yakus" :class="$style.kyokuResultYaku">
+							<span>{{ (i18n.ts._mahjong._yakus as Record<string, string>)[yaku.name] }} {{ yaku.fan }}{{ i18n.ts._mahjong.fan }}</span>
+						</div>
+						<div :class="$style.kyokuResultYaku">{{ i18n.ts._mahjong.dora }} {{ res.doraCount }}{{ i18n.ts._mahjong.fan }}</div>
+						<div :class="$style.kyokuResultPoints">{{ res.pointDeltas.e }} / {{ res.pointDeltas.s }} / {{ res.pointDeltas.w }} / {{ res.pointDeltas.n }}</div>
+					</div>
 				</div>
-				<div>{{ i18n.ts._mahjong.dora }} {{ res.doraCount }}{{ i18n.ts._mahjong.fan }}</div>
-				<div>{{ res.pointDeltas.e }} / {{ res.pointDeltas.s }} / {{ res.pointDeltas.w }} / {{ res.pointDeltas.n }}</div>
+			</div>
+			<div :class="$style.kyokuResultFooter">
+				<MkButton primary @click="confirmKyokuResult">{{ i18n.ts._mahjong.confirm }}</MkButton>
 			</div>
 		</div>
-		<MkButton primary @click="confirmKyokuResult">{{ i18n.ts._mahjong.confirm }}</MkButton>
 	</div>
 </div>
 </template>
@@ -901,20 +930,98 @@ onUnmounted(detachListeners);
 }
 
 .kyokuResult {
-	position: absolute;
+	position: fixed;
 	top: 0;
 	left: 0;
 	right: 0;
 	bottom: 0;
 	z-index: 1000;
-	width: 100%;
-	height: 100%;
-	max-width: 800px;
-	margin: auto;
-	padding: 30px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 16px;
 	box-sizing: border-box;
-	background: #0009;
-	color: #fff;
+	background: color-mix(in srgb, var(--MI_THEME-bg) 60%, transparent);
+}
+
+.kyokuResultCard {
+	width: min(480px, 100%);
+	max-height: 88vh;
+	overflow: auto;
+	box-sizing: border-box;
+	padding: 24px;
+	background: var(--MI_THEME-panel);
+	color: var(--MI_THEME-fg);
+	border-radius: var(--MI-radius);
+	box-shadow: 0 8px 32px #000a;
+}
+
+.kyokuResultTitle {
+	margin-bottom: 16px;
+	font-size: 1.4em;
+	font-weight: bold;
+	text-align: center;
+}
+
+.kyokuResultRow {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 12px 0;
+	border-top: solid 1px var(--MI_THEME-divider);
+
+	&:first-child {
+		border-top: none;
+	}
+}
+
+.kyokuResultHouseRow {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-weight: bold;
+}
+
+.kyokuResultHouse {
+	min-width: 2em;
+}
+
+.kyokuResultAvatar {
+	width: 24px;
+	height: 24px;
+}
+
+.kyokuResultName {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.kyokuResultYaku {
+	font-size: 90%;
+	opacity: 0.9;
+}
+
+.kyokuResultPoints {
+	font-weight: bold;
+}
+
+.kyokuResultRowCompact {
+	gap: 0;
+}
+
+.kyokuResultEndPoints {
+	margin-left: auto;
+	font-weight: bold;
+	white-space: nowrap;
+}
+
+.kyokuResultFooter {
+	display: flex;
+	justify-content: center;
+	margin-top: 16px;
 }
 
 .centerPanel {
@@ -1001,6 +1108,8 @@ onUnmounted(detachListeners);
 	font-size: 60%;
 	opacity: 0.8;
 	text-shadow: 0 1px 2px #000;
+	white-space: nowrap;
+	flex-shrink: 0;
 }
 
 .waitTilesList {
@@ -1010,33 +1119,35 @@ onUnmounted(detachListeners);
 	max-width: 140px;
 }
 
-.turnTimer {
-	position: absolute;
-	bottom: calc(50% + 80px);
-	left: 0;
-	right: 0;
+.statusBar {
+	position: relative;
 	z-index: 10;
-	margin: auto;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	width: 100%;
+	max-width: 600px;
+	min-height: 44px;
+	margin: 0 auto 8px;
+}
+
+.turnTimer {
 	width: min-content;
 	padding: 4px 12px;
-	background: #0009;
+	background: color-mix(in srgb, black 55%, transparent);
 	color: #fff;
 	border-radius: 999px;
-	font-size: 90%;
+	font-size: 80%;
+	white-space: nowrap;
 	pointer-events: none;
 }
 
 .doraIndicators {
-	position: absolute;
-	top: calc(50% + 80px);
-	left: 0;
-	right: 0;
-	z-index: 10;
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	margin: auto;
-	width: min-content;
+	margin-left: auto;
 	pointer-events: none;
 }
 
@@ -1045,6 +1156,8 @@ onUnmounted(detachListeners);
 	font-size: 80%;
 	margin-right: 4px;
 	text-shadow: 0 1px 2px #000;
+	white-space: nowrap;
+	flex-shrink: 0;
 }
 .centerPanelIndicatorContainerToi {
 	position: absolute;
@@ -1106,7 +1219,7 @@ onUnmounted(detachListeners);
 
 .handTilesOfToimen {
 	position: absolute;
-	top: 0;
+	top: 48px;
 	right: 40px;
 }
 .handTileImgOfToimen {
@@ -1135,20 +1248,20 @@ onUnmounted(detachListeners);
 
 .huroTilesOfMe {
 	position: absolute;
-	bottom: 0;
-	right: 80px;
+	bottom: 56px;
+	right: 8px;
 }
 
 .huroTilesOfToimen {
 	position: absolute;
-	top: 0;
-	left: 80px;
+	top: 48px;
+	left: 8px;
 }
 
 .huroTilesOfKamitya {
 	position: absolute;
 	top: 80px;
-	left: 0;
+	left: 40px;
 }
 
 .huroTilesOfSimotya {
@@ -1241,38 +1354,50 @@ onUnmounted(detachListeners);
 	align-items: center;
 	gap: 8px;
 	margin: auto;
-	width: 180px;
+	width: auto;
+	max-width: 170px;
 	height: min-content;
-	padding: 10px;
+	padding: 6px 10px;
 	box-sizing: border-box;
-	background: #0009;
+	background: color-mix(in srgb, black 55%, transparent);
 	color: #fff;
 	border-radius: 5px;
-	font-size: 90%;
+	font-size: 80%;
+	z-index: 110;
 }
 .playerName {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
+.playerHouse {
+	flex-shrink: 0;
+	opacity: 0.75;
+	font-size: 80%;
+	font-weight: bold;
+}
 .playerOfToimen {
-	top: 0;
+	top: 8px;
 	left: 0;
 	right: 0;
+	margin: auto;
 }
 .playerOfKamitya {
-	top: 0;
-	left: 0;
-	bottom: 0;
+	top: 8px;
+	left: 8px;
+	bottom: auto;
+	margin: 0;
 }
 .playerOfSimotya {
-	top: 0;
-	right: 0;
-	bottom: 0;
+	top: 8px;
+	right: 8px;
+	bottom: auto;
+	margin: 0;
 }
 .playerOfMe {
-	bottom: 60px;
-	left: 0;
+	bottom: 64px;
+	left: 8px;
+	margin: 0;
 }
 
 .serifContainer {
@@ -1281,44 +1406,48 @@ onUnmounted(detachListeners);
 	bottom: 0;
 	left: 0;
 	right: 0;
-	z-index: 100;
+	z-index: 90;
 	pointer-events: none;
 }
 .serifContainerOfKamitya {
 	position: absolute;
 	top: 0;
 	bottom: 0;
-	left: 0;
+	left: 56px;
 	margin: auto;
-	width: 200px;
+	width: 150px;
 	height: min-content;
+	filter: drop-shadow(0 2px 4px #000c);
 }
 .serifContainerOfSimotya {
 	position: absolute;
 	top: 0;
 	bottom: 0;
-	right: 0;
+	right: 56px;
 	margin: auto;
-	width: 200px;
+	width: 150px;
 	height: min-content;
+	filter: drop-shadow(0 2px 4px #000c);
 }
 .serifContainerOfToimen {
 	position: absolute;
-	top: 0;
+	top: 36px;
 	left: 0;
 	right: 0;
 	margin: auto;
-	width: 200px;
+	width: 150px;
 	height: min-content;
+	filter: drop-shadow(0 2px 4px #000c);
 }
 .serifContainerOfMe {
 	position: absolute;
-	bottom: 0;
+	bottom: 70px;
 	left: 0;
 	right: 0;
 	margin: auto;
-	width: 200px;
+	width: 150px;
 	height: min-content;
+	filter: drop-shadow(0 2px 4px #000c);
 }
 
 .ryuukyokuContainer {
@@ -1346,7 +1475,50 @@ onUnmounted(detachListeners);
 
 .actions {
 	position: absolute;
-	bottom: 80px;
-	right: 50px;
+	bottom: 76px;
+	left: 0;
+	right: 0;
+	z-index: 200;
+	display: flex;
+	justify-content: center;
+	flex-wrap: wrap;
+}
+
+@media (max-width: 520px) {
+	.root {
+		padding: 8px;
+		min-height: 100vh;
+		min-height: 100dvh;
+		box-sizing: border-box;
+		overflow-x: hidden;
+	}
+
+	.player {
+		max-width: 120px;
+	}
+
+	.handTilesOfMe {
+		scale: 0.72;
+		transform-origin: bottom left;
+	}
+
+	.handTilesOfToimen {
+		right: 8px;
+		scale: 0.55;
+		transform-origin: top right;
+	}
+
+	.hoTilesContainerOfKamitya {
+		right: calc(50% + 80px);
+	}
+
+	.hoTilesContainerOfSimotya {
+		left: calc(50% + 80px);
+	}
+
+	.huroTilesOfMe {
+		bottom: 120px;
+		right: 8px;
+	}
 }
 </style>

@@ -18,16 +18,16 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</div>
 
 			<div class="_panel _gaps" style="padding: 16px;">
-				<div v-for="index in [1, 2, 3, 4]" :key="index" style="display: flex; align-items: center; gap: 12px;">
+				<div v-for="index in [1, 2, 3, 4]" :key="index" :class="$style.seat">
 					<template v-if="seatUser(index) != null">
-						<MkAvatar :user="seatUser(index)!" style="width: 40px; height: 40px;"/>
-						<span>{{ seatUser(index)!.name ?? seatUser(index)!.username }}</span>
+						<MkAvatar :user="seatUser(index)!" :class="$style.seatAvatar"/>
+						<span :class="$style.seatName">{{ seatUser(index)!.name ?? seatUser(index)!.username }}</span>
 					</template>
 					<template v-else-if="seatAi(index)">
-						<span style="width: 40px; text-align: center;">CPU</span>
+						<span :class="[$style.seatBadge, $style.seatCpu]">CPU</span>
 					</template>
 					<template v-else>
-						<span style="width: 40px; text-align: center; opacity: 0.5;">空席</span>
+						<span :class="[$style.seatBadge, $style.seatEmpty]">空席</span>
 					</template>
 					<div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
 						<span v-if="seatReady(index)" style="color: var(--MI_THEME-success);">準備完了</span>
@@ -227,6 +227,51 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" module>
+.seat {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 0;
+	border-top: solid 1px var(--MI_THEME-divider);
+
+	&:first-child {
+		border-top: none;
+	}
+}
+
+.seatAvatar {
+	width: 40px;
+	height: 40px;
+	flex-shrink: 0;
+}
+
+.seatName {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.seatBadge {
+	flex-shrink: 0;
+	width: 40px;
+	padding: 4px 0;
+	border-radius: 999px;
+	font-size: 80%;
+	font-weight: bold;
+	text-align: center;
+}
+
+.seatCpu {
+	background: var(--MI_THEME-accentedBg);
+	color: var(--MI_THEME-accent);
+}
+
+.seatEmpty {
+	opacity: 0.5;
+}
+
 .footer {
 	-webkit-backdrop-filter: var(--blur, blur(15px));
 	backdrop-filter: var(--blur, blur(15px));

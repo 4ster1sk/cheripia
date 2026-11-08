@@ -31,7 +31,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 					<span v-else :class="$style.name">CPU</span>
 					<i v-if="state.turn === house" class="ti ti-player-play" :class="$style.turnIcon"></i>
 					<span v-if="state.riichis[house]" :class="$style.riichi">{{ i18n.ts._mahjong.riichi }}</span>
-					<span :class="$style.points">{{ state.points[house] }}</span>
+					<span :class="$style.points">{{ state.points[house] }}点</span>
 				</div>
 
 				<div v-if="state.huros[house].length > 0" :class="$style.tiles">
@@ -42,7 +42,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 					<XTile v-for="tile in sortedHand(house)" :key="tile" :tile="tileInstance(tile)" variation="1" :doras="doras"/>
 				</div>
 
-				<div v-if="state.hoTiles[house].length > 0" :class="$style.tiles">
+				<div v-if="state.hoTiles[house].length > 0" :class="[$style.tiles, $style.river]">
 					<XTile v-for="(tile, i) in state.hoTiles[house]" :key="i" :tile="tileInstance(tile)" variation="1" :doras="doras"/>
 				</div>
 
@@ -292,6 +292,7 @@ definePage(computed(() => ({
 
 .seatTurn {
 	outline: solid 2px var(--MI_THEME-accent);
+	background: var(--MI_THEME-panelHighlight);
 }
 
 .seatHeader {
@@ -338,6 +339,11 @@ definePage(computed(() => ({
 	margin-right: 4px;
 	font-size: 80%;
 	opacity: 0.7;
+}
+
+.river {
+	border-top: 1px dashed var(--MI_THEME-divider);
+	padding-top: 8px;
 }
 
 .waitTiles {
