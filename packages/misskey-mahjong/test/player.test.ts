@@ -18,6 +18,7 @@ function createState(): PlayerState {
 		turnCount: 0,
 		tilesCount: 69,
 		doraIndicateTiles: [125], // 白表示 → ドラは發(手牌にない)
+		drawnTile: null,
 		handTiles: { e: [], s: [], w: [], n: [] },
 		hoTiles: { e: [], s: [], w: [], n: [] },
 		huros: { e: [], s: [], w: [], n: [] },
@@ -140,5 +141,117 @@ describe('Player game engine ryuukyoku', () => {
 
 		assert.deepStrictEqual(engine.points, { e: 27000, s: 25000, w: 24000, n: 24000 });
 		assert.strictEqual(engine.turn, null);
+		assert.strictEqual(engine.drawnTile, null);
+	});
+});
+
+describe('Player game engine drawn tile', () => {
+	it('tracks its own drawn tile and hides opponents\' tiles', () => {
+		const state = createState();
+		state.turn = 's';
+		const engine = new PlayerGameEngine(1, state);
+
+		engine.commit_tsumo('s', 17);
+		assert.strictEqual(engine.drawnTile, null);
+
+		engine.commit_tsumo('e', 18);
+		assert.strictEqual(engine.drawnTile, 18);
+	});
+
+	it('clears the drawn tile on dahai, pon, cii and kan', () => {
+		const state = createState();
+		state.turn = 'e';
+		state.handTiles.e = [17, 18, 19];
+		state.hoTiles.s = [21];
+		const engine = new PlayerGameEngine(1, state);
+
+		engine.commit_dahai('e', 17);
+		assert.strictEqual(engine.drawnTile, null);
+
+		state.turn = 'e';
+		state.drawnTile = 17;
+		state.hoTiles.s = [21];
+		engine.commit_pon('e', 's', [21, 22, 23]);
+		assert.strictEqual(engine.drawnTile, null);
+
+		state.turn = 'e';
+		state.drawnTile = 17;
+		state.hoTiles.s = [21];
+		engine.commit_cii('e', 's', [21, 22, 23]);
+		assert.strictEqual(engine.drawnTile, null);
+
+		state.turn = 'e';
+		state.drawnTile = 17;
+		state.hoTiles.s = [21];
+		engine.commit_kan('e', 's', [21, 22, 23, 24], 33);
+		assert.strictEqual(engine.drawnTile, null);
+	});
+
+	it('sets the rinshan tile on ankan and kakan', () => {
+		const state = createState();
+		state.turn = 'e';
+		state.handTiles.e = [1, 2, 3, 4];
+		state.huros.e = [{ type: 'pon', tiles: [17, 18, 19], from: 's' }];
+		const engine = new PlayerGameEngine(1, state);
+
+		engine.commit_ankan('e', [1, 2, 3, 4], 33);
+		assert.strictEqual(engine.drawnTile, 33);
+
+		state.turn = 'e';
+		state.handTiles.e.push(17);
+		engine.commit_kakan('e', [17, 18, 19, 20], 34);
+		assert.strictEqual(engine.drawnTile, 34);
+	});
+
+	it('hides an opponent\'s rinshan tile', () => {
+		const state = createState();
+		state.turn = 's';
+		state.handTiles.s = [1, 2, 3, 4];
+		const engine = new PlayerGameEngine(1, state);
+
+		engine.commit_ankan('s', [1, 2, 3, 4], 33);
+		assert.strictEqual(engine.drawnTile, null);
+	});
+
+	it('clears the drawn tile after tsumo and ron hora', () => {
+		const state = createState();
+		state.turn = 's';
+		state.riichis.s = true;
+		state.drawnTile = 17;
+		const engine = new PlayerGameEngine(2, state);
+
+		engine.commit_tsumoHora('s', [
+			1, 5, 9, // m1 m2 m3
+			57, 58, 59, // p6 x3
+			93, 97, 101, // s6 s7 s8
+			121, 122, 123, // n x3
+			10, 11, // m3 x2 (和了牌)
+		], 11);
+		assert.strictEqual(engine.drawnTile, null);
+
+		state.hoTiles.s = [69];
+		state.drawnTile = 18;
+		engine.commit_ronHora(['e'], 's', {
+			e: [
+				1, 5, 9, // m1 m2 m3
+				45, 49, 53, // p3 p4 p5
+				93, 97, 101, // s6 s7 s8
+				61, 65, // p7 p8
+				77, 78, // s2 x2
+			],
+			s: [],
+			w: [],
+			n: [],
+		});
+		assert.strictEqual(engine.drawnTile, null);
+	});
+
+	it('takes the drawn tile from the server state on next kyoku', () => {
+		const engine = new PlayerGameEngine(1, createState());
+		const next = createState();
+		next.drawnTile = 17;
+
+		engine.commit_nextKyoku(next);
+		assert.strictEqual(engine.drawnTile, 17);
 	});
 });

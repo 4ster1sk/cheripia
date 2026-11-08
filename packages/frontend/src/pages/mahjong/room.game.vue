@@ -201,7 +201,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</div>
 		</div>
 
-		<XHandTiles :class="$style.handTilesOfMe" :tiles="mj.myHandTiles" :doras="mj.doras" :selectableTiles="selectableTiles" :separateLast="isMyTurn && iTsumoed" @choose="chooseTile"/>
+		<XHandTiles :class="$style.handTilesOfMe" :tiles="mj.myHandTiles" :doras="mj.doras" :selectableTiles="selectableTiles" :separateLast="isMyTurn && mj.drawnTile != null" @choose="chooseTile"/>
 
 		<div :class="$style.serifContainer">
 			<div :class="$style.serifContainerOfToimen">

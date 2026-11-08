@@ -294,6 +294,7 @@ describe('Master game engine state transitions', () => {
 		expect(engine.$state.handTiles.e).toHaveLength(11);
 		expect(engine.$state.handTiles.e).not.toContain(20);
 		expect(engine.$state.handTiles.e).toContain(9);
+		expect(engine.$state.drawnTile).toBe(9);
 
 		// 置換後の形でも和了判定が壊れない (ミンカンは門前ではないのでツモ役は付かない)
 		const hora = engine.commit_tsumoHora('e', false);
@@ -325,9 +326,11 @@ describe('Master game engine state transitions', () => {
 
 		engine.commit_kakan('e', 20);
 		expect(engine.doraIndicateTiles).toEqual([125, 121]);
+		expect(engine.$state.drawnTile).toBe(33);
 
 		engine.commit_ankan('e', 1);
 		expect(engine.doraIndicateTiles).toEqual([125, 121, 122]);
+		expect(engine.$state.drawnTile).toBe(34);
 
 		expect(engine.$state.activatedDorasCount).toBe(3);
 	});
@@ -600,6 +603,148 @@ describe('Master game engine state transitions', () => {
 			tiles: [13, 17, 21],
 			from: 'e',
 		});
+	});
+});
+
+describe('Master game engine drawn tile', () => {
+	function createCallState(
+		call: {
+			pon?: MasterState['askings']['pon'];
+			cii?: MasterState['askings']['cii'];
+			kan?: MasterState['askings']['kan'];
+		},
+		handTiles: TileId[],
+		tiles: TileId[] = [33],
+	): MasterState {
+		return MasterGameEngine.createInitialState({
+			handTiles: { e: [], s: handTiles, w: [], n: [] },
+			hoTiles: { e: [17], s: [], w: [], n: [] },
+			askings: {
+				ron: null,
+				pon: call.pon ?? null,
+				cii: call.cii ?? null,
+				kan: call.kan ?? null,
+			},
+			tiles,
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: null,
+			nextTurnAfterAsking: 's',
+			drawnTile: 34,
+		});
+	}
+
+	it('treats the dealer\'s last initial tile as drawn', () => {
+		const state = MasterGameEngine.createInitialState();
+
+		expect(state.drawnTile).toBe(state.handTiles.e.at(-1));
+
+		const engine = new MasterGameEngine(state);
+		engine.commit_nextKyoku();
+		expect(engine.$state.drawnTile).toBe(engine.$state.handTiles.e.at(-1));
+	});
+
+	it('clears the drawn tile on dahai', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53],
+				s: [],
+				w: [],
+				n: [],
+			},
+			tiles: [],
+			turn: 'e',
+		}));
+		const tile = engine.$state.handTiles.e.at(-1)!;
+		expect(engine.$state.drawnTile).toBe(tile);
+
+		engine.commit_dahai('e', tile);
+
+		expect(engine.$state.drawnTile).toBeNull();
+	});
+
+	it('sets the drawn tile on a normal tsumo', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53],
+				s: [],
+				w: [],
+				n: [],
+			},
+			tiles: [57, 58],
+			turn: 'e',
+		}));
+
+		const res = engine.commit_dahai('e', engine.$state.handTiles.e.at(-1)!);
+		if (res.asking || 'ryuukyoku' in res) throw new Error('unexpected result');
+
+		expect(res.tsumoTile).toBe(58);
+		expect(engine.$state.drawnTile).toBe(res.tsumoTile);
+	});
+
+	it('sets the drawn tile to the rinshan tile on ankan', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 17, 21, 25],
+				s: [],
+				w: [],
+				n: [],
+			},
+			tiles: [33, 34],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: 'e',
+		}));
+
+		const res = engine.commit_ankan('e', 1);
+
+		expect(res.rinsyan).toBe(33);
+		expect(engine.$state.drawnTile).toBe(33);
+	});
+
+	it('clears the drawn tile on pon, cii and daiminkan', () => {
+		const ponEngine = new MasterGameEngine(createCallState(
+			{ pon: { callee: 'e', caller: 's' } },
+			[18, 19, 57, 58, 59, 61, 62, 63, 65, 66, 67, 69, 71],
+		));
+		expect(ponEngine.commit_resolveCallingInterruption({ pon: true, cii: false, kan: false, ron: [] }).type).toBe('ponned');
+		expect(ponEngine.$state.drawnTile).toBeNull();
+
+		const ciiEngine = new MasterGameEngine(createCallState(
+			{ cii: { callee: 'e', caller: 's' } },
+			[13, 21, 57, 58, 59, 61, 62, 63, 65, 66, 67, 69, 71],
+		));
+		expect(ciiEngine.commit_resolveCallingInterruption({ pon: false, cii: '_x_', kan: false, ron: [] }).type).toBe('ciied');
+		expect(ciiEngine.$state.drawnTile).toBeNull();
+
+		const kanEngine = new MasterGameEngine(createCallState(
+			{ kan: { callee: 'e', caller: 's' } },
+			[18, 19, 20, 57, 58, 59, 61, 62, 63, 65, 66, 67, 69],
+		));
+		expect(kanEngine.commit_resolveCallingInterruption({ pon: false, cii: false, kan: true, ron: [] }).type).toBe('kanned');
+		expect(kanEngine.$state.drawnTile).toBeNull();
+	});
+
+	it('reveals the drawn tile only to the player whose turn it is', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53],
+				s: [2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50],
+				w: [],
+				n: [],
+			},
+			drawnTile: 53,
+			turn: 'e',
+		}));
+
+		expect(engine.createPlayerState(1).drawnTile).toBe(53);
+		expect(engine.createPlayerState(2).drawnTile).toBeNull();
+		expect(engine.createSpectatorState().drawnTile).toBe(53);
+
+		engine.$state.turn = 's';
+		engine.$state.drawnTile = 2;
+		expect(engine.createPlayerState(1).drawnTile).toBeNull();
+		expect(engine.createPlayerState(2).drawnTile).toBe(2);
 	});
 });
 

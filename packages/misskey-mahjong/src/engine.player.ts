@@ -32,6 +32,11 @@ export type PlayerState = {
 	doraIndicateTiles: TileId[];
 
 	/**
+	 * 最後に引いた牌 (ツモ牌)。他家には公開しない
+	 */
+	drawnTile: TileId | null;
+
+	/**
 	 * 副露した牌を含まない手牌
 	 */
 	handTiles: {
@@ -211,6 +216,10 @@ export class PlayerGameEngine {
 		return this.myHandTiles.map(t => $type(t));
 	}
 
+	public get drawnTile(): TileId | null {
+		return this.state.drawnTile;
+	}
+
 	public get isMeRiichi(): boolean {
 		return this.state.riichis[this.myHouse];
 	}
@@ -225,6 +234,7 @@ export class PlayerGameEngine {
 		this.state.points.w += pointDeltas.w;
 		this.state.points.n += pointDeltas.n;
 		this.state.turn = null;
+		this.state.drawnTile = null;
 	}
 
 	public commit_tsumo(house: House, tid: TileId) {
@@ -237,8 +247,10 @@ export class PlayerGameEngine {
 		this.state.canCii = null;
 		if (house === this.myHouse) {
 			this.myHandTiles.push(tid);
+			this.state.drawnTile = tid;
 		} else {
 			this.state.handTiles[house].push(0);
+			this.state.drawnTile = null;
 		}
 	}
 
@@ -267,6 +279,7 @@ export class PlayerGameEngine {
 		}
 
 		this.state.turn = null;
+		this.state.drawnTile = null;
 
 		if (house === this.myHouse) {
 			this.state.canRon = null;
@@ -339,6 +352,7 @@ export class PlayerGameEngine {
 	public commit_tsumoHora(house: House, handTiles: TileId[], tsumoTile: TileId): KyokuResult {
 		console.log('commit_tsumoHora', this.state.turn, house);
 		this.clearCalls();
+		this.state.drawnTile = null;
 
 		const handTileTypes = handTiles.map(id => $type(id));
 		const agariTile = $type(tsumoTile);
@@ -403,6 +417,7 @@ export class PlayerGameEngine {
 		console.log('commit_ronHora', this.state.turn, callers, callee);
 
 		this.clearCalls();
+		this.state.drawnTile = null;
 
 		const resultMap: Record<House, KyokuResult> = {
 			e: { yakus: [], doraCount: 0, pointDeltas: { e: 0, s: 0, w: 0, n: 0 } },
@@ -499,6 +514,7 @@ export class PlayerGameEngine {
 		this.state.huros[caller].push({ type: 'pon', tiles: tiles, from: callee });
 
 		this.state.turn = caller;
+		this.state.drawnTile = null;
 	}
 
 	/**
@@ -529,6 +545,7 @@ export class PlayerGameEngine {
 		if (doraIndicateTiles != null) this.state.doraIndicateTiles = [...doraIndicateTiles];
 
 		this.state.turn = caller;
+		this.state.drawnTile = null;
 	}
 
 	public commit_kakan(house: House, tiles: readonly TileId[], rinsyan: TileId, doraIndicateTiles?: TileId[]) {
@@ -552,6 +569,7 @@ export class PlayerGameEngine {
 		}
 		this.state.tilesCount--;
 		this.state.turn = house;
+		this.state.drawnTile = house === this.myHouse ? rinsyan : null;
 		this.state.canRon = null;
 		this.state.canPon = null;
 		this.state.canKan = null;
@@ -581,6 +599,7 @@ export class PlayerGameEngine {
 		});
 		this.state.tilesCount--;
 		this.state.turn = house;
+		this.state.drawnTile = house === this.myHouse ? rinsyan : null;
 		this.state.canRon = null;
 		this.state.canPon = null;
 		this.state.canKan = null;
@@ -608,6 +627,7 @@ export class PlayerGameEngine {
 		this.state.huros[caller].push({ type: 'cii', tiles: tiles, from: callee });
 
 		this.state.turn = caller;
+		this.state.drawnTile = null;
 	}
 
 	public commit_nop() {

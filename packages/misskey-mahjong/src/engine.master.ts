@@ -158,6 +158,7 @@ class StateManager {
 		if (tile == null) throw new Error('No tiles left');
 		if (this.$state.turn == null) throw new Error('Not your turn');
 		this.$state.handTiles[this.$state.turn].push(tile);
+		this.$state.drawnTile = tile;
 		this.$state.rinshanFlags[this.$state.turn] = isRinshan;
 		return tile;
 	}
@@ -195,6 +196,11 @@ export type MasterState = {
 	tiles: TileId[];
 	kingTiles: TileId[];
 	activatedDorasCount: number;
+
+	/**
+	 * 最後に引いた牌 (ツモ牌)
+	 */
+	drawnTile: TileId | null;
 
 	/**
 	 * 副露した牌を含まない手牌
@@ -394,6 +400,7 @@ export class MasterGameEngine {
 		tx.$state.points.w += pointDeltas.w;
 		tx.$state.points.n += pointDeltas.n;
 		tx.$state.turn = null;
+		tx.$state.drawnTile = null;
 
 		tx.$commit();
 
@@ -421,7 +428,7 @@ export class MasterGameEngine {
 		const nHandTiles = tiles.splice(0, 13);
 		const kingTiles = tiles.splice(0, 14);
 
-		return {
+		const state: MasterState = {
 			user1House: 'e',
 			user2House: 's',
 			user3House: 'w',
@@ -432,6 +439,7 @@ export class MasterGameEngine {
 			tiles,
 			kingTiles,
 			activatedDorasCount: 1,
+			drawnTile: eHandTiles.at(-1) ?? null,
 			handTiles: {
 				e: eHandTiles,
 				s: sHandTiles,
@@ -496,6 +504,13 @@ export class MasterGameEngine {
 			},
 			...preset,
 		};
+
+		// preset で手牌が差し替えられた場合も、最後の牌をツモ牌として扱う
+		if (preset.drawnTile === undefined) {
+			state.drawnTile = state.handTiles.e.at(-1) ?? null;
+		}
+
+		return state;
 	}
 
 	public getHouse(index: 1 | 2 | 3 | 4): House {
@@ -568,6 +583,7 @@ export class MasterGameEngine {
 
 		tx.$state.firstTurnFlags[house] = false;
 		tx.$state.rinshanFlags[house] = false;
+		tx.$state.drawnTile = null;
 
 		const canRonHouses: House[] = [];
 		switch (house) {
@@ -802,6 +818,7 @@ export class MasterGameEngine {
 		tx.$state.points.w += pointDeltas.w;
 		tx.$state.points.n += pointDeltas.n;
 		tx.$state.turn = null;
+		tx.$state.drawnTile = null;
 		if (doLog) console.log('yakus', house, yakus);
 
 		tx.$commit();
@@ -917,6 +934,8 @@ export class MasterGameEngine {
 
 			tx.$state.turn = kan.caller;
 			const rinsyan = tx.rinshanTsumo();
+			// 大明槓は鳴いた扱いとし、ツモ牌としては保持しない
+			tx.$state.drawnTile = null;
 
 			tx.$commit();
 
@@ -944,6 +963,7 @@ export class MasterGameEngine {
 			tx.clearFirstTurnAndIppatsus();
 
 			tx.$state.turn = pon.caller;
+			tx.$state.drawnTile = null;
 
 			tx.$commit();
 
@@ -1022,6 +1042,7 @@ export class MasterGameEngine {
 			tx.clearFirstTurnAndIppatsus();
 
 			tx.$state.turn = cii.caller;
+			tx.$state.drawnTile = null;
 
 			tx.$commit();
 
@@ -1081,6 +1102,7 @@ export class MasterGameEngine {
 			turnCount: this.$state.turnCount,
 			tilesCount: this.$state.tiles.length,
 			doraIndicateTiles: this.$state.kingTiles.slice(0, this.$state.activatedDorasCount),
+			drawnTile: this.$state.turn === house ? (this.$state.drawnTile ?? null) : null,
 			handTiles: {
 				e: house === 'e' ? this.$state.handTiles.e : this.$state.handTiles.e.map(() => 0),
 				s: house === 's' ? this.$state.handTiles.s : this.$state.handTiles.s.map(() => 0),
@@ -1147,6 +1169,7 @@ export class MasterGameEngine {
 	public createSpectatorState(): PlayerState {
 		const state = this.createPlayerState(1);
 		state.spectator = true;
+		state.drawnTile = this.$state.drawnTile ?? null;
 		state.handTiles = structuredClone(this.$state.handTiles);
 		state.huros = structuredClone(this.$state.huros);
 		return state;
