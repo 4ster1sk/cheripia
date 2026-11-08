@@ -7,6 +7,7 @@ import { TileType, House, Huro, TileId } from './common.js';
 import * as Common from './common.js';
 import { PlayerState } from './engine.player.js';
 import { calcYakusWithDetail, convertHuroForCalcYaku, isAgarikeiWithHuros, YakuData, YakuSet } from './common.yaku.js';
+import { calcFu } from './common.fu.js';
 
 export const INITIAL_POINT = 25000;
 
@@ -691,15 +692,18 @@ export class MasterGameEngine {
 
 		if (tx.$state.turn !== house) throw new Error('Not your turn');
 
-		const huros = tx.$state.huros[house].map(convertHuroForCalcYaku);
-		if (!isAgarikeiWithHuros(tx.handTileTypes[house], huros)) throw new Error('Not an agari hand');
+		const handTiles = tx.handTileTypes[house];
+		const agariTile = handTiles.at(-1)!;
+		const huros = tx.$state.huros[house];
+		const hurosForYaku = huros.map(convertHuroForCalcYaku);
+		if (!isAgarikeiWithHuros(handTiles, hurosForYaku)) throw new Error('Not an agari hand');
 
 		const yakus = calcYakusWithDetail({
 			seatWind: house,
-			fieldWind: this.$state.round,
-			handTiles: tx.handTileTypes[house],
-			huros,
-			tsumoTile: tx.handTileTypes[house].at(-1)!,
+			fieldWind: tx.$state.round,
+			handTiles,
+			huros: hurosForYaku,
+			tsumoTile: agariTile,
 			ronTile: null,
 			firstTurn: tx.$state.firstTurnFlags[house],
 			riichi: tx.$state.riichis[house],
@@ -708,11 +712,27 @@ export class MasterGameEngine {
 			rinshan: tx.$state.rinshanFlags[house],
 			haitei: tx.$state.tiles.length === 0,
 		});
-		const doraCount =
-			Common.calcOwnedDoraCount(tx.handTileTypes[house], tx.$state.huros[house], tx.doras) +
-			Common.calcRedDoraCount(tx.$state.handTiles[house], tx.$state.huros[house]);
 		if (yakus.yakuNames.length === 0) throw new Error('No yaku');
-		const pointDeltas = Common.calcTsumoHoraPointDeltas(house, yakus, doraCount);
+		const doraCount =
+			Common.calcOwnedDoraCount(handTiles, huros, tx.doras) +
+			Common.calcRedDoraCount(tx.$state.handTiles[house], huros);
+		const factor: Common.PointFactor = yakus.isYakuman
+			? { isYakuman: true, value: yakus.value }
+			: {
+				isYakuman: false,
+				fan: yakus.fan,
+				fu: calcFu({
+					handTiles,
+					huros,
+					agariTile,
+					isTsumo: true,
+					seatWind: house,
+					fieldWind: tx.$state.round,
+					yakuNames: yakus.yakuNames,
+					isYakuman: yakus.isYakuman,
+				}),
+			};
+		const pointDeltas = Common.calcTsumoHoraPointDeltas(house, factor, doraCount);
 		tx.$state.points.e += pointDeltas.e;
 		tx.$state.points.s += pointDeltas.s;
 		tx.$state.points.w += pointDeltas.w;
@@ -756,11 +776,13 @@ export class MasterGameEngine {
 			const yakus: { [K in House]?: YakuSet } = Object.fromEntries(callers.map(house => {
 				const ronTileId = tx.$state.hoTiles[callee].at(-1)!;
 				const ronTile = $type(ronTileId);
+				const handTiles = tx.handTileTypes[house].concat([ronTile]);
+				const huros = tx.$state.huros[house];
 				const yakus = calcYakusWithDetail({
 					seatWind: house,
-			fieldWind: this.$state.round,
-					handTiles: tx.handTileTypes[house].concat([ronTile]),
-					huros: tx.$state.huros[house].map(convertHuroForCalcYaku),
+					fieldWind: tx.$state.round,
+					handTiles,
+					huros: huros.map(convertHuroForCalcYaku),
 					tsumoTile: null,
 					ronTile,
 					firstTurn: tx.$state.firstTurnFlags[house],
@@ -770,9 +792,25 @@ export class MasterGameEngine {
 					hotei: tx.$state.tiles.length === 0,
 				});
 				const doraCount =
-					Common.calcOwnedDoraCount(tx.handTileTypes[house].concat([ronTile]), tx.$state.huros[house], tx.doras) +
-					Common.calcRedDoraCount(tx.$state.handTiles[house].concat([ronTileId]), tx.$state.huros[house]);
-				const point = Common.calcPoint(yakus, house === 'e', doraCount);
+					Common.calcOwnedDoraCount(handTiles, huros, tx.doras) +
+					Common.calcRedDoraCount(tx.$state.handTiles[house].concat([ronTileId]), huros);
+				const factor: Common.PointFactor = yakus.isYakuman
+					? { isYakuman: true, value: yakus.value }
+					: {
+						isYakuman: false,
+						fan: yakus.fan,
+						fu: calcFu({
+							handTiles,
+							huros,
+							agariTile: ronTile,
+							isTsumo: false,
+							seatWind: house,
+							fieldWind: tx.$state.round,
+							yakuNames: yakus.yakuNames,
+							isYakuman: yakus.isYakuman,
+						}),
+					};
+				const point = Common.calcPoint(factor, house === 'e', doraCount);
 				tx.$state.points[callee] -= point;
 				tx.$state.points[house] += point;
 				if (doLog) {

@@ -150,12 +150,13 @@ describe('Master game engine', () => {
 				.build(),
 		));
 		engine.commit_ankan('e', engine.$state.handTiles.e.at(-1)!);
+		engine.$state.kingTiles[0] = 125; // ドラ表示牌を白にして、和了者の手牌にドラが乗らないようにする
 		expect(engine.commit_tsumoHora('e', false).yakus.yakuNames).toEqual(['tsumo', 'rinshan']);
 		expect(engine.$state.points).toEqual({
-			e: INITIAL_POINT + 3000,
-			s: INITIAL_POINT - 1000,
-			w: INITIAL_POINT - 1000,
-			n: INITIAL_POINT - 1000,
+			e: INITIAL_POINT + 6000,
+			s: INITIAL_POINT - 2000,
+			w: INITIAL_POINT - 2000,
+			n: INITIAL_POINT - 2000,
 		});
 	});
 
@@ -222,8 +223,8 @@ describe('Master game engine', () => {
 			ron: ['e'],
 		}, false).yakus?.e?.yakuNames).toEqual(['double-riichi', 'hotei']);
 		expect(engine.$state.points).toEqual({
-			e: INITIAL_POINT + 6000,
-			s: INITIAL_POINT - 6000,
+			e: INITIAL_POINT + 9600,
+			s: INITIAL_POINT - 9600,
 			w: INITIAL_POINT,
 			n: INITIAL_POINT,
 		});
