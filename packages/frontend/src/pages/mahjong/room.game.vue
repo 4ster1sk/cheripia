@@ -310,8 +310,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 						</template>
 						<span v-else :class="$style.kyokuResultName">CPU</span>
 						<span :class="[$style.kyokuResultJudgement, isTenpaiHouse(house) ? $style.kyokuResultTenpai : $style.kyokuResultNoten]">{{ isTenpaiHouse(house) ? i18n.ts._mahjong.tenpai : i18n.ts._mahjong.noten }}</span>
-						<span :class="$style.kyokuResultDelta">{{ formatPointDelta(house) }}</span>
-						<span :class="$style.kyokuResultEndPoints">{{ mj.points[house] }}点</span>
+						<XAnimatedPoints :class="$style.kyokuResultAnimatedPoints" :value="mj.points[house]" :delta="getPointDelta(house)"/>
 					</div>
 				</div>
 			</div>
@@ -325,12 +324,23 @@ SPDX-License-Identifier: AGPL-3.0-only
 								<span :class="$style.kyokuResultName">{{ houseToUser(house)!.name ?? houseToUser(house)!.username }}</span>
 							</template>
 							<span v-else :class="$style.kyokuResultName">CPU</span>
+							<XAnimatedPoints :class="$style.kyokuResultAnimatedPoints" :value="mj.points[house]" :delta="getPointDelta(house)"/>
 						</div>
 						<div v-for="yaku in res.yakus" :class="$style.kyokuResultYaku">
 							<span>{{ (i18n.ts._mahjong._yakus as Record<string, string>)[yaku.name] }} {{ yaku.fan }}{{ i18n.ts._mahjong.fan }}</span>
 						</div>
 						<div :class="$style.kyokuResultYaku">{{ i18n.ts._mahjong.dora }} {{ res.doraCount }}{{ i18n.ts._mahjong.fan }}</div>
-						<div :class="$style.kyokuResultPoints">{{ res.pointDeltas.e }} / {{ res.pointDeltas.s }} / {{ res.pointDeltas.w }} / {{ res.pointDeltas.n }}</div>
+					</div>
+				</div>
+				<div :class="$style.kyokuResultSummary">
+					<div v-for="house in houses" :key="`summary-${house}`" :class="$style.kyokuResultHouseRow">
+						<span :class="$style.kyokuResultHouse">{{ houseLabel(house) }}</span>
+						<template v-if="houseToUser(house) != null">
+							<MkAvatar :user="houseToUser(house)!" :class="$style.kyokuResultAvatar"/>
+							<span :class="$style.kyokuResultName">{{ houseToUser(house)!.name ?? houseToUser(house)!.username }}</span>
+						</template>
+						<span v-else :class="$style.kyokuResultName">CPU</span>
+						<XAnimatedPoints :class="$style.kyokuResultAnimatedPoints" :value="mj.points[house]" :delta="getPointDelta(house)"/>
 					</div>
 				</div>
 			</div>
@@ -351,6 +361,7 @@ import { useInterval } from '@@/js/use-interval.js';
 import XTile from './tile.vue';
 import XHuro from './huro.vue';
 import XHandTiles from './hand-tiles.vue';
+import XAnimatedPoints from './animated-points.vue';
 import MkButton from '@/components/MkButton.vue';
 import { deepClone } from '@/utility/clone.js';
 import { ensureSignin } from '@/i.js';
@@ -558,9 +569,16 @@ function isTenpaiHouse(house: Mmj.House): boolean {
 	return ryuukyokuResult.value?.tenpaiHouses.includes(house) ?? false;
 }
 
-function formatPointDelta(house: Mmj.House): string {
-	const delta = ryuukyokuResult.value?.pointDeltas[house] ?? 0;
-	return delta > 0 ? `+${delta}` : delta < 0 ? `${delta}` : '±0';
+function getPointDelta(house: Mmj.House): number {
+	if (ryuukyokued.value) {
+		return ryuukyokuResult.value?.pointDeltas[house] ?? 0;
+	}
+
+	let delta = 0;
+	for (const res of Object.values(kyokuResults.value)) {
+		if (res != null) delta += res.pointDeltas[house];
+	}
+	return delta;
 }
 
 function backToLobby() {
@@ -1114,8 +1132,18 @@ onUnmounted(detachListeners);
 	opacity: 0.9;
 }
 
-.kyokuResultPoints {
-	font-weight: bold;
+.kyokuResultAnimatedPoints {
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
+.kyokuResultSummary {
+	margin-top: 12px;
+	padding-top: 8px;
+	border-top: solid 2px var(--MI_THEME-divider);
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
 }
 
 .kyokuResultRowCompact {
@@ -1144,13 +1172,6 @@ onUnmounted(detachListeners);
 .kyokuResultNoten {
 	background: color-mix(in srgb, var(--MI_THEME-fg) 10%, transparent);
 	opacity: 0.75;
-}
-
-.kyokuResultDelta {
-	flex-shrink: 0;
-	font-weight: bold;
-	font-variant-numeric: tabular-nums;
-	white-space: nowrap;
 }
 
 .kyokuResultFooter {
