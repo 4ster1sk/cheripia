@@ -82,7 +82,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<XTile v-for="tile in mj.doraIndicateTiles" :key="tile" :tile="mj$(tile)" variation="1" :doras="[]"/>
 		</div>
 
-		<div v-if="!room.isEnded && !showKyokuResults" :class="$style.turnTimer">残り {{ myTurnTimerRmain }}s</div>
+		<div v-if="timerVisible" :class="$style.turnTimer">{{ timerLabel }}</div>
 
 		<div :class="$style.handTilesOfToimen">
 			<div v-for="tile in mj.handTiles[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]" style="display: inline-block;">
@@ -306,6 +306,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<div>{{ res.pointDeltas.e }} / {{ res.pointDeltas.s }} / {{ res.pointDeltas.w }} / {{ res.pointDeltas.n }}</div>
 			</div>
 		</div>
+		<div v-if="timerMode === 'confirm'" :class="$style.kyokuResultTimer">{{ i18n.ts._mahjong.nextKyokuConfirmation }} {{ i18n.tsx._mahjong.remainingSeconds({ n: myTurnTimerRmain }) }}</div>
 		<MkButton primary @click="confirmKyokuResult">{{ i18n.ts._mahjong.confirm }}</MkButton>
 	</div>
 </div>
@@ -419,16 +420,75 @@ if (room.value.isStarted && !room.value.isEnded) {
 }
 */
 
+const CALL_SEC = Mmj.CALL_AND_RON_ASKING_TIMEOUT_MS / 1000;
+const NEXT_KYOKU_SEC = Mmj.NEXT_KYOKU_CONFIRMATION_TIMEOUT_MS / 1000;
+
+type TimerMode = 'turn' | 'call' | 'confirm' | 'hidden';
+
+/**
+ * 鳴き・ロンの回答を求められているかどうか
+ */
+const hasCall = computed(() => {
+	return mj.value.canRon != null || mj.value.canPon != null || mj.value.canCii != null || mj.value.canKan != null;
+});
+
+const timerMode = ref<TimerMode>('turn');
+const timerDeadline = ref<number>(0);
 const myTurnTimerRmain = ref<number>(room.value.timeLimitForEachTurn);
 
+function updateTimerRemaining() {
+	myTurnTimerRmain.value = Math.max(0, Math.ceil((timerDeadline.value - Date.now()) / 1000));
+}
+
+function startTimer(seconds: number, mode: TimerMode) {
+	timerMode.value = mode;
+	if (mode === 'hidden') {
+		timerDeadline.value = 0;
+		myTurnTimerRmain.value = 0;
+		return;
+	}
+	timerDeadline.value = Date.now() + seconds * 1000;
+	myTurnTimerRmain.value = Math.max(0, Math.ceil(seconds));
+}
+
+function hideTimer() {
+	startTimer(0, 'hidden');
+}
+
 function resetTurnTimer() {
-	myTurnTimerRmain.value = room.value.timeLimitForEachTurn;
+	startTimer(room.value.timeLimitForEachTurn, 'turn');
+}
+
+// 初期表示が0にならないよう、初期状態から期限を設定する
+if (hasCall.value) {
+	startTimer(CALL_SEC, 'call');
+} else {
+	resetTurnTimer();
 }
 
 useInterval(() => {
-	if (room.value.isEnded || showKyokuResults.value || ryuukyokued.value) return;
-	if (myTurnTimerRmain.value > 0) myTurnTimerRmain.value--;
-}, 1000, { immediate: false, afterMounted: true });
+	if (room.value.isEnded || timerMode.value === 'hidden') return;
+	updateTimerRemaining();
+}, 250, { immediate: false, afterMounted: true });
+
+const timerVisible = computed(() => {
+	if (room.value.isEnded) return false;
+	switch (timerMode.value) {
+		case 'turn':
+			return isMyTurn.value;
+		case 'call':
+			return hasCall.value;
+		default:
+			return false;
+	}
+});
+
+const timerLabel = computed(() => {
+	const remaining = i18n.tsx._mahjong.remainingSeconds({ n: myTurnTimerRmain.value });
+	return timerMode.value === 'call'
+		? `${i18n.ts._mahjong.callConfirmation} ${remaining}`
+		: remaining;
+});
 
 /*
 const TIMER_INTERVAL_SEC = 3;
@@ -541,12 +601,14 @@ function ron() {
 	props.connection!.send('ronHora', {
 	});
 	clearCalls();
+	hideTimer();
 }
 
 function pon() {
 	props.connection!.send('pon', {
 	});
 	clearCalls();
+	hideTimer();
 }
 
 function cii(ev: MouseEvent) {
@@ -560,6 +622,7 @@ function cii(ev: MouseEvent) {
 				pattern: index === 0 ? 'x__' : index === 1 ? '_x_' : '__x',
 			});
 			clearCalls();
+			hideTimer();
 		},
 	})), ev.currentTarget ?? ev.target);
 }
@@ -568,16 +631,19 @@ function kan() {
 	props.connection!.send('kan', {
 	});
 	clearCalls();
+	hideTimer();
 }
 
 function skip() {
 	clearCalls();
 
 	props.connection!.send('nop', {});
+	hideTimer();
 }
 
 function confirmKyokuResult() {
 	props.connection!.send('confirmNextKyoku', {});
+	hideTimer();
 }
 
 function onStreamDahai(log: { house: Mmj.House; tile: number; riichi: boolean }) {
@@ -604,7 +670,11 @@ function onStreamDahai(log: { house: Mmj.House; tile: number; riichi: boolean })
 		riichiSerifHouses[log.house] = false;
 	}, 2000);
 
-	resetTurnTimer();
+	if (hasCall.value) {
+		startTimer(CALL_SEC, 'call');
+	} else {
+		hideTimer();
+	}
 }
 
 function onStreamTsumo(log: { house: Mmj.House; tile: number }) {
@@ -769,6 +839,8 @@ function onStreamRonned(log: { callers: Mmj.House[]; callee: Mmj.House; handTile
 	}
 
 	console.log('ronned', res);
+
+	startTimer(NEXT_KYOKU_SEC, 'confirm');
 }
 
 function onStreamTsumoHora(log: { house: Mmj.House; handTiles: number[]; tsumoTile: number }) {
@@ -789,6 +861,8 @@ function onStreamTsumoHora(log: { house: Mmj.House; handTiles: number[]; tsumoTi
 	}, 2000);
 
 	console.log('tsumohora', res);
+
+	startTimer(NEXT_KYOKU_SEC, 'confirm');
 }
 
 function onStreamRyuukyoku(log: unknown) {
@@ -799,6 +873,8 @@ function onStreamRyuukyoku(log: unknown) {
 	window.setTimeout(() => {
 		showKyokuResults.value = true;
 	}, 1500);
+
+	startTimer(NEXT_KYOKU_SEC, 'confirm');
 }
 
 function onStreamNextKyoku(log: { room: Misskey.entities.MahjongRoomDetailed }) {
@@ -828,6 +904,7 @@ function onStreamEnded(log: { room: Misskey.entities.MahjongRoomDetailed }) {
 		triggerRef(mj);
 	}
 	showKyokuResults.value = false;
+	hideTimer();
 }
 
 let listening = false;
@@ -927,6 +1004,11 @@ onUnmounted(detachListeners);
 	box-sizing: border-box;
 	background: #0009;
 	color: #fff;
+}
+
+.kyokuResultTimer {
+	margin: 16px 0;
+	font-size: 1.1em;
 }
 
 .centerPanel {

@@ -15,9 +15,6 @@ import { IdService } from '@/core/IdService.js';
 import { Packed } from '@/misc/json-schema.js';
 import type { OnApplicationShutdown } from '@nestjs/common';
 
-const CALL_AND_RON_ASKING_TIMEOUT_MS = 1000 * 10; // 10sec
-const NEXT_KYOKU_CONFIRMATION_TIMEOUT_MS = 1000 * 15; // 15sec
-
 const EAST_ROUND_KYOKU_COUNT = 4;
 
 export type MahjongRoom = {
@@ -573,7 +570,7 @@ export class MahjongService implements OnApplicationShutdown {
 			}
 			const current = JSON.parse(confirmationRaw) as NextKyokuConfirmation;
 			const allConfirmed = current.user1 && current.user2 && current.user3 && current.user4;
-			if (allConfirmed || (Date.now() - waitingStartedAt > NEXT_KYOKU_CONFIRMATION_TIMEOUT_MS)) {
+			if (allConfirmed || (Date.now() - waitingStartedAt > Mmj.NEXT_KYOKU_CONFIRMATION_TIMEOUT_MS)) {
 				clearInterval(interval);
 				this.removeTimer(this.otherTimers, room.id, interval);
 				await this.redisClient.del(`mahjong:gameNextKyokuConfirmation:${room.id}`);
@@ -687,7 +684,7 @@ export class MahjongService implements OnApplicationShutdown {
 					(res.canRonHouses.includes('w') && currentAnswers.ron.w == null) ||
 					(res.canRonHouses.includes('n') && currentAnswers.ron.n == null)
 				);
-				if (allAnswered || (Date.now() - waitingStartedAt > CALL_AND_RON_ASKING_TIMEOUT_MS)) {
+				if (allAnswered || (Date.now() - waitingStartedAt > Mmj.CALL_AND_RON_ASKING_TIMEOUT_MS)) {
 					clearInterval(interval);
 					this.removeTimer(this.otherTimers, room.id, interval);
 					await this.redisClient.del(`mahjong:gameCallingAsking:${room.id}`);

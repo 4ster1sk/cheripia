@@ -16161,6 +16161,18 @@ export interface Locale extends ILocale {
          */
         "confirm": string;
         /**
+         * 鳴き確認
+         */
+        "callConfirmation": string;
+        /**
+         * 次局確認
+         */
+        "nextKyokuConfirmation": string;
+        /**
+         * 残り {n}s
+         */
+        "remainingSeconds": ParameterizedString<"n">;
+        /**
          * 待ち牌
          */
         "waitTiles": string;

@@ -3,6 +3,16 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
+/**
+ * 鳴き・ロンの回答を待つ時間 (ミリ秒)
+ */
+export const CALL_AND_RON_ASKING_TIMEOUT_MS = 1000 * 10;
+
+/**
+ * 次局確認を待つ時間 (ミリ秒)
+ */
+export const NEXT_KYOKU_CONFIRMATION_TIMEOUT_MS = 1000 * 15;
+
 // NOTE: アガリ形の判定に使われるため並び順が重要
 // 具体的には、文字列としてソートした際に同じ牌種の1~9が順に並んでいる必要がある
 // また、字牌は最後にある必要がある
