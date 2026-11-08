@@ -300,6 +300,32 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<MkButton v-if="isMyTurn && mj.canRiichi()" primary @click="riichi">{{ i18n.ts._mahjong.riichi }}</MkButton>
 		</div>
 	</div>
+	<div
+		v-if="ciiChoices != null"
+		:class="$style.ciiChoicePanel"
+		role="dialog"
+		:aria-label="i18n.ts._mahjong.cii"
+	>
+		<div :class="$style.ciiChoiceTitle">{{ i18n.ts._mahjong.cii }}</div>
+		<div :class="$style.ciiChoiceList">
+			<button
+				v-for="choice in ciiChoices"
+				:key="choice.code"
+				type="button"
+				class="_button"
+				:class="$style.ciiChoiceButton"
+				:aria-label="`${i18n.ts._mahjong.cii} ${choice.tiles.join(' ')}`"
+				@click="sendCii(choice)"
+			>
+				<span :class="$style.ciiChoiceTiles">
+					<XTile v-for="tile in choice.tiles" :key="tile" :tile="mj$(tileTypeToTileId(tile))" variation="1" :doras="[]"/>
+				</span>
+			</button>
+		</div>
+		<div :class="$style.ciiChoiceFooter">
+			<MkButton small @click="closeCiiChoices">{{ i18n.ts.cancel }}</MkButton>
+		</div>
+	</div>
 	<div v-if="showKyokuResults" :class="$style.kyokuResult">
 		<div :class="$style.kyokuResultCard">
 			<div :class="$style.kyokuResultTitle">{{ roundLabel }} {{ ryuukyokued ? '流局' : '局結果' }}</div>
@@ -371,7 +397,6 @@ import { ensureSignin } from '@/i.js';
 import { i18n } from '@/i18n.js';
 import { useRouter } from '@/router.js';
 import * as sound from '@/utility/sound.js';
-import * as os from '@/os.js';
 
 //#region syntax suger
 function mj$(tid: Mmj.TileId): Mmj.TileInstance {
@@ -450,6 +475,16 @@ const ryuukyokuResult = ref<{
 	pointDeltas: Record<Mmj.House, number>;
 } | null>(null);
 const startTextShowing = ref(false);
+
+type CiiPatternCode = 'x__' | '_x_' | '__x';
+
+type CiiChoice = {
+	tiles: Mmj.TileType[];
+	code: CiiPatternCode;
+};
+
+const CII_PATTERN_CODES: CiiPatternCode[] = ['x__', '_x_', '__x'];
+const ciiChoices = ref<CiiChoice[] | null>(null);
 
 /*
 if (room.value.isStarted && !room.value.isEnded) {
@@ -610,7 +645,6 @@ function backToLobby() {
 let riichiSelect = false;
 let ankanSelect = false;
 let kakanSelect = false;
-let ciiSelect = false;
 
 function chooseTile(tile: Mmj.TileId, ev: MouseEvent) {
 	if (!isMyTurn.value) return;
@@ -630,8 +664,6 @@ function chooseTile(tile: Mmj.TileId, ev: MouseEvent) {
 		});
 		kakanSelect = false;
 		selectableTiles.value = null;
-		return;
-	} else if (ciiSelect) {
 		return;
 	}
 
@@ -685,6 +717,7 @@ function clearCalls() {
 function ron() {
 	props.connection!.send('ronHora', {
 	});
+	closeCiiChoices();
 	clearCalls();
 	hideTimer();
 }
@@ -692,34 +725,60 @@ function ron() {
 function pon() {
 	props.connection!.send('pon', {
 	});
+	closeCiiChoices();
 	clearCalls();
 	hideTimer();
 }
 
-function cii(ev: MouseEvent) {
-	const targetTile = mj.value.hoTiles[mj.value.canCii!.callee].at(-1)!;
-	const patterns = Mmj.getAvailableCiiPatterns(mj.value.myHandTileTypes, mj$type(targetTile));
-	os.popupMenu(patterns.map(pattern => ({
-		text: pattern.join(' '),
-		action: () => {
-			const index = Mmj.sortTileTypes(pattern).indexOf(mj$type(targetTile));
-			props.connection!.send('cii', {
-				pattern: index === 0 ? 'x__' : index === 1 ? '_x_' : '__x',
-			});
-			clearCalls();
-			hideTimer();
-		},
-	})), ev.currentTarget ?? ev.target);
+function cii() {
+	if (mj.value.canCii == null) return;
+
+	const targetTile = mj.value.hoTiles[mj.value.canCii.callee].at(-1);
+	if (targetTile == null) return;
+
+	const targetType = mj$type(targetTile);
+	const patterns = Mmj.getAvailableCiiPatterns(mj.value.myHandTileTypes, targetType);
+	const choices = patterns.map(pattern => {
+		const tiles = Mmj.sortTileTypes(pattern);
+		const index = tiles.indexOf(targetType);
+		return {
+			tiles,
+			code: CII_PATTERN_CODES[index],
+		};
+	});
+
+	if (choices.length === 0) return;
+
+	if (choices.length === 1) {
+		sendCii(choices[0]);
+	} else {
+		ciiChoices.value = choices;
+	}
+}
+
+function sendCii(choice: CiiChoice) {
+	props.connection!.send('cii', {
+		pattern: choice.code,
+	});
+	ciiChoices.value = null;
+	clearCalls();
+	hideTimer();
+}
+
+function closeCiiChoices() {
+	ciiChoices.value = null;
 }
 
 function kan() {
 	props.connection!.send('kan', {
 	});
+	closeCiiChoices();
 	clearCalls();
 	hideTimer();
 }
 
 function skip() {
+	closeCiiChoices();
 	clearCalls();
 
 	props.connection!.send('nop', {});
@@ -733,6 +792,7 @@ function confirmKyokuResult() {
 
 function onStreamDahai(log: { house: Mmj.House; tile: number; riichi: boolean }) {
 	console.log('onStreamDahai', log);
+	closeCiiChoices();
 
 	sound.playUrl('/client-assets/mahjong/dahai.mp3', {
 		volume: 1,
@@ -764,6 +824,7 @@ function onStreamDahai(log: { house: Mmj.House; tile: number; riichi: boolean })
 
 function onStreamTsumo(log: { house: Mmj.House; tile: number }) {
 	console.log('onStreamTsumo', log);
+	closeCiiChoices();
 
 	//if (log.house !== mj.value.state.turn) { // = desyncが発生している
 	//	const _room = await misskeyApi('mahjong/show-room', {
@@ -785,6 +846,7 @@ function onStreamTsumo(log: { house: Mmj.House; tile: number }) {
 
 function onStreamDahaiAndTsumo(log: { dahaiHouse: Mmj.House; dahaiTile: number; tsumoTile: number; riichi: boolean }) {
 	console.log('onStreamDahaiAndTsumo', log);
+	closeCiiChoices();
 
 	//if (log.house !== mj.value.state.turn) { // = desyncが発生している
 	//	const _room = await misskeyApi('mahjong/show-room', {
@@ -821,6 +883,7 @@ function onStreamDahaiAndTsumo(log: { dahaiHouse: Mmj.House; dahaiTile: number; 
 
 function onStreamPonned(log: { caller: Mmj.House; callee: Mmj.House; tiles: readonly [number, number, number] }) {
 	console.log('onStreamPonned', log);
+	closeCiiChoices();
 
 	//if (log.house !== mj.value.state.turn) { // = desyncが発生している
 	//	const _room = await misskeyApi('mahjong/show-room', {
@@ -843,6 +906,7 @@ function onStreamPonned(log: { caller: Mmj.House; callee: Mmj.House; tiles: read
 
 function onStreamKanned(log: { caller: Mmj.House; callee: Mmj.House; tiles: readonly [number, number, number, number]; rinsyan: number; doraIndicateTiles: number[] }) {
 	console.log('onStreamKanned', log);
+	closeCiiChoices();
 
 	mj.value.commit_kan(log.caller, log.callee, log.tiles, log.rinsyan, log.doraIndicateTiles);
 	triggerRef(mj);
@@ -859,6 +923,7 @@ function onStreamKanned(log: { caller: Mmj.House; callee: Mmj.House; tiles: read
 
 function onStreamKakanned(log: { house: Mmj.House; tiles: readonly [number, number, number, number]; rinsyan: number; from: Mmj.House; doraIndicateTiles: number[] }) {
 	console.log('onStreamKakanned', log);
+	closeCiiChoices();
 
 	mj.value.commit_kakan(log.house, log.tiles, log.rinsyan, log.doraIndicateTiles);
 	triggerRef(mj);
@@ -875,6 +940,7 @@ function onStreamKakanned(log: { house: Mmj.House; tiles: readonly [number, numb
 
 function onStreamAnkanned(log: { house: Mmj.House; tiles: readonly [number, number, number, number]; rinsyan: number; doraIndicateTiles: number[] }) {
 	console.log('onStreamAnkanned', log);
+	closeCiiChoices();
 
 	mj.value.commit_ankan(log.house, log.tiles, log.rinsyan, log.doraIndicateTiles);
 	triggerRef(mj);
@@ -891,6 +957,7 @@ function onStreamAnkanned(log: { house: Mmj.House; tiles: readonly [number, numb
 
 function onStreamCiied(log: { caller: Mmj.House; callee: Mmj.House; tiles: readonly [number, number, number] }) {
 	console.log('onStreamCiied', log);
+	closeCiiChoices();
 
 	mj.value.commit_cii(log.caller, log.callee, log.tiles);
 	triggerRef(mj);
@@ -905,6 +972,7 @@ function onStreamCiied(log: { caller: Mmj.House; callee: Mmj.House; tiles: reado
 
 function onStreamRonned(log: { callers: Mmj.House[]; callee: Mmj.House; handTiles: Record<Mmj.House, number[]> }) {
 	console.log('onStreamRonned', log);
+	closeCiiChoices();
 
 	const res = mj.value.commit_ronHora(log.callers, log.callee, log.handTiles);
 	triggerRef(mj);
@@ -930,6 +998,7 @@ function onStreamRonned(log: { callers: Mmj.House[]; callee: Mmj.House; handTile
 
 function onStreamTsumoHora(log: { house: Mmj.House; handTiles: number[]; tsumoTile: number }) {
 	console.log('onStreamTsumoHora', log);
+	closeCiiChoices();
 
 	const res = mj.value.commit_tsumoHora(log.house, log.handTiles, log.tsumoTile);
 	triggerRef(mj);
@@ -952,6 +1021,7 @@ function onStreamTsumoHora(log: { house: Mmj.House; handTiles: number[]; tsumoTi
 
 function onStreamRyuukyoku(log: { tenpaiHouses: Mmj.House[]; notenHouses: Mmj.House[]; pointDeltas: Record<Mmj.House, number> }) {
 	console.log('onStreamRyuukyoku', log);
+	closeCiiChoices();
 
 	ryuukyokuResult.value = log;
 	mj.value.commit_ryuukyoku(log.pointDeltas);
@@ -968,6 +1038,7 @@ function onStreamRyuukyoku(log: { tenpaiHouses: Mmj.House[]; notenHouses: Mmj.Ho
 
 function onStreamNextKyoku(log: { room: Misskey.entities.MahjongRoomDetailed }) {
 	console.log('onStreamNextKyoku', log);
+	closeCiiChoices();
 
 	room.value = log.room;
 	mj.value.commit_nextKyoku(log.room.gameState as unknown as Mmj.PlayerState);
@@ -988,6 +1059,7 @@ function onStreamNextKyoku(log: { room: Misskey.entities.MahjongRoomDetailed }) 
 }
 
 function onStreamEnded(log: { room: Misskey.entities.MahjongRoomDetailed }) {
+	closeCiiChoices();
 	room.value = log.room;
 	if (room.value.gameState != null) {
 		mj.value = new Mmj.PlayerGameEngine(myUserNumber.value, room.value.gameState as unknown as Mmj.PlayerState);
@@ -1716,6 +1788,66 @@ onUnmounted(detachListeners);
 	flex-wrap: wrap;
 }
 
+.ciiChoicePanel {
+	position: fixed;
+	left: 50%;
+	bottom: calc(150px + env(safe-area-inset-bottom, 0px));
+	z-index: 300;
+	width: min(92vw, 440px);
+	box-sizing: border-box;
+	padding: 12px 16px;
+	transform: translateX(-50%);
+	background: var(--MI_THEME-panel);
+	color: var(--MI_THEME-fg);
+	border-radius: var(--MI-radius);
+	box-shadow: 0 8px 32px #000a;
+}
+
+.ciiChoiceTitle {
+	margin-bottom: 8px;
+	font-size: 90%;
+	font-weight: bold;
+	text-align: center;
+}
+
+.ciiChoiceList {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 8px;
+}
+
+.ciiChoiceButton {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 48px;
+	padding: 4px 20px;
+	background: var(--MI_THEME-buttonBg);
+	border: solid 1px var(--MI_THEME-divider);
+	border-radius: var(--MI-radius);
+
+	&:hover {
+		background: var(--MI_THEME-buttonHoverBg);
+	}
+
+	&:focus-visible {
+		outline: 2px solid var(--MI_THEME-focus);
+		outline-offset: 2px;
+	}
+}
+
+.ciiChoiceTiles {
+	display: flex;
+	align-items: center;
+}
+
+.ciiChoiceFooter {
+	display: flex;
+	justify-content: center;
+	margin-top: 8px;
+}
+
 @media (max-width: 520px) {
 	.root {
 		padding: 8px;
@@ -1723,6 +1855,15 @@ onUnmounted(detachListeners);
 		min-height: 100dvh;
 		box-sizing: border-box;
 		overflow-x: hidden;
+	}
+
+	.ciiChoicePanel {
+		bottom: calc(168px + env(safe-area-inset-bottom, 0px));
+		padding: 12px;
+	}
+
+	.ciiChoiceButton {
+		padding: 4px 18px;
 	}
 
 	.player {
