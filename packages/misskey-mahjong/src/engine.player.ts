@@ -316,7 +316,7 @@ export class PlayerGameEngine {
 				&& !this.furiten
 				&& !this.riichiFuriten
 				&& !this.state.hoTiles[this.myHouse].some(id => $type(id) === ronTile);
-			const canPon = !this.isMeRiichi && this.myHandTileTypes.filter(t => t === $type(tid)).length === 2;
+			const canPon = !this.isMeRiichi && this.myHandTileTypes.filter(t => t === $type(tid)).length >= 2;
 			const canKan = !this.isMeRiichi && this.myHandTileTypes.filter(t => t === $type(tid)).length === 3;
 			const canCii = !this.isMeRiichi && house === Common.prevHouse(this.myHouse) &&
 				Common.SHUNTU_PATTERNS.some(pattern =>

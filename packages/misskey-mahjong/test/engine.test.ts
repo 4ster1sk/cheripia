@@ -1402,4 +1402,42 @@ describe('Master game engine calling competition', () => {
 		expect(engine.$state.turn).toBe('w');
 		expect(engine.$state.hoTiles.s).toEqual([69]);
 	});
+
+	it('asks pon when holding three of a kind and leaves one tile after the pon', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [17, 1, 5, 9, 13, 21, 25, 29, 33, 37, 41, 45, 49, 53],
+				// m5 を3枚持ち (4枚目の m5 が捨てられる)
+				s: [18, 19, 20, 2, 6, 10, 14, 22, 26, 30, 34, 38, 42],
+				w: [3, 7, 11, 15, 23, 27, 31, 35, 39, 43, 47, 51, 55],
+				n: [4, 8, 12, 16, 24, 28, 32, 36, 40, 44, 48, 52, 56],
+			},
+			tiles: [100, 104],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: 'e',
+		}));
+
+		const res = engine.commit_dahai('e', 17);
+		expect(res.asking).toBe(true);
+		if (res.asking !== true) throw new Error('unexpected result');
+		expect(res.canPonHouses).toContain('s');
+		expect(engine.createPlayerState(2).canPon).toEqual({ callee: 'e' });
+
+		const resolved = engine.commit_resolveCallingInterruption({
+			pon: { e: null, s: true, w: null, n: null },
+			cii: false,
+			kan: { e: null, s: false, w: null, n: null },
+			ron: [],
+		});
+		expect(resolved.type).toBe('ponned');
+		if (resolved.type !== 'ponned') throw new Error('unexpected result');
+		expect(resolved.caller).toBe('s');
+		expect(resolved.callee).toBe('e');
+		// ポンは2枚だけ消費し、同種1枚が手牌に残る
+		expect(engine.$state.handTiles.s).toHaveLength(11);
+		expect(engine.$state.handTiles.s.map(id => Common.findTileByIdOrFail(id).t).filter(t => t === 'm5')).toHaveLength(1);
+		expect(engine.$state.huros.s).toHaveLength(1);
+		expect(engine.$state.huros.s[0].type).toBe('pon');
+	});
 });

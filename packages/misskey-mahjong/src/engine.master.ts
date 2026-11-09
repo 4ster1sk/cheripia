@@ -161,7 +161,7 @@ class StateManager {
 	}
 
 	public canPon(house: House, tid: TileId): boolean {
-		return this.handTileTypes[house].filter(t => t === $type(tid)).length === 2;
+		return this.handTileTypes[house].filter(t => t === $type(tid)).length >= 2;
 	}
 
 	public canDaiminkan(caller: House, tid: TileId): boolean {
