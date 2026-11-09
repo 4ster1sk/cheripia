@@ -1793,8 +1793,6 @@ onUnmounted(() => {
 	rotate: 180deg;
 	display: grid;
 	grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
-	// 6 cols * 36px (36px = 72px + 2 * -18px: .v horizontal margin in tile.vue)
-	width: 216px;
 }
 
 .hoTilesContainerOfKamitya {
@@ -1849,8 +1847,6 @@ onUnmounted(() => {
 .hoTilesOfMe {
 	display: grid;
 	grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
-	// 6 cols * 36px (36px = 72px + 2 * -18px: .v horizontal margin in tile.vue)
-	width: 216px;
 }
 
 .playersContainer {
