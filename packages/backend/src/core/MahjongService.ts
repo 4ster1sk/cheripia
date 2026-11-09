@@ -91,6 +91,13 @@ function isMahjongRound(value: unknown): value is Mmj.MasterState['round'] {
 }
 
 /**
+ * Redis 補助キー (`gameCallingAsking` / `gameNextKyokuConfirmation` / `gameTurnWaiting`) の TTL (秒)。
+ * 正規フローは asking 解決 10 秒・次局確認 15 秒+α・手番待機は最大 300 秒 (`timeLimitForEachTurn` 上限) で
+ * 自動進行するため、1 時間あれば十分な余裕がある。プロセス落ち・タイマー漏れ時のゴミ残留に上限を付ける。
+ */
+const AUX_KEY_TTL_SECONDS = 60 * 60;
+
+/**
  * 次局待機キー（`mahjong:gameNextKyokuConfirmation`）から確認フラグを読む。
  * 新形式（待機レコード）・旧形式（確認フラグのみ）の双方を受け付ける。
  */
@@ -735,7 +742,7 @@ export class MahjongService implements OnApplicationShutdown {
 			kyokuResult,
 			expected,
 		};
-		await this.redisClient.set(key, JSON.stringify(waiting));
+		await this.redisClient.set(key, JSON.stringify(waiting), 'EX', AUX_KEY_TTL_SECONDS);
 		const waitingStartedAt = Date.now();
 		const roomId = room.id;
 		const interval = setInterval(async () => {
@@ -945,7 +952,7 @@ export class MahjongService implements OnApplicationShutdown {
 				}
 			}
 
-			await this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(answers));
+			await this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(answers), 'EX', AUX_KEY_TTL_SECONDS);
 			const waitingStartedAt = Date.now();
 			const roomId = room.id;
 			const askingCanPonHouses = [...canPonHouses];
@@ -1025,6 +1032,7 @@ export class MahjongService implements OnApplicationShutdown {
 		if (aiHouses.includes(house)) {
 			if (Mmj.isAgarikei(mj.handTileTypes[house])) {
 				const timer = setTimeout(() => {
+					this.removeTimer(this.turnTimers, roomId, timer);
 					void this.withRoomLock(roomId, async () => {
 						const fresh = await this.getRoom(roomId);
 						if (fresh == null || fresh.gameState == null || fresh.isEnded) return;
@@ -1043,6 +1051,7 @@ export class MahjongService implements OnApplicationShutdown {
 			}
 
 			const timer = setTimeout(() => {
+				this.removeTimer(this.turnTimers, roomId, timer);
 				void this.withRoomLock(roomId, async () => {
 					const fresh = await this.getRoom(roomId);
 					if (fresh == null || fresh.gameState == null || fresh.isEnded) return;
@@ -1059,6 +1068,7 @@ export class MahjongService implements OnApplicationShutdown {
 			// リーチ時はアガリ牌でない限りツモ切り
 			if (!Mmj.isAgarikei(mj.handTileTypes[house])) {
 				const timer = setTimeout(() => {
+					this.removeTimer(this.turnTimers, roomId, timer);
 					void this.withRoomLock(roomId, async () => {
 						const fresh = await this.getRoom(roomId);
 						if (fresh == null || fresh.gameState == null || fresh.isEnded) return;
@@ -1074,6 +1084,7 @@ export class MahjongService implements OnApplicationShutdown {
 
 		const id = Math.random().toString(36).slice(2);
 		await this.redisClient.sadd(`mahjong:gameTurnWaiting:${room.id}`, id);
+		await this.redisClient.expire(`mahjong:gameTurnWaiting:${room.id}`, AUX_KEY_TTL_SECONDS);
 		const waitingStartedAt = Date.now();
 		const timeoutMs = room.timeLimitForEachTurn * 1000;
 		const interval = setInterval(async () => {
@@ -1141,7 +1152,7 @@ export class MahjongService implements OnApplicationShutdown {
 			};
 		}
 		if (!(confirmation.user1 && confirmation.user2 && confirmation.user3 && confirmation.user4)) {
-			await this.redisClient.set(key, JSON.stringify({ ...waiting, confirmation }));
+			await this.redisClient.set(key, JSON.stringify({ ...waiting, confirmation }), 'EX', AUX_KEY_TTL_SECONDS);
 			return;
 		}
 		// 別局の待機に置き換わっていたら触らない（旧世代キーの誤消費防止）
@@ -1149,7 +1160,7 @@ export class MahjongService implements OnApplicationShutdown {
 		// 確認完了点を高速進行させる。フラグを先に保存してから進行し、
 		// 進行成功後にキーを削除する（失敗時はキーが残るため再確認でリトライできる）。
 		// ポーリング側はキー消失を見て自消し、仮に発火しても期待局不一致ガードで多重進行しない。
-		await this.redisClient.set(key, JSON.stringify({ ...waiting, confirmation }));
+		await this.redisClient.set(key, JSON.stringify({ ...waiting, confirmation }), 'EX', AUX_KEY_TTL_SECONDS);
 		await this.nextKyokuLocked(room, mj, waiting.kyokuResult, waiting.expected);
 		await this.redisClient.del(key);
 	}
@@ -1248,7 +1259,7 @@ export class MahjongService implements OnApplicationShutdown {
 					}
 				}
 
-				await this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(answers));
+				await this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(answers), 'EX', AUX_KEY_TTL_SECONDS);
 				const waitingStartedAt = Date.now();
 				const roomIdForAsking = room.id;
 				const canRonHouses = [...res.canRonHouses];
@@ -1332,7 +1343,7 @@ export class MahjongService implements OnApplicationShutdown {
 		const currentAnswers = JSON.parse(current) as CallingAnswers;
 		normalizeCallingAnswers(currentAnswers);
 		if (!update(currentAnswers, myHouse, mj)) return;
-		await this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(currentAnswers));
+		await this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(currentAnswers), 'EX', AUX_KEY_TTL_SECONDS);
 	}
 
 	@bindThis
