@@ -302,6 +302,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<MkButton v-if="isMyTurn && mj.canKakan()" @click="kakan">{{ i18n.ts._mahjong.kakan }}</MkButton>
 			<MkButton v-if="isMyTurn && canHora" primary gradate @click="tsumoHora">{{ i18n.ts._mahjong.tsumo }}</MkButton>
 			<MkButton v-if="isMyTurn && mj.canRiichi()" primary @click="riichi">{{ i18n.ts._mahjong.riichi }}</MkButton>
+			<MkButton v-if="tileSelection != null" @click="cancelTileSelection">{{ i18n.ts.cancel }}</MkButton>
 		</div>
 	</div>
 	<div
@@ -809,6 +810,10 @@ function sendKakan(tile: Mmj.TileId) {
 	props.connection!.send('kakan', {
 		tile: tile,
 	});
+}
+
+function cancelTileSelection() {
+	tileSelection.value = null;
 }
 
 function tsumoHora() {

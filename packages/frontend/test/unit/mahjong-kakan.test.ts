@@ -237,6 +237,34 @@ describe('room.game kakan', () => {
 		assert.deepStrictEqual(sentActions(connection.send, 'ankan'), [['ankan', { tile: 1 }]]);
 	});
 
+	test('cancels an ankan selection and discards normally afterwards', async () => {
+		const { container, findAllByRole, connection } = renderRoomGame(createPlayerState({
+			turn: 'e',
+			handTiles: {
+				e: [1, 2, 3, 4, 5, 9, 13, 21, 25, 29, 33, 37, 41],
+				s: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+				w: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+				n: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			},
+		}));
+
+		const buttons = await findAllByRole('button');
+		const isCancel = (b: HTMLElement) => b.textContent?.includes('Cancel') === true || b.textContent?.includes('キャンセル') === true;
+		assert.ok(!buttons.some(isCancel), 'cancel button should be hidden before selection');
+		const ankanButton = buttons.find(b => b.textContent?.includes('暗槓'));
+		assert.ok(ankanButton, 'ankan button should be visible');
+		await fireEvent.click(ankanButton);
+
+		const selecting = await findAllByRole('button');
+		const cancelButton = selecting.find(isCancel);
+		assert.ok(cancelButton, 'cancel button should be visible during tile selection');
+		await fireEvent.click(cancelButton);
+
+		await clickHandTile(container, 'm1');
+		assert.deepStrictEqual(sentActions(connection.send, 'dahai'), [['dahai', { tile: 1, riichi: false }]]);
+		assert.strictEqual(sentActions(connection.send, 'ankan').length, 0);
+	});
+
 	test('discards normally when no tile selection is active', async () => {
 		const { container, connection } = renderRoomGame(createPlayerState());
 
