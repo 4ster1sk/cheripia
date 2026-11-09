@@ -493,9 +493,9 @@ describe('Master game engine state transitions', () => {
 	});
 
 	it.each([
-		['pon', { pon: { callee: 'e', caller: 's' }, cii: null, kan: null }],
+		['pon', { pon: { callee: 'e', callers: ['s'] }, cii: null, kan: null }],
 		['cii', { pon: null, cii: { callee: 'e', caller: 's' }, kan: null }],
-		['kan', { pon: null, cii: null, kan: { callee: 'e', caller: 's' } }],
+		['kan', { pon: null, cii: null, kan: { callee: 'e', callers: ['s'] } }],
 	] as const)('ignores a riichi player\'s %s call when resolving askings', (type, asking) => {
 		const callerHandTiles: Record<'pon' | 'cii' | 'kan', TileId[]> = {
 			pon: [18, 19, 57, 58, 59, 61, 62, 63, 65, 66, 67, 69, 71],
@@ -707,7 +707,7 @@ describe('Master game engine drawn tile', () => {
 
 	it('clears the drawn tile on pon, cii and daiminkan', () => {
 		const ponEngine = new MasterGameEngine(createCallState(
-			{ pon: { callee: 'e', caller: 's' } },
+			{ pon: { callee: 'e', callers: ['s'] } },
 			[18, 19, 57, 58, 59, 61, 62, 63, 65, 66, 67, 69, 71],
 		));
 		expect(ponEngine.commit_resolveCallingInterruption({ pon: true, cii: false, kan: false, ron: [] }).type).toBe('ponned');
@@ -721,7 +721,7 @@ describe('Master game engine drawn tile', () => {
 		expect(ciiEngine.$state.drawnTile).toBeNull();
 
 		const kanEngine = new MasterGameEngine(createCallState(
-			{ kan: { callee: 'e', caller: 's' } },
+			{ kan: { callee: 'e', callers: ['s'] } },
 			[18, 19, 20, 57, 58, 59, 61, 62, 63, 65, 66, 67, 69],
 		));
 		expect(kanEngine.commit_resolveCallingInterruption({ pon: false, cii: false, kan: true, ron: [] }).type).toBe('kanned');
@@ -761,9 +761,9 @@ describe('Master game engine player state', () => {
 		},
 		askings: {
 			ron: { callee: 's', callers: ['e'] },
-			pon: { callee: 's', caller: 'e' },
+			pon: { callee: 's', callers: ['e'] },
 			cii: { callee: 'n', caller: 'e' },
-			kan: { callee: 'w', caller: 'e' },
+			kan: { callee: 'w', callers: ['e'] },
 		},
 	});
 
@@ -1248,5 +1248,158 @@ describe('Master game engine furiten', () => {
 		const res = engine.commit_dahai('s', 71);
 		expect(res.asking).toBe(false); // リーチ後見逃しのためロン不可
 		expect(engine.$state.askings.ron).toBeNull();
+	});
+});
+
+describe('Master game engine calling competition', () => {
+	// 同一牌に2家がポンできる状態は実牌では起きない（5枚必要）が、
+	// 解決ロジックのツモ順優先を検証するため asking を直接構成する。
+	it('picks the tsumo-priority house when two houses claim pon', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [],
+				// m5 を2枚持ち、ポンできる
+				s: [18, 19, 1, 5, 9, 13, 21, 25, 29, 33, 37, 41, 45],
+				w: [20, 2, 6, 10, 14, 22, 26, 30, 34, 38, 42, 46, 50],
+				n: [],
+			},
+			hoTiles: { e: [17], s: [], w: [], n: [] },
+			askings: {
+				ron: null,
+				// 列挙順ではなくツモ順（e の下家 s が先）で勝つこと
+				pon: { callee: 'e', callers: ['w', 's'] },
+				cii: null,
+				kan: null,
+			},
+			tiles: [100, 104],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: null,
+			nextTurnAfterAsking: 's',
+		}));
+
+		// 両者とも canPon が見える
+		expect(engine.createPlayerState(2).canPon).toEqual({ callee: 'e' });
+		expect(engine.createPlayerState(3).canPon).toEqual({ callee: 'e' });
+
+		const res = engine.commit_resolveCallingInterruption({
+			pon: { e: null, s: true, w: true, n: null },
+			cii: false,
+			kan: { e: null, s: null, w: null, n: null },
+			ron: [],
+		});
+		expect(res.type).toBe('ponned');
+		if (res.type !== 'ponned') throw new Error('unexpected result');
+		expect(res.caller).toBe('s');
+		expect(res.callee).toBe('e');
+	});
+
+	it('prefers ron over pon', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				// m123 p345 s678 p78 s22 の p9 待ち（ロンすればピンフ）
+				e: [1, 5, 9, 45, 49, 53, 93, 97, 101, 61, 65, 77, 78],
+				s: [14, 18, 22, 26, 34, 50, 54, 66, 110, 114, 126, 130, 71],
+				// p9 を2枚持ち、ポンできる
+				w: [70, 72, 2, 6, 10, 15, 19, 23, 27, 35, 39, 43, 51],
+				n: [],
+			},
+			hoTiles: { e: [], s: [69], w: [], n: [] },
+			askings: {
+				ron: { callee: 's', callers: ['e'] },
+				pon: { callee: 's', callers: ['w'] },
+				cii: null,
+				kan: null,
+			},
+			riichis: { e: false, s: false, w: false, n: false },
+			tiles: [33, 36],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: null,
+			nextTurnAfterAsking: 'w',
+		}));
+
+		const res = engine.commit_resolveCallingInterruption({
+			pon: { e: null, s: null, w: true, n: null },
+			cii: false,
+			kan: { e: null, s: null, w: null, n: null },
+			ron: ['e'],
+		}, false);
+		expect(res.type).toBe('ronned');
+		if (res.type !== 'ronned') throw new Error('unexpected result');
+		expect(res.callers).toEqual(['e']);
+	});
+
+	it('prefers kan over pon', () => {
+		// ポン対カンの発声順優先は単純化として kan 優先に固定する。
+		// 同一牌へのポンとカンの両立は実牌では起きないため asking を直接構成する。
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [],
+				// m5 を3枚持ち、カンできる
+				s: [18, 19, 20, 1, 5, 9, 13, 21, 25, 29, 33, 37, 41],
+				// ポン主張者（ツモ順では s より後ろのため負ける）
+				w: [2, 6, 10, 14, 22, 26, 30, 34, 38, 42, 46, 50, 54],
+				n: [],
+			},
+			hoTiles: { e: [17], s: [], w: [], n: [] },
+			askings: {
+				ron: null,
+				pon: { callee: 'e', callers: ['w'] },
+				cii: null,
+				kan: { callee: 'e', callers: ['s'] },
+			},
+			tiles: [100, 104],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: null,
+			nextTurnAfterAsking: 's',
+		}));
+
+		const res = engine.commit_resolveCallingInterruption({
+			pon: { e: null, s: null, w: true, n: null },
+			cii: false,
+			kan: { e: null, s: true, w: null, n: null },
+			ron: [],
+		});
+		expect(res.type).toBe('kanned');
+		if (res.type !== 'kanned') throw new Error('unexpected result');
+		expect(res.caller).toBe('s');
+	});
+
+	it('advances to tsumo when everyone declines', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [1, 5, 9, 45, 49, 53, 93, 97, 101, 61, 65, 77, 78],
+				s: [14, 18, 22, 26, 34, 50, 54, 66, 110, 114, 126, 130, 71],
+				w: [70, 72, 2, 6, 10, 15, 19, 23, 27, 35, 39, 43, 51],
+				n: [],
+			},
+			hoTiles: { e: [], s: [69], w: [], n: [] },
+			askings: {
+				ron: { callee: 's', callers: ['e'] },
+				pon: { callee: 's', callers: ['w'] },
+				cii: null,
+				kan: null,
+			},
+			riichis: { e: false, s: false, w: false, n: false },
+			tiles: [100, 104],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: null,
+			nextTurnAfterAsking: 'w',
+		}));
+
+		const res = engine.commit_resolveCallingInterruption({
+			pon: { e: null, s: null, w: false, n: null },
+			cii: false,
+			kan: { e: null, s: null, w: null, n: null },
+			ron: [],
+		});
+		expect(res.type).toBe('tsumo');
+		if (res.type !== 'tsumo') throw new Error('unexpected result');
+		expect(res.house).toBe('w');
+		expect(engine.$state.turn).toBe('w');
+		expect(engine.$state.hoTiles.s).toEqual([69]);
 	});
 });

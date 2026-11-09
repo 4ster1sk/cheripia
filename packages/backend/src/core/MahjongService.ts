@@ -45,9 +45,9 @@ export type MahjongRoom = {
 };
 
 type CallingAnswers = {
-	pon: null | boolean;
+	pon: Record<Mmj.House, boolean | null>;
 	cii: null | false | 'x__' | '_x_' | '__x';
-	kan: null | boolean;
+	kan: Record<Mmj.House, boolean | null>;
 	ron: {
 		e: null | boolean;
 		s: null | boolean;
@@ -122,14 +122,28 @@ function declineOtherAskingAnswers(
 	if (accepted !== 'ron' && mj.askings.ron?.callers.includes(house)) {
 		answers.ron[house] = false;
 	}
-	if (accepted !== 'pon' && mj.askings.pon?.caller === house) {
-		answers.pon = false;
+	if (accepted !== 'pon' && mj.askings.pon?.callers.includes(house)) {
+		answers.pon[house] = false;
 	}
 	if (accepted !== 'cii' && mj.askings.cii?.caller === house) {
 		answers.cii = false;
 	}
-	if (accepted !== 'kan' && mj.askings.kan?.caller === house) {
-		answers.kan = false;
+	if (accepted !== 'kan' && mj.askings.kan?.callers.includes(house)) {
+		answers.kan[house] = false;
+	}
+}
+
+/**
+ * 旧形式（pon/kan が boolean | null）で保存された回答を新形式に寄せる。
+ * デプロイ跨ぎの asking が残っていた場合のクラッシュを防ぐためのもので、
+ * 旧値の真偽は引き継がず未回答として扱う。
+ */
+function normalizeCallingAnswers(answers: CallingAnswers): void {
+	if (answers.pon == null || typeof answers.pon !== 'object') {
+		answers.pon = { e: null, s: null, w: null, n: null };
+	}
+	if (answers.kan == null || typeof answers.kan !== 'object') {
+		answers.kan = { e: null, s: null, w: null, n: null };
 	}
 }
 
@@ -503,9 +517,9 @@ export class MahjongService implements OnApplicationShutdown {
 	@bindThis
 	private async answer(room: MahjongRoom, mj: Mmj.MasterGameEngine, answers: CallingAnswers): Promise<void> {
 		const res = mj.commit_resolveCallingInterruption({
-			pon: answers.pon ?? false,
+			pon: { ...answers.pon },
 			cii: answers.cii ?? false,
-			kan: answers.kan ?? false,
+			kan: { ...answers.kan },
 			ron: [...(answers.ron.e ? ['e'] : []), ...(answers.ron.s ? ['s'] : []), ...(answers.ron.w ? ['w'] : []), ...(answers.ron.n ? ['n'] : [])] as Mmj.House[],
 		});
 		room.gameState = mj.getState();
@@ -639,9 +653,9 @@ export class MahjongService implements OnApplicationShutdown {
 
 		if (res.asking) {
 			const answers: CallingAnswers = {
-				pon: null,
+				pon: { e: null, s: null, w: null, n: null },
 				cii: null,
-				kan: null,
+				kan: { e: null, s: null, w: null, n: null },
 				ron: {
 					e: null,
 					s: null,
@@ -650,25 +664,31 @@ export class MahjongService implements OnApplicationShutdown {
 				},
 			};
 
+			const canPonHouses: Mmj.House[] = res.canPonHouses;
+			const canKanHouses: Mmj.House[] = res.canKanHouses;
 			// リーチ中はポン、チー、カンできない
-			if (res.canPonHouse != null) {
-				answers.pon = mj.riichis[res.canPonHouse] ? false : null;
+			for (const h of canPonHouses) {
+				if (mj.riichis[h]) answers.pon[h] = false;
 			}
 			if (res.canCiiHouse != null) {
 				answers.cii = mj.riichis[res.canCiiHouse] ? false : null;
 			}
-			if (res.canKanHouse != null) {
-				answers.kan = mj.riichis[res.canKanHouse] ? false : null;
+			for (const h of canKanHouses) {
+				if (mj.riichis[h]) answers.kan[h] = false;
 			}
 
-			if (res.canPonHouse != null && !mj.riichis[res.canPonHouse] && aiHouses.includes(res.canPonHouse)) {
-				answers.pon = Math.random() < 0.5;
+			for (const h of canPonHouses) {
+				if (!mj.riichis[h] && aiHouses.includes(h)) {
+					answers.pon[h] = Math.random() < 0.5;
+				}
 			}
 			if (res.canCiiHouse != null && aiHouses.includes(res.canCiiHouse)) {
 				answers.cii = false;
 			}
-			if (res.canKanHouse != null && !mj.riichis[res.canKanHouse] && aiHouses.includes(res.canKanHouse)) {
-				answers.kan = Math.random() < 0.5;
+			for (const h of canKanHouses) {
+				if (!mj.riichis[h] && aiHouses.includes(h)) {
+					answers.kan[h] = Math.random() < 0.5;
+				}
 			}
 			for (const h of res.canRonHouses) {
 				if (aiHouses.includes(h)) {
@@ -686,10 +706,11 @@ export class MahjongService implements OnApplicationShutdown {
 					return;
 				}
 				const currentAnswers = JSON.parse(current) as CallingAnswers;
+				normalizeCallingAnswers(currentAnswers);
 				const allAnswered = !(
-					(res.canPonHouse != null && currentAnswers.pon == null) ||
+					(canPonHouses.some(h => currentAnswers.pon[h] == null)) ||
 					(res.canCiiHouse != null && currentAnswers.cii == null) ||
-					(res.canKanHouse != null && currentAnswers.kan == null) ||
+					(canKanHouses.some(h => currentAnswers.kan[h] == null)) ||
 					(res.canRonHouses.includes('e') && currentAnswers.ron.e == null) ||
 					(res.canRonHouses.includes('s') && currentAnswers.ron.s == null) ||
 					(res.canRonHouses.includes('w') && currentAnswers.ron.w == null) ||
@@ -699,6 +720,13 @@ export class MahjongService implements OnApplicationShutdown {
 					clearInterval(interval);
 					this.removeTimer(this.otherTimers, room.id, interval);
 					await this.redisClient.del(`mahjong:gameCallingAsking:${room.id}`);
+					// タイムアウト時は未回答の caller 全員を辞退扱いにする
+					for (const h of canPonHouses) {
+						if (currentAnswers.pon[h] == null) currentAnswers.pon[h] = false;
+					}
+					for (const h of canKanHouses) {
+						if (currentAnswers.kan[h] == null) currentAnswers.kan[h] = false;
+					}
 					try {
 						await this.answer(room, mj, currentAnswers);
 					} catch (err) {
@@ -904,6 +932,7 @@ export class MahjongService implements OnApplicationShutdown {
 		const current = await this.redisClient.get(`mahjong:gameCallingAsking:${room.id}`);
 		if (current == null) return;
 		const currentAnswers = JSON.parse(current) as CallingAnswers;
+		normalizeCallingAnswers(currentAnswers);
 		if (!update(currentAnswers, myHouse, mj)) return;
 		await this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(currentAnswers));
 	}
@@ -923,22 +952,22 @@ export class MahjongService implements OnApplicationShutdown {
 	public async commit_pon(roomId: MahjongRoom['id'], user: MiUser): Promise<void> {
 		await this.updateAnswer(roomId, user, (answers, house, mj) => {
 			const asking = mj.askings.pon;
-			if (asking == null || asking.caller !== house) return false;
+			if (asking == null || !asking.callers.includes(house)) return false;
 
 			// リーチ中は鳴けない
 			if (mj.riichis[house]) {
-				answers.pon = false;
+				answers.pon[house] = false;
 				return true;
 			}
 
 			// クライアントの申告を信頼せず、手牌に2枚あることを再検証する
 			const targetTile = getLastHoDiscardTileType(mj, asking.callee);
 			if (targetTile == null || mj.handTileTypes[house].filter(t => t === targetTile).length < 2) {
-				answers.pon = false;
+				answers.pon[house] = false;
 				return true;
 			}
 
-			answers.pon = true;
+			answers.pon[house] = true;
 			// ポンが成立したら、同じプレイヤーのロン・チー・カンは辞退扱いにする
 			declineOtherAskingAnswers(answers, house, mj, 'pon');
 			return true;
@@ -949,22 +978,22 @@ export class MahjongService implements OnApplicationShutdown {
 	public async commit_kan(roomId: MahjongRoom['id'], user: MiUser): Promise<void> {
 		await this.updateAnswer(roomId, user, (answers, house, mj) => {
 			const asking = mj.askings.kan;
-			if (asking == null || asking.caller !== house) return false;
+			if (asking == null || !asking.callers.includes(house)) return false;
 
 			// リーチ中は鳴けない
 			if (mj.riichis[house]) {
-				answers.kan = false;
+				answers.kan[house] = false;
 				return true;
 			}
 
 			// クライアントの申告を信頼せず、手牌に3枚あることを再検証する
 			const targetTile = getLastHoDiscardTileType(mj, asking.callee);
 			if (targetTile == null || mj.handTileTypes[house].filter(t => t === targetTile).length < 3) {
-				answers.kan = false;
+				answers.kan[house] = false;
 				return true;
 			}
 
-			answers.kan = true;
+			answers.kan[house] = true;
 			// カンが成立したら、同じプレイヤーのロン・ポン・チーは辞退扱いにする
 			declineOtherAskingAnswers(answers, house, mj, 'kan');
 			return true;
@@ -1010,16 +1039,16 @@ export class MahjongService implements OnApplicationShutdown {
 	public async commit_nop(roomId: MahjongRoom['id'], user: MiUser): Promise<void> {
 		await this.updateAnswer(roomId, user, (answers, house, mj) => {
 			let updated = false;
-			if (mj.askings.pon?.caller === house) {
-				answers.pon = false;
+			if (mj.askings.pon?.callers.includes(house)) {
+				answers.pon[house] = false;
 				updated = true;
 			}
 			if (mj.askings.cii?.caller === house) {
 				answers.cii = false;
 				updated = true;
 			}
-			if (mj.askings.kan?.caller === house) {
-				answers.kan = false;
+			if (mj.askings.kan?.callers.includes(house)) {
+				answers.kan[house] = false;
 				updated = true;
 			}
 			if (mj.askings.ron?.callers.includes(house)) {

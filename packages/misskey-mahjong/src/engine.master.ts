@@ -45,12 +45,26 @@ function shuffle<T extends unknown[]>(array: T): T {
 	return array;
 }
 
+/**
+ * デプロイを跨いで読み込まれた旧形式の asking（pon/kan が { caller } 単数）を
+ * 新形式（{ callers } 複数）に寄せる。cii・ron には触れない。
+ */
+function normalizeAskings(state: MasterState): void {
+	for (const key of ['pon', 'kan'] as const) {
+		const asking = state.askings[key] as unknown as { callee: House; callers?: House[]; caller?: House } | null;
+		if (asking != null && asking.callers == null && asking.caller != null) {
+			state.askings[key] = { callee: asking.callee, callers: [asking.caller] };
+		}
+	}
+}
+
 class StateManager {
 	public $state: MasterState;
 	private commitCallback?: (state: MasterState) => void;
 
 	constructor(state: MasterState, commitCallback?: (state: MasterState) => void) {
 		this.$state = structuredClone(state);
+		normalizeAskings(this.$state);
 		this.commitCallback = commitCallback;
 	}
 
@@ -307,9 +321,9 @@ export type MasterState = {
 			callee: House;
 
 			/**
-			 * ポンする権利がある人
+			 * ポンする権利がある人（ツモ順優先で列挙）
 			 */
-			caller: House;
+			callers: House[];
 		} | null;
 
 		cii: {
@@ -331,9 +345,9 @@ export type MasterState = {
 			callee: House;
 
 			/**
-			 * カンする権利がある人
+			 * カンする権利がある人（ツモ順優先で列挙）
 			 */
-			caller: House;
+			callers: House[];
 		} | null;
 	};
 };
@@ -708,21 +722,17 @@ export class MasterGameEngine {
 				break;
 		}
 
-		let canKanHouse: House | null = null;
-		switch (house) {
-			case 'e': canKanHouse = tx.canDaiminkan('s', tid) ? 's' : tx.canDaiminkan('w', tid) ? 'w' : tx.canDaiminkan('n', tid) ? 'n' : null; break;
-			case 's': canKanHouse = tx.canDaiminkan('e', tid) ? 'e' : tx.canDaiminkan('w', tid) ? 'w' : tx.canDaiminkan('n', tid) ? 'n' : null; break;
-			case 'w': canKanHouse = tx.canDaiminkan('e', tid) ? 'e' : tx.canDaiminkan('s', tid) ? 's' : tx.canDaiminkan('n', tid) ? 'n' : null; break;
-			case 'n': canKanHouse = tx.canDaiminkan('e', tid) ? 'e' : tx.canDaiminkan('s', tid) ? 's' : tx.canDaiminkan('w', tid) ? 'w' : null; break;
-		}
+		const tsumoPriorityHouses = (callee: House): House[] => {
+			const h1 = Common.nextHouse(callee);
+			const h2 = Common.nextHouse(h1);
+			const h3 = Common.nextHouse(h2);
+			return [h1, h2, h3];
+		};
+		const priority = tsumoPriorityHouses(house);
 
-		let canPonHouse: House | null = null;
-		switch (house) {
-			case 'e': canPonHouse = tx.canPon('s', tid) ? 's' : tx.canPon('w', tid) ? 'w' : tx.canPon('n', tid) ? 'n' : null; break;
-			case 's': canPonHouse = tx.canPon('e', tid) ? 'e' : tx.canPon('w', tid) ? 'w' : tx.canPon('n', tid) ? 'n' : null; break;
-			case 'w': canPonHouse = tx.canPon('e', tid) ? 'e' : tx.canPon('s', tid) ? 's' : tx.canPon('n', tid) ? 'n' : null; break;
-			case 'n': canPonHouse = tx.canPon('e', tid) ? 'e' : tx.canPon('s', tid) ? 's' : tx.canPon('w', tid) ? 'w' : null; break;
-		}
+		const canKanHouses: House[] = priority.filter(h => tx.canDaiminkan(h, tid));
+
+		const canPonHouses: House[] = priority.filter(h => tx.canPon(h, tid));
 
 		let canCiiHouse: House | null = null;
 		switch (house) {
@@ -732,23 +742,23 @@ export class MasterGameEngine {
 			case 'n': canCiiHouse = tx.canCii('e', house, tid) ? 'e' : tx.canCii('s', house, tid) ? 's' : tx.canCii('w', house, tid) ? 'w' : null; break;
 		}
 
-		if (canRonHouses.length > 0 || canKanHouse != null || canPonHouse != null || canCiiHouse != null) {
+		if (canRonHouses.length > 0 || canKanHouses.length > 0 || canPonHouses.length > 0 || canCiiHouse != null) {
 			if (canRonHouses.length > 0) {
 				tx.$state.askings.ron = {
 					callee: house,
 					callers: canRonHouses,
 				};
 			}
-			if (canKanHouse != null) {
+			if (canKanHouses.length > 0) {
 				tx.$state.askings.kan = {
 					callee: house,
-					caller: canKanHouse,
+					callers: canKanHouses,
 				};
 			}
-			if (canPonHouse != null) {
+			if (canPonHouses.length > 0) {
 				tx.$state.askings.pon = {
 					callee: house,
-					caller: canPonHouse,
+					callers: canPonHouses,
 				};
 			}
 			if (canCiiHouse != null) {
@@ -764,8 +774,8 @@ export class MasterGameEngine {
 			return {
 				asking: true as const,
 				canRonHouses: canRonHouses,
-				canKanHouse: canKanHouse,
-				canPonHouse: canPonHouse,
+				canKanHouses: canKanHouses,
+				canPonHouses: canPonHouses,
 				canCiiHouse: canCiiHouse,
 			};
 		}
@@ -935,9 +945,9 @@ export class MasterGameEngine {
 	}
 
 	public commit_resolveCallingInterruption(answers: {
-		pon: boolean;
+		pon: Record<House, boolean | null> | boolean;
 		cii: false | 'x__' | '_x_' | '__x';
-		kan: boolean;
+		kan: Record<House, boolean | null> | boolean;
 		ron: House[];
 	}, doLog = true) {
 		const tx = this.startTransaction();
@@ -953,6 +963,28 @@ export class MasterGameEngine {
 		tx.$state.askings.cii = null;
 		tx.$state.askings.kan = null;
 		tx.$state.askings.ron = null;
+
+		const priorityHousesOf = (callee: House): House[] => {
+			const h1 = Common.nextHouse(callee);
+			const h2 = Common.nextHouse(h1);
+			const h3 = Common.nextHouse(h2);
+			return [h1, h2, h3];
+		};
+		const pickWinner = (
+			asking: { callee: House; callers: House[] } | null,
+			answer: Record<House, boolean | null> | boolean,
+		): House | null => {
+			if (asking == null) return null;
+			const claimants: House[] = typeof answer === 'boolean'
+				? (answer ? [...asking.callers] : [])
+				: asking.callers.filter(h => answer[h] === true);
+			for (const house of priorityHousesOf(asking.callee)) {
+				if (claimants.includes(house) && !tx.$state.riichis[house]) return house;
+			}
+			return null;
+		};
+		const kanWinner = pickWinner(kan, answers.kan);
+		const ponWinner = pickWinner(pon, answers.pon);
 
 		if (ron != null) {
 			if (tx.$state.furitenFlags == null) {
@@ -1037,29 +1069,32 @@ export class MasterGameEngine {
 				turn: null,
 				yakus,
 			};
-		} else if (kan != null && answers.kan && !tx.$state.riichis[kan.caller]) {
+		// 種別間の解決順は ron → kan → pon → cii を維持する。
+		// ポン対カンの発声順優先は単純化として kan 優先に固定する。
+		} else if (kan != null && kanWinner != null) {
 			// 大明槓
+			const kanCaller = kanWinner;
 
 			const tile = tx.$state.hoTiles[kan.callee].pop()!;
-			const t1 = tx.$state.handTiles[kan.caller].filter(t => $type(t) === $type(tile)).at(0);
+			const t1 = tx.$state.handTiles[kanCaller].filter(t => $type(t) === $type(tile)).at(0);
 			if (t1 == null) throw new Error('No such tile');
-			const t2 = tx.$state.handTiles[kan.caller].filter(t => $type(t) === $type(tile)).at(1);
+			const t2 = tx.$state.handTiles[kanCaller].filter(t => $type(t) === $type(tile)).at(1);
 			if (t2 == null) throw new Error('No such tile');
-			const t3 = tx.$state.handTiles[kan.caller].filter(t => $type(t) === $type(tile)).at(2);
+			const t3 = tx.$state.handTiles[kanCaller].filter(t => $type(t) === $type(tile)).at(2);
 			if (t3 == null) throw new Error('No such tile');
 
-			tx.$state.handTiles[kan.caller].splice(tx.$state.handTiles[kan.caller].indexOf(t1), 1);
-			tx.$state.handTiles[kan.caller].splice(tx.$state.handTiles[kan.caller].indexOf(t2), 1);
-			tx.$state.handTiles[kan.caller].splice(tx.$state.handTiles[kan.caller].indexOf(t3), 1);
+			tx.$state.handTiles[kanCaller].splice(tx.$state.handTiles[kanCaller].indexOf(t1), 1);
+			tx.$state.handTiles[kanCaller].splice(tx.$state.handTiles[kanCaller].indexOf(t2), 1);
+			tx.$state.handTiles[kanCaller].splice(tx.$state.handTiles[kanCaller].indexOf(t3), 1);
 
 			const tiles = [tile, t1, t2, t3] as const;
-			tx.$state.huros[kan.caller].push({ type: 'minkan', tiles: tiles, from: kan.callee });
+			tx.$state.huros[kanCaller].push({ type: 'minkan', tiles: tiles, from: kan.callee });
 
 			tx.clearFirstTurnAndIppatsus();
 
 			tx.$state.activatedDorasCount++;
 
-			tx.$state.turn = kan.caller;
+			tx.$state.turn = kanCaller;
 			const rinsyan = tx.rinshanTsumo();
 			// 大明槓は鳴いた扱いとし、ツモ牌としては保持しない
 			tx.$state.drawnTile = null;
@@ -1068,35 +1103,36 @@ export class MasterGameEngine {
 
 			return {
 				type: 'kanned' as const,
-				caller: kan.caller,
+				caller: kanCaller,
 				callee: kan.callee,
 				tiles: tiles,
 				rinsyan,
 				turn: tx.$state.turn,
 			};
-		} else if (pon != null && answers.pon && !tx.$state.riichis[pon.caller]) {
+		} else if (pon != null && ponWinner != null) {
+			const ponCaller = ponWinner;
 			const tile = tx.$state.hoTiles[pon.callee].pop()!;
-			const t1 = tx.$state.handTiles[pon.caller].filter(t => $type(t) === $type(tile)).at(0);
+			const t1 = tx.$state.handTiles[ponCaller].filter(t => $type(t) === $type(tile)).at(0);
 			if (t1 == null) throw new Error('No such tile');
-			const t2 = tx.$state.handTiles[pon.caller].filter(t => $type(t) === $type(tile)).at(1);
+			const t2 = tx.$state.handTiles[ponCaller].filter(t => $type(t) === $type(tile)).at(1);
 			if (t2 == null) throw new Error('No such tile');
 
-			tx.$state.handTiles[pon.caller].splice(tx.$state.handTiles[pon.caller].indexOf(t1), 1);
-			tx.$state.handTiles[pon.caller].splice(tx.$state.handTiles[pon.caller].indexOf(t2), 1);
+			tx.$state.handTiles[ponCaller].splice(tx.$state.handTiles[ponCaller].indexOf(t1), 1);
+			tx.$state.handTiles[ponCaller].splice(tx.$state.handTiles[ponCaller].indexOf(t2), 1);
 
 			const tiles = [tile, t1, t2] as const;
-			tx.$state.huros[pon.caller].push({ type: 'pon', tiles: tiles, from: pon.callee });
+			tx.$state.huros[ponCaller].push({ type: 'pon', tiles: tiles, from: pon.callee });
 
 			tx.clearFirstTurnAndIppatsus();
 
-			tx.$state.turn = pon.caller;
+			tx.$state.turn = ponCaller;
 			tx.$state.drawnTile = null;
 
 			tx.$commit();
 
 			return {
 				type: 'ponned' as const,
-				caller: pon.caller,
+				caller: ponCaller,
 				callee: pon.callee,
 				tiles: tiles,
 				turn: tx.$state.turn,
@@ -1288,9 +1324,9 @@ export class MasterGameEngine {
 			kyotaku: this.$state.kyotaku ?? 0,
 			latestDahaiedTile: null,
 			turn: this.$state.turn,
-			canPon: canCall && askings.pon?.caller === house ? { callee: askings.pon.callee } : null,
+			canPon: canCall && askings.pon != null && askings.pon.callers.includes(house) ? { callee: askings.pon.callee } : null,
 			canCii: canCall && askings.cii?.caller === house ? { callee: askings.cii.callee } : null,
-			canKan: canCall && askings.kan?.caller === house ? { callee: askings.kan.callee } : null,
+			canKan: canCall && askings.kan != null && askings.kan.callers.includes(house) ? { callee: askings.kan.callee } : null,
 			canRon: askings.ron?.callers.includes(house) ? { callee: askings.ron.callee } : null,
 		};
 	}
