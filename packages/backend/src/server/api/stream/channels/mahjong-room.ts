@@ -8,6 +8,7 @@ import { REQUEST } from '@nestjs/core';
 import { nextHouse } from 'misskey-mahjong';
 import { bindThis } from '@/decorators.js';
 import { MahjongService } from '@/core/MahjongService.js';
+import { maskAnkannedBodyForHouse } from '@/misc/mahjong-stream-mask.js';
 import { GlobalEvents } from '@/core/GlobalEventService.js';
 import { isJsonObject } from '@/misc/json-value.js';
 import type { JsonObject, JsonValue } from '@/misc/json-value.js';
@@ -87,7 +88,9 @@ export class MahjongRoomChannel extends Channel {
 				body = { ...message.body, tsumoTile: 0 } as unknown as JsonValue;
 			} else if (message.type === 'kanned' && message.body.caller !== this.myHouse) {
 				body = { ...message.body, rinsyan: 0 } as unknown as JsonValue;
-			} else if ((message.type === 'kakanned' || message.type === 'ankanned') && message.body.house !== this.myHouse) {
+			} else if (message.type === 'ankanned' && message.body.house !== this.myHouse) {
+				body = maskAnkannedBodyForHouse(message.body, this.myHouse) as unknown as JsonValue;
+			} else if (message.type === 'kakanned' && message.body.house !== this.myHouse) {
 				body = { ...message.body, rinsyan: 0 } as unknown as JsonValue;
 			}
 			this.send(message.type, body);

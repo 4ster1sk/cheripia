@@ -11,6 +11,7 @@ import { DI } from '@/di-symbols.js';
 import { bindThis } from '@/decorators.js';
 import { UserEntityService } from '@/core/entities/UserEntityService.js';
 import { GlobalEventService } from '@/core/GlobalEventService.js';
+import { buildRonnedHandTiles } from '@/misc/mahjong-stream-mask.js';
 import { IdService } from '@/core/IdService.js';
 import { Packed } from '@/misc/json-schema.js';
 import type { OnApplicationShutdown } from '@nestjs/common';
@@ -531,12 +532,12 @@ export class MahjongService implements OnApplicationShutdown {
 				this.globalEventService.publishMahjongRoomStream(room.id, 'ronned', {
 					callers: res.callers,
 					callee: res.callee,
-					handTiles: {
+					handTiles: buildRonnedHandTiles({
 						e: mj.handTiles.e,
 						s: mj.handTiles.s,
 						w: mj.handTiles.w,
 						n: mj.handTiles.n,
-					},
+					}, res.callers),
 				});
 				await this.endKyoku(room, mj, { agariHouse: Mmj.findAtamahane(res.callee, res.callers), tenpaiHouses: [] });
 				break;
