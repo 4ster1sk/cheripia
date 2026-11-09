@@ -729,7 +729,10 @@ export class MahjongService implements OnApplicationShutdown {
 		const existingRaw = await this.redisClient.get(key);
 		if (existingRaw != null) {
 			const existing = parseNextKyokuWaiting(existingRaw);
-			if (existing != null && isSameNextKyokuKey(existing.expected, expected)) return;
+			if (existing != null && isSameNextKyokuKey(existing.expected, expected)) {
+				console.warn('mahjong: endKyoku already waiting for same kyoku', { roomId: room.id, expected });
+				return;
+			}
 		}
 
 		const waiting: NextKyokuWaiting = {
@@ -828,13 +831,19 @@ export class MahjongService implements OnApplicationShutdown {
 	private async nextKyokuLocked(room: MahjongRoom, mj: Mmj.MasterGameEngine, kyokuResult: { agariHouse: Mmj.House | null; tenpaiHouses: Mmj.House[] }, expected: NextKyokuKey): Promise<void> {
 		// NOTE: withRoomLock の内側で呼ぶこと（room/mj はロック内で再取得した fresh なもの）。
 		// 冪等ガード: 既に次局へ進行済み（または対局終了済み）なら何もしない
-		if (room.isEnded) return;
+		if (room.isEnded) {
+			console.warn('mahjong: nextKyoku skipped: room already ended', { roomId: room.id });
+			return;
+		}
 		const current: NextKyokuKey = {
 			round: mj.$state.round,
 			kyoku: mj.$state.kyoku,
 			turnCount: mj.$state.turnCount,
 		};
-		if (!isSameNextKyokuKey(current, expected)) return;
+		if (!isSameNextKyokuKey(current, expected)) {
+			console.warn('mahjong: nextKyoku skipped: key mismatch', { roomId: room.id, current, expected });
+			return;
+		}
 		// トビ終了: いずれかの持ち点が0以下なら次局に進まず対局終了する
 		if (Mmj.isTobiPoints(mj.$state.points)) {
 			await this.endGame(room);
@@ -1122,18 +1131,36 @@ export class MahjongService implements OnApplicationShutdown {
 
 	private async confirmNextKyokuLocked(roomId: MahjongRoom['id'], user: MiUser): Promise<void> {
 		const room = await this.getRoom(roomId);
-		if (room == null) return;
-		if (room.gameState == null) return;
-		if (room.isEnded) return;
+		if (room == null) {
+			console.warn('mahjong: confirmNextKyoku skipped: room not found', { roomId });
+			return;
+		}
+		if (room.gameState == null) {
+			console.warn('mahjong: confirmNextKyoku skipped: no gameState', { roomId });
+			return;
+		}
+		if (room.isEnded) {
+			console.warn('mahjong: confirmNextKyoku skipped: room already ended', { roomId });
+			return;
+		}
 
 		const slot = getSlotOfUserId(room, user.id);
-		if (slot == null) return;
+		if (slot == null) {
+			console.warn('mahjong: confirmNextKyoku skipped: user is not a member', { roomId, userId: user.id });
+			return;
+		}
 
 		const key = `mahjong:gameNextKyokuConfirmation:${room.id}`;
 		const confirmationRaw = await this.redisClient.get(key);
-		if (confirmationRaw == null) return;
+		if (confirmationRaw == null) {
+			console.warn('mahjong: confirmNextKyoku skipped: no waiting key', { roomId, slot });
+			return;
+		}
 		const confirmation = parseNextKyokuConfirmation(confirmationRaw);
-		if (confirmation == null) return;
+		if (confirmation == null) {
+			console.warn('mahjong: confirmNextKyoku skipped: unparseable waiting key', { roomId, slot });
+			return;
+		}
 		// 同一ユーザーの連打は同じ true 代入になるため冪等
 		confirmation[`user${slot}` as keyof NextKyokuConfirmation] = true;
 		const mj = new Mmj.MasterGameEngine(room.gameState);
@@ -1157,7 +1184,10 @@ export class MahjongService implements OnApplicationShutdown {
 			return;
 		}
 		// 別局の待機に置き換わっていたら触らない（旧世代キーの誤消費防止）
-		if (!isSameNextKyokuKey(current, waiting.expected)) return;
+		if (!isSameNextKyokuKey(current, waiting.expected)) {
+			console.warn('mahjong: confirmNextKyoku skipped: key mismatch', { roomId, current, expected: waiting.expected });
+			return;
+		}
 		// 確認完了点を高速進行させる。フラグを先に保存してから進行し、
 		// 進行成功後にキーを削除する（失敗時はキーが残るため再確認でリトライできる）。
 		// ポーリング側はキー消失を見て自消し、仮に発火しても期待局不一致ガードで多重進行しない。

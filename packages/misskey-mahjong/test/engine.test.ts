@@ -2288,3 +2288,146 @@ describe('Master game engine riichiTiles', () => {
 		expect(engine.$state.hoTiles.e.at(-1)).toBe(33);
 	});
 });
+
+describe('Master game engine south-1 kyushu-kyuhai recovery', () => {
+	it('renchan from south 1 abortive draw reaches a playable next kyoku', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			round: 's',
+			kyoku: 1,
+			honba: 0,
+			kyotaku: 0,
+			handTiles: {
+				// 親14枚に幺九牌13種 (九種九牌)
+				e: [1, 33, 37, 69, 73, 105, 109, 113, 117, 121, 125, 129, 133, 5],
+				s: [2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 42, 46, 50],
+				w: [3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51],
+				n: [4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52],
+			},
+		}));
+
+		// 南1局の親九種九牌を検出する
+		let kind: AbortiveDrawKind | null = null;
+		try {
+			engine.assertKyushuKyuhai();
+		} catch (err) {
+			expect(err).toBeInstanceOf(AbortiveDrawError);
+			kind = (err as AbortiveDrawError).kind;
+		}
+		expect(kind).toBe('kyushukyuhai');
+
+		// サービス層相当: abort → 連荘で次局へ
+		const abortResult = engine.commit_abortiveDraw('kyushukyuhai');
+		expect(abortResult.abortive).toBe('kyushukyuhai');
+		expect(engine.$state.honba).toBe(1);
+		expect(engine.$state.turn).toBeNull();
+		const keyBefore = { round: engine.$state.round, kyoku: engine.$state.kyoku, turnCount: engine.$state.turnCount };
+
+		const next = engine.commit_nextKyoku(null, ['e']);
+		expect(next).toEqual({ ended: false });
+		// 連荘のため局識別子は不変 (冪等ガードが次局進行を弾かない)
+		expect({ round: engine.$state.round, kyoku: engine.$state.kyoku, turnCount: engine.$state.turnCount }).toEqual(keyBefore);
+		expect(engine.$state.round).toBe('s');
+		expect(engine.$state.kyoku).toBe(1);
+		expect(engine.$state.honba).toBe(1);
+		// 新局が対局可能 (親番・配牌枚数・ツモ牌)
+		expect(engine.$state.turn).toBe('e');
+		expect(engine.$state.handTiles.e).toHaveLength(14);
+		expect(engine.$state.handTiles.s).toHaveLength(13);
+		expect(engine.$state.handTiles.w).toHaveLength(13);
+		expect(engine.$state.handTiles.n).toHaveLength(13);
+		expect(engine.$state.drawnTile).toBe(engine.$state.handTiles.e.at(-1));
+	});
+
+	it('first-tsumo kyushu throw via dahai leaves state unchanged and recovers via abortiveDraw', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [42, 2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 46, 50, 54],
+				// 幺九牌8種 + 残り壁先頭117(w)で9種になる
+				s: [1, 33, 37, 69, 73, 105, 109, 113, 13, 17, 21, 25, 29],
+				w: [3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51],
+				n: [4, 8, 12, 16, 24, 28, 32, 36, 40, 44, 48, 52, 56],
+			},
+			tiles: [100, 117],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: 'e',
+		}));
+		const before = structuredClone(engine.$state);
+
+		// s の第一ツモで九種九牌中断。壁・手牌を変更する前に throw する
+		let kind: AbortiveDrawKind | null = null;
+		try {
+			engine.commit_dahai('e', 42);
+		} catch (err) {
+			expect(err).toBeInstanceOf(AbortiveDrawError);
+			kind = (err as AbortiveDrawError).kind;
+		}
+		expect(kind).toBe('kyushukyuhai');
+		// $commit 前のため state は無変更 (turn=null 放置・河残留なし)
+		expect(engine.$state).toEqual(before);
+		expect(engine.$state.turn).toBe('e');
+		expect(engine.$state.hoTiles.e).toEqual([]);
+		expect(engine.$state.askings).toEqual({ ron: null, pon: null, cii: null, kan: null });
+
+		// サービス層相当の回収: abort で asking なし・turn=null の確定状態にし、連荘で次局へ
+		engine.commit_abortiveDraw('kyushukyuhai');
+		expect(engine.$state.askings).toEqual({ ron: null, pon: null, cii: null, kan: null });
+		expect(engine.$state.turn).toBeNull();
+		expect(engine.commit_nextKyoku(null, ['e'])).toEqual({ ended: false });
+		expect(engine.$state.turn).toBe('e');
+		expect(engine.$state.handTiles.e).toHaveLength(14);
+	});
+
+	it('declined asking leading to kyushu tsumo throws without stranding and recovers via abortiveDraw', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [],
+				// 幺九牌8種 + 残り壁先頭117(w)で9種になる
+				s: [1, 33, 37, 69, 73, 105, 109, 113, 13, 17, 21, 25, 29],
+				w: [],
+				n: [],
+			},
+			hoTiles: { e: [17], s: [], w: [], n: [] },
+			askings: {
+				ron: null,
+				pon: { callee: 'e', callers: ['s'] },
+				cii: null,
+				kan: null,
+			},
+			tiles: [100, 117],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: null,
+			nextTurnAfterAsking: 's',
+		}));
+		const before = structuredClone(engine.$state);
+
+		// 全辞退 → else 分岐の tsumo() で九種九牌中断
+		let kind: AbortiveDrawKind | null = null;
+		try {
+			engine.commit_resolveCallingInterruption({
+				pon: { e: null, s: false, w: null, n: null },
+				cii: false,
+				kan: { e: null, s: null, w: null, n: null },
+				ron: [],
+			});
+		} catch (err) {
+			expect(err).toBeInstanceOf(AbortiveDrawError);
+			kind = (err as AbortiveDrawError).kind;
+		}
+		expect(kind).toBe('kyushukyuhai');
+		// $commit 前のため外側 state は無変更 (asking 残留は仕様。サービス層の catch → abortiveDraw で掃除する)
+		expect(engine.$state).toEqual(before);
+		expect(engine.$state.askings.pon).toEqual({ callee: 'e', callers: ['s'] });
+		expect(engine.$state.turn).toBeNull();
+		expect(engine.$state.nextTurnAfterAsking).toBe('s');
+
+		// サービス層相当の回収: abort で asking を掃除し、連荘で次局へ
+		engine.commit_abortiveDraw('kyushukyuhai');
+		expect(engine.$state.askings).toEqual({ ron: null, pon: null, cii: null, kan: null });
+		expect(engine.$state.turn).toBeNull();
+		expect(engine.commit_nextKyoku(null, ['e'])).toEqual({ ended: false });
+		expect(engine.$state.turn).toBe('e');
+		expect(engine.$state.handTiles.e).toHaveLength(14);
+	});
+});
