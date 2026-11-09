@@ -168,6 +168,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<template v-else>
 					<span :class="$style.playerName">CPU</span>
 				</template>
+				<span v-if="mj.riichis[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]" :class="$style.riichi">{{ i18n.ts._mahjong.riichi }}</span>
 			</div>
 			<div :class="[$style.playerOfKamitya, $style.player]">
 				<span :class="$style.playerHouse">{{ houseLabel(Mmj.prevHouse(mj.myHouse)) }}</span>
@@ -178,6 +179,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<template v-else>
 					<span :class="$style.playerName">CPU</span>
 				</template>
+				<span v-if="mj.riichis[Mmj.prevHouse(mj.myHouse)]" :class="$style.riichi">{{ i18n.ts._mahjong.riichi }}</span>
 			</div>
 			<div :class="[$style.playerOfSimotya, $style.player]">
 				<span :class="$style.playerHouse">{{ houseLabel(Mmj.nextHouse(mj.myHouse)) }}</span>
@@ -188,6 +190,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<template v-else>
 					<span :class="$style.playerName">CPU</span>
 				</template>
+				<span v-if="mj.riichis[Mmj.nextHouse(mj.myHouse)]" :class="$style.riichi">{{ i18n.ts._mahjong.riichi }}</span>
 			</div>
 			<div :class="[$style.playerOfMe, $style.player]">
 				<span :class="$style.playerHouse">{{ houseLabel(mj.myHouse) }}</span>
@@ -198,6 +201,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<template v-else>
 					<span :class="$style.playerName">CPU</span>
 				</template>
+				<span v-if="mj.riichis[mj.myHouse]" :class="$style.riichi">{{ i18n.ts._mahjong.riichi }}</span>
 			</div>
 		</div>
 
@@ -1720,6 +1724,11 @@ onUnmounted(detachListeners);
 .playerHouse {
 	flex-shrink: 0;
 	opacity: 0.75;
+	font-size: 80%;
+	font-weight: bold;
+}
+.riichi {
+	color: var(--MI_THEME-warn);
 	font-size: 80%;
 	font-weight: bold;
 }

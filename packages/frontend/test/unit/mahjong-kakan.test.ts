@@ -358,4 +358,29 @@ describe('room.game kakan', () => {
 		await new Promise(resolve => setTimeout(resolve, 0));
 		assert.strictEqual(countHandTiles(), before);
 	});
+
+	test('shows a persistent riichi badge on the riichi house', async () => {
+		// myHouse は e。席と家の対応: 対面=w, 上家=n, 下家=s, 自家=e
+		const seats = [
+			{ key: 'playerOfToimen', house: 'w' },
+			{ key: 'playerOfKamitya', house: 'n' },
+			{ key: 'playerOfSimotya', house: 's' },
+			{ key: 'playerOfMe', house: 'e' },
+		] as const;
+		for (const { key, house } of seats) {
+			const { container } = renderRoomGame(createPlayerState({
+				riichis: { e: house === 'e', s: house === 's', w: house === 'w', n: house === 'n' },
+			}));
+			for (const seat of seats) {
+				const el = container.querySelector(`[class*="${seat.key}"]`);
+				assert.ok(el, `${seat.key} player should be rendered`);
+				if (seat.key === key) {
+					assert.ok(el.textContent?.includes('リーチ'), `riichi badge should be shown on ${seat.key} for riichi house ${house}`);
+				} else {
+					assert.ok(!el.textContent?.includes('リーチ'), `riichi badge should not be shown on ${seat.key} for riichi house ${house}`);
+				}
+			}
+			cleanup();
+		}
+	});
 });

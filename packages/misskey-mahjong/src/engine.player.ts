@@ -228,6 +228,10 @@ export class PlayerGameEngine {
 		return this.state.riichis[this.myHouse];
 	}
 
+	public get riichis(): Record<House, boolean> {
+		return this.state.riichis;
+	}
+
 	public commit_nextKyoku(state: PlayerState) {
 		this.state = state;
 		this.furiten = false;
