@@ -38,25 +38,25 @@ SPDX-License-Identifier: AGPL-3.0-only
 		<div :class="$style.centerPanel">
 			<div style="text-align: center;">
 				<div :class="$style.centerPanelTickerToi">
-					<div style="position: absolute; left: 10px; bottom: 5px;">
+					<div style="position: absolute; left: 0; right: 0; bottom: 5px; text-align: center;">
 						<span :class="$style.centerPanelHouse">{{ Mmj.prevHouse(Mmj.prevHouse(mj.myHouse)) === 'e' ? i18n.ts._mahjong.east : Mmj.prevHouse(Mmj.prevHouse(mj.myHouse)) === 's' ? i18n.ts._mahjong.south : Mmj.prevHouse(Mmj.prevHouse(mj.myHouse)) === 'w' ? i18n.ts._mahjong.west : i18n.ts._mahjong.north }}</span>
 						<span :class="$style.centerPanelPoint">{{ mj.points[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))] }}</span>
 					</div>
 				</div>
 				<div :class="$style.centerPanelTickerKami">
-					<div style="position: absolute; left: 10px; bottom: 5px;">
+					<div style="position: absolute; left: 0; right: 0; bottom: 5px; text-align: center;">
 						<span :class="$style.centerPanelHouse">{{ Mmj.prevHouse(mj.myHouse) === 'e' ? i18n.ts._mahjong.east : Mmj.prevHouse(mj.myHouse) === 's' ? i18n.ts._mahjong.south : Mmj.prevHouse(mj.myHouse) === 'w' ? i18n.ts._mahjong.west : i18n.ts._mahjong.north }}</span>
 						<span :class="$style.centerPanelPoint">{{ mj.points[Mmj.prevHouse(mj.myHouse)] }}</span>
 					</div>
 				</div>
 				<div :class="$style.centerPanelTickerSimo">
-					<div style="position: absolute; left: 10px; bottom: 5px;">
+					<div style="position: absolute; left: 0; right: 0; bottom: 5px; text-align: center;">
 						<span :class="$style.centerPanelHouse">{{ Mmj.nextHouse(mj.myHouse) === 'e' ? i18n.ts._mahjong.east : Mmj.nextHouse(mj.myHouse) === 's' ? i18n.ts._mahjong.south : Mmj.nextHouse(mj.myHouse) === 'w' ? i18n.ts._mahjong.west : i18n.ts._mahjong.north }}</span>
 						<span :class="$style.centerPanelPoint">{{ mj.points[Mmj.nextHouse(mj.myHouse)] }}</span>
 					</div>
 				</div>
 				<div :class="$style.centerPanelTickerMe">
-					<div style="position: absolute; left: 10px; bottom: 5px;">
+					<div style="position: absolute; left: 0; right: 0; bottom: 5px; text-align: center;">
 						<span :class="$style.centerPanelHouse">{{ mj.myHouse === 'e' ? i18n.ts._mahjong.east : mj.myHouse === 's' ? i18n.ts._mahjong.south : mj.myHouse === 'w' ? i18n.ts._mahjong.west : i18n.ts._mahjong.north }}</span>
 						<span :class="$style.centerPanelPoint">{{ mj.points[mj.myHouse] }}</span>
 					</div>
