@@ -486,6 +486,40 @@ describe('room.game stale kyoku result', () => {
 			vi.useRealTimers();
 		}
 	});
+
+	test('shows the ron winner once in detail and not in summary', async () => {
+		const ronHand = [5, 9, 13, 21, 25, 29, 41, 45, 49, 77, 81, 85, 57];
+		const zeros = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+		const { container, connection } = renderRoomGame(createPlayerState({
+			turn: null,
+			riichis: { e: true, s: false, w: false, n: false },
+			handTiles: { e: ronHand, s: zeros, w: zeros, n: zeros },
+			hoTiles: { e: [], s: [58], w: [], n: [] },
+		}));
+
+		vi.useFakeTimers();
+		try {
+			connection.emit('ronned', {
+				callers: ['e'],
+				callee: 's',
+				handTiles: { e: ronHand, s: [], w: [], n: [] },
+			});
+			await nextTick();
+			await vi.advanceTimersByTimeAsync(2000);
+			await nextTick();
+
+			assert.ok(container.textContent?.includes('局結果'), 'kyoku result dialog should be shown');
+			const dialog = container.querySelector('[class*="kyokuResultCard"]');
+			assert.ok(dialog, 'kyoku result card should be rendered');
+			const names = Array.from(dialog.querySelectorAll('[class*="kyokuResultName"]')).map(el => el.textContent?.trim());
+			assert.strictEqual(names.length, 4, 'each house should appear exactly once in the dialog');
+			assert.strictEqual(names.filter(name => name === 'u1').length, 1, 'ron winner should appear once in detail');
+			const summaryNames = Array.from(dialog.querySelector('[class*="kyokuResultSummary"]')!.querySelectorAll('[class*="kyokuResultName"]')).map(el => el.textContent?.trim());
+			assert.ok(!summaryNames.includes('u1'), 'ron winner should not appear in summary');
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 });
 
 describe('room.game abortive draw', () => {

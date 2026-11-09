@@ -370,7 +370,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 					</div>
 				</div>
 				<div :class="$style.kyokuResultSummary">
-					<div v-for="house in houses" :key="`summary-${house}`" :class="$style.kyokuResultHouseRow">
+					<div v-for="house in kyokuResultSummaryHouses" :key="`summary-${house}`" :class="$style.kyokuResultHouseRow">
 						<span :class="$style.kyokuResultHouse">{{ houseLabel(house) }}</span>
 						<template v-if="houseToUser(house) != null">
 							<MkAvatar :user="houseToUser(house)!" :class="$style.kyokuResultAvatar"/>
@@ -436,6 +436,7 @@ const myUserNumber = computed(() => room.value.user1Id === $i.id ? 1 : room.valu
 const mj = shallowRef(new Mmj.PlayerGameEngine(myUserNumber.value, room.value.gameState as unknown as Mmj.PlayerState));
 const houses: Mmj.House[] = ['e', 's', 'w', 'n'];
 const endedHouses = computed<Mmj.House[]>(() => [...houses].sort((a, b) => mj.value.points[b] - mj.value.points[a]));
+const kyokuResultSummaryHouses = computed<Mmj.House[]>(() => houses.filter((house) => kyokuResults.value[house] == null));
 
 const isMyTurn = computed(() => {
 	return mj.value.turn === mj.value.myHouse;
