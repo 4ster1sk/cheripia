@@ -131,28 +131,28 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<div :class="$style.hoTilesContainerOfToimen">
 				<div :class="$style.hoTilesOfToimen">
 					<div v-for="(tile, i) in mj.hoTiles[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]" :class="[$style.hoTile, { [$style.callTarget]: isCallTarget(Mmj.prevHouse(Mmj.prevHouse(mj.myHouse)), i, mj.hoTiles[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))].length) }]" :style="{ zIndex: mj.hoTiles[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))].length - i }">
-						<XTile :tile="mj$(tile)" variation="2" :doras="mj.doras"/>
+						<XTile :tile="mj$(tile)" :variation="tile === mj.riichiTiles[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))] ? '3' : '2'" :doras="mj.doras"/>
 					</div>
 				</div>
 			</div>
 			<div :class="$style.hoTilesContainerOfKamitya">
 				<div :class="$style.hoTilesOfKamitya">
 					<div v-for="(tile, i) in mj.hoTiles[Mmj.prevHouse(mj.myHouse)]" :class="[$style.hoTile, { [$style.callTarget]: isCallTarget(Mmj.prevHouse(mj.myHouse), i, mj.hoTiles[Mmj.prevHouse(mj.myHouse)].length) }]">
-						<XTile :tile="mj$(tile)" variation="4" :doras="mj.doras"/>
+						<XTile :tile="mj$(tile)" :variation="tile === mj.riichiTiles[Mmj.prevHouse(mj.myHouse)] ? '3' : '4'" :doras="mj.doras"/>
 					</div>
 				</div>
 			</div>
 			<div :class="$style.hoTilesContainerOfSimotya">
 				<div :class="$style.hoTilesOfSimotya">
 					<div v-for="(tile, i) in mj.hoTiles[Mmj.nextHouse(mj.myHouse)]" :class="[$style.hoTile, { [$style.callTarget]: isCallTarget(Mmj.nextHouse(mj.myHouse), i, mj.hoTiles[Mmj.nextHouse(mj.myHouse)].length) }]" :style="{ zIndex: mj.hoTiles[Mmj.nextHouse(mj.myHouse)].length - i }">
-						<XTile :tile="mj$(tile)" variation="5" :doras="mj.doras"/>
+						<XTile :tile="mj$(tile)" :variation="tile === mj.riichiTiles[Mmj.nextHouse(mj.myHouse)] ? '3' : '5'" :doras="mj.doras"/>
 					</div>
 				</div>
 			</div>
 			<div :class="$style.hoTilesContainerOfMe">
 				<div :class="$style.hoTilesOfMe">
 					<div v-for="(tile, i) in mj.hoTiles[mj.myHouse]" :class="[$style.hoTile, { [$style.callTarget]: isCallTarget(mj.myHouse, i, mj.hoTiles[mj.myHouse].length) }]">
-						<XTile :tile="mj$(tile)" variation="1" :doras="mj.doras"/>
+						<XTile :tile="mj$(tile)" :variation="tile === mj.riichiTiles[mj.myHouse] ? '3' : '1'" :doras="mj.doras"/>
 					</div>
 				</div>
 			</div>

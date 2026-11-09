@@ -70,6 +70,12 @@ export type PlayerState = {
 		w: boolean;
 		n: boolean;
 	};
+	riichiTiles: {
+		e: TileId | null;
+		s: TileId | null;
+		w: TileId | null;
+		n: TileId | null;
+	};
 	doubleRiichis: {
 		e: boolean;
 		s: boolean;
@@ -125,6 +131,9 @@ export class PlayerGameEngine {
 	constructor(myUserNumber: PlayerGameEngine['myUserNumber'], state: PlayerState) {
 		this.myUserNumber = myUserNumber;
 		this.state = state;
+		if ((this.state as { riichiTiles?: PlayerState['riichiTiles'] }).riichiTiles === undefined) {
+			this.state.riichiTiles = { e: null, s: null, w: null, n: null };
+		}
 	}
 
 	public get doras(): TileType[] {
@@ -232,8 +241,15 @@ export class PlayerGameEngine {
 		return this.state.riichis;
 	}
 
+	public get riichiTiles(): Record<House, TileId | null> {
+		return this.state.riichiTiles;
+	}
+
 	public commit_nextKyoku(state: PlayerState) {
 		this.state = state;
+		if ((this.state as { riichiTiles?: PlayerState['riichiTiles'] }).riichiTiles === undefined) {
+			this.state.riichiTiles = { e: null, s: null, w: null, n: null };
+		}
 		this.furiten = false;
 		this.riichiFuriten = false;
 	}
@@ -273,6 +289,7 @@ export class PlayerGameEngine {
 		if (riichi) {
 			if (this.state.firstTurnFlags[house]) this.state.doubleRiichis[house] = true;
 			this.state.riichis[house] = true;
+			this.state.riichiTiles[house] = tid;
 			this.state.ippatsus[house] = true;
 			this.state.points[house] -= 1000;
 			this.state.kyotaku = (this.state.kyotaku ?? 0) + 1;

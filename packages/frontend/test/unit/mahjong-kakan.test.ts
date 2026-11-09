@@ -74,6 +74,7 @@ function createPlayerState(preset: Partial<Mmj.PlayerState> = {}): Mmj.PlayerSta
 		huros: { e: [], s: [], w: [], n: [] },
 		firstTurnFlags: { e: false, s: false, w: false, n: false },
 		riichis: { e: false, s: false, w: false, n: false },
+		riichiTiles: { e: null, s: null, w: null, n: null },
 		doubleRiichis: { e: false, s: false, w: false, n: false },
 		ippatsus: { e: false, s: false, w: false, n: false },
 		rinshanFlags: { e: false, s: false, w: false, n: false },
@@ -640,5 +641,25 @@ describe('room.game tsumo', () => {
 		const dahai = sentActions(connection.send, 'dahai');
 		assert.strictEqual(dahai.length, 1, 'normal dahai should be sent after restore');
 		assert.strictEqual(dahai[0][1].riichi, false, 'selection should be discarded, not a riichi discard');
+	});
+});
+
+describe('room.game riichi river', () => {
+	test('renders the riichi discard sideways', async () => {
+		const { container } = renderRoomGame(createPlayerState({
+			hoTiles: { e: [1, 5, 9], s: [], w: [], n: [] },
+			riichis: { e: true, s: false, w: false, n: false },
+			riichiTiles: { e: 9, s: null, w: null, n: null },
+		}));
+		await nextTick();
+
+		const river = container.querySelector('[class*="hoTilesOfMe"]');
+		assert.ok(river, 'own river should be rendered');
+		const backgrounds = Array.from(river.querySelectorAll('img'))
+			.filter(img => img.getAttribute('src')?.includes('/mahjong/putted-tile-') ?? false);
+		assert.strictEqual(backgrounds.length, 3);
+		assert.strictEqual(backgrounds[0].getAttribute('src'), '/client-assets/mahjong/putted-tile-1.png');
+		assert.strictEqual(backgrounds[1].getAttribute('src'), '/client-assets/mahjong/putted-tile-1.png');
+		assert.strictEqual(backgrounds[2].getAttribute('src'), '/client-assets/mahjong/putted-tile-3.png');
 	});
 });

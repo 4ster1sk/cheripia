@@ -47,7 +47,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				</div>
 
 				<div v-if="state.hoTiles[house].length > 0" :class="[$style.tiles, $style.river]">
-					<XTile v-for="(tile, i) in state.hoTiles[house]" :key="i" :tile="tileInstance(tile)" variation="1" :doras="doras" :class="{ [$style.callTarget]: i === state.hoTiles[house].length - 1 }"/>
+					<XTile v-for="(tile, i) in state.hoTiles[house]" :key="i" :tile="tileInstance(tile)" :variation="tile === state.riichiTiles?.[house] ? '3' : '1'" :doras="doras" :class="{ [$style.callTarget]: i === state.hoTiles[house].length - 1 }"/>
 				</div>
 
 				<div v-if="waitTiles[house].length > 0" :class="$style.waitTiles">

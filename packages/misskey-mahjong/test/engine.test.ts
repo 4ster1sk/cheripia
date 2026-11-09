@@ -2244,3 +2244,47 @@ describe('Master game engine nagashimangan', () => {
 		expect(engine.$state.honba).toBe(2);
 	});
 });
+
+describe('Master game engine riichiTiles', () => {
+	it('records the discarded tile id on riichi dahai', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [1, 5, 9, 57, 58, 59, 93, 97, 101, 121, 122, 123, 10, 33],
+				s: [],
+				w: [],
+				n: [],
+			},
+			tiles: [34, 35],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: 'e',
+		}));
+		expect(engine.$state.riichiTiles).toEqual({ e: null, s: null, w: null, n: null });
+
+		engine.commit_dahai('e', 33, true);
+
+		expect(engine.$state.riichiTiles.e).toBe(33);
+		expect(engine.$state.hoTiles.e.at(-1)).toBe(33);
+		expect(engine.createPlayerState(1).riichiTiles.e).toBe(33);
+	});
+
+	it('keeps riichiTiles null on non-riichi dahai', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [1, 5, 9, 57, 58, 59, 93, 97, 101, 121, 122, 123, 10, 33],
+				s: [],
+				w: [],
+				n: [],
+			},
+			tiles: [34, 35],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: 'e',
+		}));
+
+		engine.commit_dahai('e', 33);
+
+		expect(engine.$state.riichiTiles.e).toBeNull();
+		expect(engine.$state.hoTiles.e.at(-1)).toBe(33);
+	});
+});

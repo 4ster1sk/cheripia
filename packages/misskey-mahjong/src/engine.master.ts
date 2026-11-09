@@ -113,6 +113,9 @@ function normalizeAskings(state: MasterState): void {
 	if ((state as { kakanRon?: MasterState['kakanRon'] }).kakanRon === undefined) {
 		state.kakanRon = null;
 	}
+	if ((state as { riichiTiles?: MasterState['riichiTiles'] }).riichiTiles === undefined) {
+		state.riichiTiles = { e: null, s: null, w: null, n: null };
+	}
 }
 
 class StateManager {
@@ -357,6 +360,12 @@ export type MasterState = {
 		w: boolean;
 		n: boolean;
 	};
+	riichiTiles: {
+		e: TileId | null;
+		s: TileId | null;
+		w: TileId | null;
+		n: TileId | null;
+	};
 	doubleRiichis: {
 		e: boolean;
 		s: boolean;
@@ -495,6 +504,10 @@ export class MasterGameEngine {
 
 	public get riichis(): Record<House, boolean> {
 		return this.stateManager.riichis;
+	}
+
+	public get riichiTiles(): Record<House, TileId | null> {
+		return this.stateManager.$state.riichiTiles;
 	}
 
 	public get askings(): MasterState['askings'] {
@@ -706,6 +719,12 @@ export class MasterGameEngine {
 				w: false,
 				n: false,
 			},
+			riichiTiles: {
+				e: null,
+				s: null,
+				w: null,
+				n: null,
+			},
 			doubleRiichis: {
 				e: false,
 				s: false,
@@ -896,6 +915,7 @@ export class MasterGameEngine {
 
 		if (riichi) {
 			tx.$state.riichis[house] = true;
+			tx.$state.riichiTiles[house] = tid;
 			tx.$state.ippatsus[house] = true;
 			if (tx.$state.firstTurnFlags[house]) {
 				tx.$state.doubleRiichis[house] = true;
@@ -1576,6 +1596,12 @@ export class MasterGameEngine {
 				s: this.$state.riichis.s,
 				w: this.$state.riichis.w,
 				n: this.$state.riichis.n,
+			},
+			riichiTiles: {
+				e: this.$state.riichiTiles.e,
+				s: this.$state.riichiTiles.s,
+				w: this.$state.riichiTiles.w,
+				n: this.$state.riichiTiles.n,
 			},
 			doubleRiichis: {
 				e: this.$state.doubleRiichis.e,
