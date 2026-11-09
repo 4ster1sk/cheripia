@@ -1541,6 +1541,7 @@ onUnmounted(() => {
 }
 
 .statusBar {
+	// 幅は .taku と同じ規則でテーブル端に揃える（170px 等の詳細は .taku 側のコメント参照）。
 	position: relative;
 	z-index: 10;
 	display: flex;
@@ -1548,9 +1549,12 @@ onUnmounted(() => {
 	justify-content: space-between;
 	gap: 12px;
 	width: 100%;
-	max-width: 600px;
+	width: min(100%, calc((100vh - 170px) * 16 / 9));
+	width: min(100%, calc((100dvh - 170px) * 16 / 9));
+	max-width: 960px;
 	min-height: 44px;
 	margin: 0 auto 8px;
+	box-sizing: border-box;
 }
 
 .statusBarLeft {
