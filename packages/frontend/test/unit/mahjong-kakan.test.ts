@@ -437,3 +437,46 @@ describe('room.game stale kyoku result', () => {
 		}
 	});
 });
+
+describe('room.game abortive draw', () => {
+	test('shows the abortive draw reason on ryuukyoku', async () => {
+		vi.useFakeTimers();
+		try {
+			const { container, connection } = renderRoomGame(createPlayerState());
+			connection.emit('ryuukyoku', {
+				tenpaiHouses: [],
+				notenHouses: ['e', 's', 'w', 'n'],
+				pointDeltas: { e: 0, s: 0, w: 0, n: 0 },
+				abortive: 'suukaikan',
+			});
+			await nextTick();
+			await vi.advanceTimersByTimeAsync(2000);
+			await nextTick();
+
+			assert.ok(container.textContent?.includes('流局'), 'ryuukyoku result should be shown');
+			assert.ok(container.textContent?.includes('四開槓による途中流局'), 'abortive draw reason should be shown');
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	test('shows no reason on a normal ryuukyoku', async () => {
+		vi.useFakeTimers();
+		try {
+			const { container, connection } = renderRoomGame(createPlayerState());
+			connection.emit('ryuukyoku', {
+				tenpaiHouses: ['e'],
+				notenHouses: ['s', 'w', 'n'],
+				pointDeltas: { e: 3000, s: -1000, w: -1000, n: -1000 },
+			});
+			await nextTick();
+			await vi.advanceTimersByTimeAsync(2000);
+			await nextTick();
+
+			assert.ok(container.textContent?.includes('流局'), 'ryuukyoku result should be shown');
+			assert.ok(!container.textContent?.includes('による途中流局'), 'no abortive draw reason should be shown');
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+});

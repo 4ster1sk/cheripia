@@ -581,6 +581,18 @@ export class MahjongService implements OnApplicationShutdown {
 
 		this.globalEventService.publishMahjongRoomStream(room.id, 'started', { room });
 
+		// 局開始時の親14枚が九種九牌なら中途流局とする。
+		const mj = new Mmj.MasterGameEngine(room.gameState);
+		try {
+			mj.assertKyushuKyuhai();
+		} catch (err) {
+			if (err instanceof Mmj.AbortiveDrawError) {
+				await this.abortiveDrawLocked(room, mj, err.kind);
+				return;
+			}
+			throw err;
+		}
+
 		this.kyokuStarted(room);
 	}
 
@@ -606,12 +618,21 @@ export class MahjongService implements OnApplicationShutdown {
 	private async answerLocked(room: MahjongRoom, mj: Mmj.MasterGameEngine, answers: CallingAnswers): Promise<void> {
 		const kakanRonTile = mj.getState().kakanRon?.tile ?? null;
 		const wasKakanRon = kakanRonTile != null;
-		const res = mj.commit_resolveCallingInterruption({
-			pon: { ...answers.pon },
-			cii: answers.cii ?? false,
-			kan: { ...answers.kan },
-			ron: [...(answers.ron.e ? ['e'] : []), ...(answers.ron.s ? ['s'] : []), ...(answers.ron.w ? ['w'] : []), ...(answers.ron.n ? ['n'] : [])] as Mmj.House[],
-		});
+		let res: ReturnType<Mmj.MasterGameEngine['commit_resolveCallingInterruption']>;
+		try {
+			res = mj.commit_resolveCallingInterruption({
+				pon: { ...answers.pon },
+				cii: answers.cii ?? false,
+				kan: { ...answers.kan },
+				ron: [...(answers.ron.e ? ['e'] : []), ...(answers.ron.s ? ['s'] : []), ...(answers.ron.w ? ['w'] : []), ...(answers.ron.n ? ['n'] : [])] as Mmj.House[],
+			});
+		} catch (err) {
+			if (err instanceof Mmj.AbortiveDrawError) {
+				await this.abortiveDrawLocked(room, mj, err.kind);
+				return;
+			}
+			throw err;
+		}
 		room.gameState = mj.getState();
 		await this.saveRoom(room);
 
@@ -669,6 +690,19 @@ export class MahjongService implements OnApplicationShutdown {
 				break;
 			}
 		}
+	}
+
+	@bindThis
+	private async abortiveDrawLocked(room: MahjongRoom, mj: Mmj.MasterGameEngine, kind: Mmj.AbortiveDrawKind): Promise<void> {
+		// NOTE: withRoomLock の内側で呼ぶこと。
+		// 中途流局は標準ルールで親の連荘・本場+1・点数移動なし・供託据え置きとする（単純化）。
+		// 既存の流局経路に乗せるため、親連荘となるよう tenpaiHouses ['e'] で endKyoku する
+		//（commit_nextKyoku は親テンパイ流局で連荘する）。
+		const result = mj.commit_abortiveDraw(kind);
+		room.gameState = mj.getState();
+		await this.saveRoom(room);
+		this.globalEventService.publishMahjongRoomStream(room.id, 'ryuukyoku', result);
+		await this.endKyoku(room, mj, { agariHouse: null, tenpaiHouses: ['e'] });
 	}
 
 	@bindThis
@@ -803,6 +837,16 @@ export class MahjongService implements OnApplicationShutdown {
 			await this.endGame(room);
 			return;
 		}
+		// 2局目以降の新局配牌も親14枚が九種九牌なら中途流局とする。
+		try {
+			mj.assertKyushuKyuhai();
+		} catch (err) {
+			if (err instanceof Mmj.AbortiveDrawError) {
+				await this.abortiveDrawLocked(room, mj, err.kind);
+				return;
+			}
+			throw err;
+		}
 		room.gameState = mj.getState();
 
 		await this.saveRoom(room);
@@ -823,7 +867,17 @@ export class MahjongService implements OnApplicationShutdown {
 	@bindThis
 	private async dahaiLocked(room: MahjongRoom, mj: Mmj.MasterGameEngine, house: Mmj.House, tile: Mmj.TileId, riichi = false): Promise<void> {
 		// NOTE: withRoomLock の内側で呼ぶこと（room/mj はロック内で再取得した fresh なもの）。
-		const res = mj.commit_dahai(house, tile, riichi);
+		let res: ReturnType<Mmj.MasterGameEngine['commit_dahai']>;
+		try {
+			res = mj.commit_dahai(house, tile, riichi);
+		} catch (err) {
+			if (err instanceof Mmj.AbortiveDrawError) {
+				await this.clearTurnWaitingTimer(room.id);
+				await this.abortiveDrawLocked(room, mj, err.kind);
+				return;
+			}
+			throw err;
+		}
 		room.gameState = mj.getState();
 		await this.clearTurnWaitingTimer(room.id);
 		await this.saveRoom(room);
@@ -1134,6 +1188,11 @@ export class MahjongService implements OnApplicationShutdown {
 				this.globalEventService.publishMahjongRoomStream(room.id, 'ankanned', { house: myHouse, tiles: res.tiles, rinsyan: res.rinsyan, doraIndicateTiles: mj.doraIndicateTiles });
 				this.waitForTurn(room, myHouse, mj);
 			} catch (err) {
+				if (err instanceof Mmj.AbortiveDrawError) {
+					await this.clearTurnWaitingTimer(room.id);
+					await this.abortiveDrawLocked(room, mj, err.kind);
+					return;
+				}
 				console.error('mahjong: failed to ankan', err);
 			}
 		});
@@ -1151,7 +1210,17 @@ export class MahjongService implements OnApplicationShutdown {
 			const myHouse = getHouseOfUserId(room, mj, user.id);
 
 			try {
-				const res = mj.commit_kakan(myHouse, tile);
+				let res: ReturnType<Mmj.MasterGameEngine['commit_kakan']>;
+				try {
+					res = mj.commit_kakan(myHouse, tile);
+				} catch (err) {
+					if (err instanceof Mmj.AbortiveDrawError) {
+						await this.clearTurnWaitingTimer(room.id);
+						await this.abortiveDrawLocked(room, mj, err.kind);
+						return;
+					}
+					throw err;
+				}
 				room.gameState = mj.getState();
 				await this.clearTurnWaitingTimer(room.id);
 				await this.saveRoom(room);

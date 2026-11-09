@@ -18,6 +18,60 @@ export function isTobiPoints(points: Record<House, number>): boolean {
 	return (['e', 's', 'w', 'n'] as const).some(house => points[house] <= 0);
 }
 
+/**
+ * 中途流局の種別。
+ */
+export type AbortiveDrawKind = 'kyushukyuhai' | 'suufonrenda' | 'suuchariichi' | 'sanchaho' | 'suukaikan';
+
+/**
+ * 中途流局の発生を通知する例外。
+ * StateManager のトランザクション内で投げられた場合は $commit 前のため
+ * state は無変更のまま残り、サービス側で個別 catch して流局処理へ進む。
+ */
+export class AbortiveDrawError extends Error {
+	public kind: AbortiveDrawKind;
+
+	constructor(kind: AbortiveDrawKind) {
+		super(`Abortive draw: ${kind}`);
+		this.name = 'AbortiveDrawError';
+		this.kind = kind;
+	}
+}
+
+/**
+ * 手牌種のうち幺九牌の種類数を数える。
+ */
+function countYaochuKinds(handTileTypes: TileType[]): number {
+	return new Set(handTileTypes.filter(t => Common.includes(Common.YAOCHU_TILES, t))).size;
+}
+
+/**
+ * 暗槓・明槓の合計数と槓を行った家の数を数える。
+ */
+function countKans(state: MasterState): { total: number; houses: number } {
+	let total = 0;
+	let houses = 0;
+	for (const house of ['e', 's', 'w', 'n'] as const) {
+		const count = state.huros[house].filter(huro => huro.type === 'ankan' || huro.type === 'minkan').length;
+		if (count > 0) {
+			houses++;
+			total += count;
+		}
+	}
+	return { total, houses };
+}
+
+/**
+ * 各カン確定時（副露反映後）に呼ぶ。四開槓の中断条件と5つ目の通常拒否を判定する。
+ * 四開槓は複数家に跨る4つ目のカンで成立し、同一人物の4カンは続行する。
+ * 5つ目になるカンは通常エラーで拒否する。
+ */
+function assertKanLimit(state: MasterState): void {
+	const { total, houses } = countKans(state);
+	if (total >= 5) throw new Error('Too many kans');
+	if (total === 4 && houses > 1) throw new AbortiveDrawError('suukaikan');
+}
+
 //#region syntax suger
 function $(tid: TileId): Common.TileInstance {
 	return Common.findTileByIdOrFail(tid);
@@ -179,6 +233,9 @@ class StateManager {
 	}
 
 	public canDaiminkan(caller: House, tid: TileId): boolean {
+		// 5つ目になる大明槓は asking を立てずに不成立とする。
+		// 解決時に通常エラーになると問合せが残留して局が停止するため、事前に拒否する。
+		if (countKans(this.$state).total >= 4) return false;
 		return this.handTileTypes[caller].filter(t => t === $type(tid)).length === 3;
 	}
 
@@ -203,6 +260,15 @@ class StateManager {
 	}
 
 	public tsumo(): TileId {
+		// 九種九牌: 第一ツモで引牌込み14枚の幺九牌が9種以上なら、壁・手牌を変更する前に中斷する。
+		const turnHouse = this.$state.turn;
+		if (turnHouse != null && this.$state.firstTurnFlags[turnHouse]) {
+			const top = this.$state.tiles.at(-1);
+			if (top != null) {
+				const kinds = countYaochuKinds([...this.$state.handTiles[turnHouse].map(id => $type(id)), $type(top)]);
+				if (kinds >= 9) throw new AbortiveDrawError('kyushukyuhai');
+			}
+		}
 		return this.withTsumoTile(this.$state.tiles.pop(), false);
 	}
 
@@ -452,6 +518,17 @@ export class MasterGameEngine {
 		return this.stateManager.getTenpaiHouses();
 	}
 
+	/**
+	 * 局開始時の親14枚が九種九牌か判定し、該当すれば中斷する。
+	 * 親は席 'e' 固定（プレイヤーが回転する設計）のため 'e' の手牌を見る。
+	 * 読み取りのみで state を変更しない。
+	 */
+	public assertKyushuKyuhai(): void {
+		if (countYaochuKinds(this.stateManager.handTileTypes.e) >= 9) {
+			throw new AbortiveDrawError('kyushukyuhai');
+		}
+	}
+
 	public commit_ryuukyoku(): {
 		tenpaiHouses: House[];
 		notenHouses: House[];
@@ -485,6 +562,39 @@ export class MasterGameEngine {
 			tenpaiHouses,
 			notenHouses,
 			pointDeltas,
+		};
+	}
+
+	/**
+	 * 中途流局を成立させる。本場+1のみ行い、供託・点数は不変とする。
+	 * 中途流局は標準ルールで親の連荘・本場+1・点数移動なし・供託据え置きとする（単純化）。
+	 */
+	public commit_abortiveDraw(kind: AbortiveDrawKind): {
+		tenpaiHouses: House[];
+		notenHouses: House[];
+		pointDeltas: Record<House, number>;
+		abortive: AbortiveDrawKind;
+	} {
+		const tx = this.startTransaction();
+
+		tx.$state.honba = (tx.$state.honba ?? 0) + 1;
+		// 三家和・加槓ロン保留等の asking 残留を掃除し、次局待機へ進める。
+		tx.$state.askings.ron = null;
+		tx.$state.askings.pon = null;
+		tx.$state.askings.cii = null;
+		tx.$state.askings.kan = null;
+		tx.$state.kakanRon = null;
+		tx.$state.nextTurnAfterAsking = null;
+		tx.$state.turn = null;
+		tx.$state.drawnTile = null;
+
+		tx.$commit();
+
+		return {
+			tenpaiHouses: [],
+			notenHouses: ['e', 's', 'w', 'n'],
+			pointDeltas: { e: 0, s: 0, w: 0, n: 0 },
+			abortive: kind,
 		};
 	}
 
@@ -718,6 +828,19 @@ export class MasterGameEngine {
 		handTiles.splice(handTiles.indexOf(tid), 1);
 		tx.$state.hoTiles[house].push(tid);
 
+		// 四風連打: 全家の河が各1枚かつ4枚とも同一風牌なら中斷する。
+		// ポン・チー・大明槓は河から牌を取り除くため河枚数で除外できるが、
+		// 暗槓・加槓は河を変えないため、カンの度に増えるドラ表示数（初期値1）でも初巡継続を確認する。
+		// firstTurnFlags は打牌でも落ちるため、4打牌時点では全家真になりえず条件に使えない。
+		if ((['e', 's', 'w', 'n'] as const).every(h => tx.$state.hoTiles[h].length === 1) &&
+			tx.$state.activatedDorasCount === 1) {
+			const first = $type(tx.$state.hoTiles.e[0]);
+			if ((first === 'e' || first === 's' || first === 'w' || first === 'n') &&
+				(['s', 'w', 'n'] as const).every(h => $type(tx.$state.hoTiles[h][0]) === first)) {
+				throw new AbortiveDrawError('suufonrenda');
+			}
+		}
+
 		if (tx.$state.riichis[house]) {
 			tx.$state.ippatsus[house] = false;
 		}
@@ -730,6 +853,10 @@ export class MasterGameEngine {
 			}
 			tx.$state.points[house] -= 1000;
 			tx.$state.kyotaku = (tx.$state.kyotaku ?? 0) + 1;
+			// 四家立直が成立したら中斷する。徴収済みの1000点も tx 破棄により供託に入らない（単純化）。
+			if ((['e', 's', 'w', 'n'] as const).every(h => tx.$state.riichis[h])) {
+				throw new AbortiveDrawError('suuchariichi');
+			}
 		}
 
 		tx.$state.firstTurnFlags[house] = false;
@@ -861,6 +988,8 @@ export class MasterGameEngine {
 		// 加槓は元のポンをミンカンに置換する (面子数・枚数を増やさない)
 		huros[ponIndex] = { type: 'minkan', tiles: tiles, from: pon.from, kakan: true };
 
+		assertKanLimit(tx.$state);
+
 		tx.clearFirstTurnAndIppatsus();
 
 		tx.$state.activatedDorasCount++;
@@ -925,6 +1054,8 @@ export class MasterGameEngine {
 		tx.$state.handTiles[house].splice(tx.$state.handTiles[house].indexOf(t4), 1);
 		const tiles = [t1, t2, t3, t4] as const;
 		tx.$state.huros[house].push({ type: 'ankan', tiles: tiles });
+
+		assertKanLimit(tx.$state);
 
 		tx.clearFirstTurnAndIppatsus();
 
@@ -1070,6 +1201,10 @@ export class MasterGameEngine {
 		}
 
 		if (ron != null && answers.ron.length > 0) {
+			// 三家和: 権利者の中の勝者が3人以上なら点数計算前に中斷する。
+			// 権利のない回答は件数に含めない。
+			const winners = answers.ron.filter(h => ron.callers.includes(h));
+			if (winners.length >= 3) throw new AbortiveDrawError('sanchaho');
 			const callers = answers.ron;
 			const callee = ron.callee;
 			const kakanRon = tx.$state.kakanRon;
@@ -1156,6 +1291,8 @@ export class MasterGameEngine {
 
 			const tiles = [tile, t1, t2, t3] as const;
 			tx.$state.huros[kanCaller].push({ type: 'minkan', tiles: tiles, from: kan.callee });
+
+			assertKanLimit(tx.$state);
 
 			tx.clearFirstTurnAndIppatsus();
 
@@ -1290,6 +1427,8 @@ export class MasterGameEngine {
 			tx.$state.kakanRon = null;
 			tx.$state.turn = kakanHouse;
 			tx.$state.nextTurnAfterAsking = null;
+			// 宣言時に四開槓の判定済みだが、解決経路でも同条件を満たすことを確認する。
+			assertKanLimit(tx.$state);
 			const kakanRinsyan = tx.rinshanTsumo();
 			const kakanHuro = tx.$state.huros[kakanHouse].find((h): h is Huro & { type: 'minkan' } => h.type === 'minkan' && (h as { kakan?: boolean }).kakan === true && h.tiles.includes(pendingKakan.tileId));
 			if (kakanHuro == null) throw new Error('Kakan huro not found');

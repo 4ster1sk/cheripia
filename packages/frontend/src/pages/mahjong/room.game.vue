@@ -333,6 +333,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 	<div v-if="showKyokuResults" :class="$style.kyokuResult">
 		<div :class="$style.kyokuResultCard">
 			<div :class="$style.kyokuResultTitle">{{ roundLabel }} {{ ryuukyokued ? '流局' : '局結果' }}</div>
+			<div v-if="ryuukyokued && abortiveKind != null" :class="$style.kyokuResultYaku">{{ ABORTIVE_DRAW_REASONS[abortiveKind] ?? abortiveKind }}による途中流局</div>
 			<div v-if="ryuukyokued">
 				<div v-for="house in houses" :key="house" :class="[$style.kyokuResultRow, $style.kyokuResultRowCompact]">
 					<div :class="$style.kyokuResultHouseRow">
@@ -504,7 +505,9 @@ const ryuukyokuResult = ref<{
 	tenpaiHouses: Mmj.House[];
 	notenHouses: Mmj.House[];
 	pointDeltas: Record<Mmj.House, number>;
+	abortive?: string;
 } | null>(null);
+const abortiveKind = ref<string | null>(null);
 const startTextShowing = ref(false);
 
 let kyokuResultTimer: number | undefined = undefined;
@@ -553,6 +556,17 @@ type CiiPatternCode = 'x__' | '_x_' | '__x';
 type CiiChoice = {
 	tiles: Mmj.TileType[];
 	code: CiiPatternCode;
+};
+
+/**
+ * 中途流局の reason コード→日本語の対応表。
+ */
+const ABORTIVE_DRAW_REASONS: Record<string, string> = {
+	kyushukyuhai: '九種九牌',
+	suufonrenda: '四風連打',
+	suuchariichi: '四家立直',
+	sanchaho: '三家和',
+	suukaikan: '四開槓',
 };
 
 const CII_PATTERN_CODES: CiiPatternCode[] = ['x__', '_x_', '__x'];
@@ -1113,11 +1127,12 @@ function onStreamTsumoHora(log: { house: Mmj.House; handTiles: number[]; tsumoTi
 	startTimer(NEXT_KYOKU_SEC, 'confirm');
 }
 
-function onStreamRyuukyoku(log: { tenpaiHouses: Mmj.House[]; notenHouses: Mmj.House[]; pointDeltas: Record<Mmj.House, number> }) {
+function onStreamRyuukyoku(log: { tenpaiHouses: Mmj.House[]; notenHouses: Mmj.House[]; pointDeltas: Record<Mmj.House, number>; abortive?: string }) {
 	console.log('onStreamRyuukyoku', log);
 	closeCiiChoices();
 
 	ryuukyokuResult.value = log;
+	abortiveKind.value = log.abortive ?? null;
 	mj.value.commit_ryuukyoku(log.pointDeltas);
 	triggerRef(mj);
 
@@ -1148,6 +1163,7 @@ function onStreamNextKyoku(log: { room: Misskey.entities.MahjongRoomDetailed }) 
 	};
 	ryuukyokued.value = false;
 	ryuukyokuResult.value = null;
+	abortiveKind.value = null;
 
 	resetTurnTimer();
 }

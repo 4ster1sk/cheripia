@@ -5,7 +5,8 @@
 
 import * as Common from '../src/common.js';
 import { House, TileType, TileId } from '../src/common.js';
-import { MasterGameEngine, MasterState, INITIAL_POINT, isTobiPoints } from '../src/engine.master.js';
+import { MasterGameEngine, MasterState, INITIAL_POINT, isTobiPoints, AbortiveDrawError } from '../src/engine.master.js';
+import type { AbortiveDrawKind } from '../src/engine.master.js';
 
 const TILES = [71, 132, 108, 51, 39, 19, 3, 86, 104, 18, 50, 7, 45, 82, 43, 34, 111, 78, 53, 105, 126, 91, 112, 75, 119, 55, 95, 93, 65, 9, 66, 52, 79, 32, 99, 109, 56, 5, 101, 92, 1, 37, 62, 23, 27, 117, 77, 14, 31, 96, 120, 130, 29, 135, 100, 17, 102, 124, 59, 89, 49, 115, 107, 97, 90, 48, 25, 110, 68, 15, 74, 129, 69, 61, 73, 81, 11, 41, 44, 84, 13, 40, 33, 58, 30, 8, 38, 10, 87, 125, 57, 121, 21, 2, 54, 46, 22, 4, 133, 16, 76, 70, 60, 103, 114, 122, 24, 88, 36, 123, 47, 12, 128, 118, 116, 63, 26, 94, 67, 131, 64, 35, 113, 134, 6, 127, 80, 72, 42, 98, 85, 20, 106, 136, 83, 28];
 
@@ -1686,5 +1687,443 @@ describe('Master game engine rinshan from the dead wall', () => {
 		expect(res.rinsyan).toBe(125);
 		expect(engine.$state.drawnTile).toBe(125);
 		expect(engine.$state.tiles).toEqual([]);
+	});
+});
+
+describe('Master game engine abortive draws', () => {
+	function expectAbortiveDraw(fn: () => unknown, kind: AbortiveDrawKind, engine: MasterGameEngine): void {
+		const before = structuredClone(engine.$state);
+		try {
+			fn();
+		} catch (err) {
+			expect(err).toBeInstanceOf(AbortiveDrawError);
+			expect((err as AbortiveDrawError).kind).toBe(kind);
+			// 例外時は $commit 前のため state は無変更のまま残る
+			expect(engine.$state).toEqual(before);
+			return;
+		}
+		throw new Error(`expected AbortiveDrawError(${kind})`);
+	}
+
+	it('detects kyushu-kyuhai in the dealer initial hand', () => {
+		const kyushu = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [1, 33, 37, 69, 73, 105, 109, 113, 117, 121, 125, 129, 133, 5],
+				s: [],
+				w: [],
+				n: [],
+			},
+		}));
+		let kind: AbortiveDrawKind | null = null;
+		try {
+			kyushu.assertKyushuKyuhai();
+		} catch (err) {
+			expect(err).toBeInstanceOf(AbortiveDrawError);
+			kind = (err as AbortiveDrawError).kind;
+		}
+		expect(kind).toBe('kyushukyuhai');
+	});
+
+	it('does not flag a normal dealer hand as kyushu-kyuhai', () => {
+		const normal = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53],
+				s: [],
+				w: [],
+				n: [],
+			},
+		}));
+		expect(() => normal.assertKyushuKyuhai()).not.toThrow();
+	});
+
+	it('aborts on kyushu-kyuhai at the first tsumo', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [42, 2, 6, 10, 14, 18, 22, 26, 30, 34, 38, 46, 50, 54],
+				s: [1, 33, 37, 69, 73, 105, 109, 113, 13, 17, 21, 25, 29],
+				w: [3, 7, 11, 15, 19, 23, 27, 31, 35, 39, 43, 47, 51],
+				n: [4, 8, 12, 16, 24, 28, 32, 36, 40, 44, 48, 52, 56],
+			},
+			tiles: [100, 117],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: 'e',
+		}));
+		// s の第一ツモ(117 で幺九牌9種)で中斷する
+		expectAbortiveDraw(() => engine.commit_dahai('e', 42), 'kyushukyuhai', engine);
+	});
+
+	it('aborts on four winds discard', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [13, 17, 21, 25, 33, 37, 41, 45, 49, 53, 65, 125, 129, 109],
+				s: [14, 18, 22, 26, 34, 38, 42, 46, 50, 54, 66, 126, 110],
+				w: [15, 19, 23, 27, 35, 39, 43, 47, 51, 55, 67, 127, 111],
+				n: [16, 20, 24, 28, 36, 40, 44, 48, 52, 56, 68, 128, 112],
+			},
+			turn: 'e',
+		}));
+		engine.commit_dahai('e', 109);
+		engine.commit_dahai('s', 110);
+		engine.commit_dahai('w', 111);
+		// 4枚目の同風牌打牌で中斷する
+		expectAbortiveDraw(() => engine.commit_dahai('n', 112), 'suufonrenda', engine);
+	});
+
+	it('does not abort on four discards of a non-wind tile', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [13, 17, 21, 25, 33, 37, 41, 45, 49, 53, 65, 125, 129, 1],
+				s: [14, 18, 22, 26, 34, 38, 42, 46, 50, 54, 66, 126, 2],
+				w: [15, 19, 23, 27, 35, 39, 43, 47, 51, 55, 67, 127, 3],
+				n: [16, 20, 24, 28, 36, 40, 44, 48, 52, 56, 68, 128, 4],
+			},
+			turn: 'e',
+		}));
+		engine.commit_dahai('e', 1);
+		engine.commit_dahai('s', 2);
+		engine.commit_dahai('w', 3);
+		// 同種でも風牌でなければ四風連打にならない
+		engine.commit_dahai('n', 4);
+		expect(engine.$state.hoTiles).toEqual({ e: [1], s: [2], w: [3], n: [4] });
+	});
+
+	it('aborts on the fourth riichi', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [1, 5, 9, 57, 58, 59, 93, 97, 101, 121, 122, 123, 10, 113],
+				s: [2, 6, 11, 60, 61, 62, 94, 98, 102, 124, 125, 126, 12, 114],
+				w: [3, 7, 13, 63, 64, 65, 95, 99, 103, 127, 128, 129, 14, 115],
+				n: [4, 8, 15, 66, 67, 68, 96, 100, 104, 130, 131, 132, 16, 116],
+			},
+			riichis: { e: true, s: true, w: true, n: false },
+			turn: 'n',
+		}));
+		const pointsBefore = { ...engine.$state.points };
+		expectAbortiveDraw(() => engine.commit_dahai('n', 116, true), 'suuchariichi', engine);
+		expect(engine.$state.points).toEqual(pointsBefore);
+		expect(engine.$state.kyotaku).toBe(0);
+	});
+
+	it('aborts on triple ron before scoring', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [1, 5, 9, 45, 49, 53, 93, 97, 101, 61, 65, 77, 78],
+				s: [],
+				w: [2, 6, 11, 46, 50, 54, 94, 98, 102, 62, 66, 79, 80],
+				n: [3, 7, 13, 47, 51, 55, 95, 99, 103, 63, 67, 81, 82],
+			},
+			hoTiles: { e: [], s: [69], w: [], n: [] },
+			askings: { ron: { callee: 's', callers: ['e', 'w', 'n'] }, pon: null, cii: null, kan: null },
+			tiles: [33, 34],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: null,
+			nextTurnAfterAsking: 'w',
+			honba: 1,
+			kyotaku: 2,
+		}));
+		const pointsBefore = { ...engine.$state.points };
+		expectAbortiveDraw(() => engine.commit_resolveCallingInterruption({
+			pon: false,
+			cii: false,
+			kan: false,
+			ron: ['e', 'w', 'n'],
+		}, false), 'sanchaho', engine);
+		expect(engine.$state.points).toEqual(pointsBefore);
+	});
+
+	it('aborts on the fourth kan across houses on ankan', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [],
+				s: [],
+				w: [],
+				n: [9, 10, 11, 12, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49],
+			},
+			huros: {
+				e: [{ type: 'ankan', tiles: [1, 2, 3, 4] }],
+				s: [{ type: 'ankan', tiles: [5, 6, 7, 8] }],
+				w: [{ type: 'minkan', tiles: [17, 18, 19, 20], from: 'e' }],
+				n: [],
+			},
+			tiles: [33, 34],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: 'n',
+		}));
+		expectAbortiveDraw(() => engine.commit_ankan('n', 9), 'suukaikan', engine);
+		expect(engine.$state.huros.n).toEqual([]);
+	});
+
+	it('aborts on the fourth kan across houses on kakan', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [13, 17, 21, 25, 29, 33, 37, 41, 109, 121, 20],
+				s: [],
+				w: [],
+				n: [],
+			},
+			huros: {
+				e: [{ type: 'pon', tiles: [17, 18, 19], from: 's' }],
+				s: [{ type: 'ankan', tiles: [1, 2, 3, 4] }],
+				w: [{ type: 'ankan', tiles: [5, 6, 7, 8] }],
+				n: [{ type: 'ankan', tiles: [9, 10, 11, 12] }],
+			},
+			tiles: [34, 35],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: 'e',
+		}));
+		expectAbortiveDraw(() => engine.commit_kakan('e', 20), 'suukaikan', engine);
+		expect(engine.$state.huros.e).toEqual([{ type: 'pon', tiles: [17, 18, 19], from: 's' }]);
+		expect(engine.$state.askings.ron).toBeNull();
+	});
+
+	it('aborts on the fourth kan across houses on daiminkan', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [],
+				s: [18, 19, 20, 13, 21, 25, 29, 33, 37, 41, 45, 49, 53],
+				w: [],
+				n: [],
+			},
+			hoTiles: { e: [17], s: [], w: [], n: [] },
+			huros: {
+				e: [{ type: 'ankan', tiles: [1, 2, 3, 4] }],
+				s: [],
+				w: [{ type: 'ankan', tiles: [5, 6, 7, 8] }],
+				n: [{ type: 'ankan', tiles: [9, 10, 11, 12] }],
+			},
+			askings: {
+				ron: null,
+				pon: null,
+				cii: null,
+				kan: { callee: 'e', callers: ['s'] },
+			},
+			tiles: [100, 104],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: null,
+			nextTurnAfterAsking: 's',
+		}));
+		expectAbortiveDraw(() => engine.commit_resolveCallingInterruption({
+			pon: { e: null, s: null, w: null, n: null },
+			cii: false,
+			kan: { e: null, s: true, w: null, n: null },
+			ron: [],
+		}), 'suukaikan', engine);
+	});
+
+	it('continues when the same house kans four times', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [9, 10, 11, 12, 13, 17, 21, 25, 29, 33, 37, 41, 45],
+				s: [],
+				w: [],
+				n: [],
+			},
+			huros: {
+				e: [
+					{ type: 'ankan', tiles: [1, 2, 3, 4] },
+					{ type: 'ankan', tiles: [5, 6, 7, 8] },
+					{ type: 'minkan', tiles: [17, 18, 19, 20], from: 's', kakan: true },
+				],
+				s: [],
+				w: [],
+				n: [],
+			},
+			tiles: [33, 34],
+			kingTiles: [125, 121, 122, 123],
+			activatedDorasCount: 4,
+			turn: 'e',
+		}));
+		const res = engine.commit_ankan('e', 9);
+		expect(engine.$state.huros.e).toHaveLength(4);
+		// 5つ目のカン表示に対応する嶺上牌は王牌先頭
+		expect(res.rinsyan).toBe(125);
+	});
+
+	it('rejects the fifth kan with a normal error', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [],
+				s: [9, 10, 11, 12, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49],
+				w: [],
+				n: [],
+			},
+			huros: {
+				e: [
+					{ type: 'ankan', tiles: [1, 2, 3, 4] },
+					{ type: 'ankan', tiles: [5, 6, 7, 8] },
+					{ type: 'minkan', tiles: [17, 18, 19, 20], from: 's' },
+					{ type: 'minkan', tiles: [69, 70, 71, 72], from: 'w' },
+				],
+				s: [],
+				w: [],
+				n: [],
+			},
+			tiles: [33, 34],
+			kingTiles: [125, 121, 122, 123],
+			activatedDorasCount: 4,
+			turn: 's',
+		}));
+		const before = structuredClone(engine.$state);
+		try {
+			engine.commit_ankan('s', 9);
+		} catch (err) {
+			expect(err).not.toBeInstanceOf(AbortiveDrawError);
+			expect((err as Error).message).toBe('Too many kans');
+			expect(engine.$state).toEqual(before);
+			return;
+		}
+		throw new Error('expected Too many kans');
+	});
+
+	it('commit_abortiveDraw only increments honba', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			honba: 2,
+			kyotaku: 3,
+			askings: {
+				ron: { callee: 's', callers: ['e', 'w', 'n'] },
+				pon: null,
+				cii: null,
+				kan: null,
+			},
+			kakanRon: { house: 'e', tile: 'p9', tileId: 72 },
+			turn: null,
+			nextTurnAfterAsking: 'w',
+		}));
+		const pointsBefore = { ...engine.$state.points };
+		const result = engine.commit_abortiveDraw('sanchaho');
+		expect(result).toEqual({
+			tenpaiHouses: [],
+			notenHouses: ['e', 's', 'w', 'n'],
+			pointDeltas: { e: 0, s: 0, w: 0, n: 0 },
+			abortive: 'sanchaho',
+		});
+		expect(engine.$state.honba).toBe(3);
+		expect(engine.$state.kyotaku).toBe(3);
+		expect(engine.$state.points).toEqual(pointsBefore);
+		expect(engine.$state.askings).toEqual({ ron: null, pon: null, cii: null, kan: null });
+		expect(engine.$state.kakanRon).toBeNull();
+		expect(engine.$state.turn).toBeNull();
+	});
+});
+
+describe('Master game engine abortive draws review fixes', () => {
+	it('does not abort on four winds discard after an ankan', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [1, 2, 3, 4, 109, 13, 17, 21, 25, 33, 37, 41, 45, 49],
+				s: [14, 18, 22, 26, 34, 38, 42, 46, 50, 54, 66, 126, 110],
+				w: [15, 19, 23, 27, 35, 39, 43, 47, 51, 55, 67, 127, 111],
+				n: [16, 20, 24, 28, 36, 40, 44, 48, 52, 56, 68, 128, 112],
+			},
+			tiles: [99, 100, 101, 102],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: 'e',
+		}));
+		engine.commit_ankan('e', 1);
+		// 暗槓で全家の first turn が崩れる
+		expect(engine.$state.firstTurnFlags).toEqual({ e: false, s: false, w: false, n: false });
+		engine.commit_dahai('e', 109);
+		engine.commit_dahai('s', 110);
+		engine.commit_dahai('w', 111);
+		// 四風牌が4枚並んでも中斷せず対局が続く
+		engine.commit_dahai('n', 112);
+		expect(engine.$state.hoTiles).toEqual({ e: [109], s: [110], w: [111], n: [112] });
+		expect(engine.$state.turn).toBe('e');
+	});
+
+	it('clears first turn flags on kakan', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [20, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49],
+				s: [14, 18, 22, 26, 34, 38, 42, 46, 50, 54, 66, 126, 130],
+				w: [15, 19, 23, 27, 35, 39, 43, 47, 51, 55, 67, 127, 131],
+				n: [16, 24, 28, 36, 40, 44, 48, 52, 56, 68, 128, 132, 136],
+			},
+			huros: {
+				e: [{ type: 'pon', tiles: [17, 18, 19], from: 's' }],
+				s: [],
+				w: [],
+				n: [],
+			},
+			tiles: [100],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: 'e',
+		}));
+		engine.commit_kakan('e', 20);
+		expect(engine.$state.firstTurnFlags).toEqual({ e: false, s: false, w: false, n: false });
+	});
+
+	it('does not abort on triple ron answers including houses without rights', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [1, 5, 9, 45, 49, 53, 93, 97, 101, 61, 65, 77, 78],
+				s: [],
+				w: [2, 6, 11, 46, 50, 54, 94, 98, 102, 62, 66, 79, 80],
+				n: [3, 7, 12, 47, 51, 55, 95, 99, 103, 63, 67, 81, 82],
+			},
+			hoTiles: { e: [], s: [69], w: [], n: [] },
+			askings: { ron: { callee: 's', callers: ['e', 'w'] }, pon: null, cii: null, kan: null },
+			tiles: [33, 34],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: null,
+			nextTurnAfterAsking: 'w',
+		}));
+		// n に権利はないため三家和にならず、通常のロン解決に進む
+		const res = engine.commit_resolveCallingInterruption({
+			pon: false,
+			cii: false,
+			kan: false,
+			ron: ['e', 'w', 'n'],
+		}, false);
+		expect(res.type).toBe('ronned');
+		if (res.type !== 'ronned') throw new Error('unexpected result');
+		expect(res.callers).toEqual(['e', 'w', 'n']);
+		expect(engine.$state.points.s).toBeLessThan(INITIAL_POINT);
+	});
+
+	it('does not offer daiminkan for the fifth kan and continues the game', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [17, 13, 21, 25, 29, 33, 37, 41, 45, 49, 53, 65, 125, 129],
+				s: [18, 19, 20, 14, 22, 26, 30, 34, 38, 42, 46, 50, 54],
+				w: [15, 23, 27, 35, 39, 43, 47, 51, 55, 67, 127, 113, 114],
+				n: [16, 24, 28, 36, 40, 44, 48, 52, 56, 68, 128, 115, 116],
+			},
+			huros: {
+				e: [{ type: 'ankan', tiles: [1, 2, 3, 4] }],
+				s: [{ type: 'ankan', tiles: [5, 6, 7, 8] }],
+				w: [{ type: 'ankan', tiles: [9, 10, 11, 12] }],
+				n: [{ type: 'minkan', tiles: [61, 62, 63, 64], from: 'e' }],
+			},
+			tiles: [100, 101, 102],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: 'e',
+		}));
+		// 5つ目になる大明槓は asking されない
+		const dahai = engine.commit_dahai('e', 17);
+		expect(dahai.asking).toBe(true);
+		if (!dahai.asking) throw new Error('unexpected result');
+		expect(dahai.canKanHouses).toEqual([]);
+		// 鳴きを辞退すればツモに進み、局は停止しない
+		const resolved = engine.commit_resolveCallingInterruption({
+			pon: { e: null, s: false, w: null, n: null },
+			cii: false,
+			kan: { e: null, s: null, w: null, n: null },
+			ron: [],
+		});
+		expect(resolved.type).toBe('tsumo');
+		if (resolved.type !== 'tsumo') throw new Error('unexpected result');
+		expect(resolved.house).toBe('s');
+		expect(engine.$state.turn).toBe('s');
+		expect(engine.$state.tiles).toHaveLength(2);
 	});
 });

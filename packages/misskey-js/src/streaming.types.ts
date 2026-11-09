@@ -414,6 +414,7 @@ export type Channels = {
 				tenpaiHouses: MahjongHouse[];
 				notenHouses: MahjongHouse[];
 				pointDeltas: Record<MahjongHouse, number>;
+				abortive?: string;
 			}) => void;
 			ankanned: (payload: {
 				house: MahjongHouse;

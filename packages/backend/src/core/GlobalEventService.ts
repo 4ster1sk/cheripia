@@ -6,7 +6,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import * as Redis from 'ioredis';
 import * as Reversi from 'misskey-reversi';
-import type { House as MahjongHouse, TileId } from 'misskey-mahjong';
+import type { House as MahjongHouse, AbortiveDrawKind as MahjongAbortiveDrawKind, TileId } from 'misskey-mahjong';
 import type { MahjongRoom } from '@/core/MahjongService.js';
 import type { MiChannel } from '@/models/Channel.js';
 import type { MiUser } from '@/models/User.js';
@@ -312,6 +312,7 @@ export interface MahjongRoomEventTypes {
 		tenpaiHouses: MahjongHouse[];
 		notenHouses: MahjongHouse[];
 		pointDeltas: Record<MahjongHouse, number>;
+		abortive?: MahjongAbortiveDrawKind;
 	};
 	ankanned: {
 		house: MahjongHouse;

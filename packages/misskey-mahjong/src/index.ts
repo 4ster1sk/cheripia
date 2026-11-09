@@ -6,8 +6,8 @@
 export * as Serializer from './serializer.js';
 export * from './common.js';
 
-export { MasterGameEngine, isTobiPoints } from './engine.master.js';
-export type { MasterState } from './engine.master.js';
+export { MasterGameEngine, isTobiPoints, AbortiveDrawError } from './engine.master.js';
+export type { MasterState, AbortiveDrawKind } from './engine.master.js';
 export { PlayerGameEngine } from './engine.player.js';
 export type { PlayerState } from './engine.player.js';
 export { convertHuroForCalcYaku, getWaitTiles } from './common.yaku.js';

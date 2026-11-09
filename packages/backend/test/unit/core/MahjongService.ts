@@ -345,3 +345,64 @@ describe('MahjongService', () => {
 		}
 	});
 });
+
+describe('MahjongService nextKyokuLocked abortive draw', () => {
+	test('aborts on kyushu-kyuhai in the new deal', async () => {
+		const room = createRoom();
+		room.gameState = Mmj.MasterGameEngine.createInitialState();
+		// 新局生成を九種九牌の配牌に差し替える
+		const kyushuState = Mmj.MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [1, 33, 37, 69, 73, 105, 109, 113, 117, 121, 125, 129, 133, 5],
+				s: [],
+				w: [],
+				n: [],
+			},
+		});
+
+		const published: Array<{ type: string; payload: unknown }> = [];
+		const globalEventService = {
+			publishMahjongRoomStream: (_roomId: string, type: string, payload: unknown) => {
+				published.push({ type, payload });
+			},
+		};
+		const store = new Map<string, string>();
+		const redisClient = {
+			del: vi.fn((key: string) => {
+				store.delete(key);
+				return Promise.resolve(1);
+			}),
+			get: vi.fn((key: string) => Promise.resolve(store.get(key) ?? null)),
+			set: vi.fn((key: string, value: string) => {
+				store.set(key, value);
+				return Promise.resolve('OK');
+			}),
+		};
+
+		const service = new MahjongService(
+			redisClient as unknown as ConstructorParameters<typeof MahjongService>[0],
+			{} as unknown as ConstructorParameters<typeof MahjongService>[1],
+			globalEventService as unknown as ConstructorParameters<typeof MahjongService>[2],
+			{} as unknown as ConstructorParameters<typeof MahjongService>[3],
+		);
+
+		const createInitialState = vi.spyOn(Mmj.MasterGameEngine, 'createInitialState').mockReturnValue(kyushuState);
+		try {
+			const mj = new Mmj.MasterGameEngine(room.gameState!);
+			await (service as unknown as {
+				nextKyokuLocked: (room: MahjongRoom, mj: Mmj.MasterGameEngine, kyokuResult: { agariHouse: Mmj.House | null; tenpaiHouses: Mmj.House[] }, expected: { round: Mmj.MasterState['round']; kyoku: number; turnCount: number }) => Promise<void>;
+			}).nextKyokuLocked(room, mj, { agariHouse: 's', tenpaiHouses: [] }, { round: 'e', kyoku: 1, turnCount: 0 });
+
+			// nextKyoku を publish せず中斷フローに入る
+			expect(published.map(call => call.type)).toEqual(['ryuukyoku']);
+			const ryuukyoku = published[0]!.payload as { abortive?: string };
+			expect(ryuukyoku.abortive).toBe('kyushukyuhai');
+			expect(room.gameState?.honba).toBe(1);
+			// 次局待機が始まり、局が停止しない
+			expect(store.has('mahjong:gameNextKyokuConfirmation:test-room')).toBe(true);
+		} finally {
+			createInitialState.mockRestore();
+			service.dispose();
+		}
+	});
+});
