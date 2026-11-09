@@ -80,6 +80,16 @@ class StateManager {
 			.map(id => Common.nextTileForDora($type(id)));
 	}
 
+	public get uraDoraIndicateTiles(): TileId[] {
+		// 王牌14枚の後半7枚を裏ドラ表示牌列とみなす。
+		// 8回以上のカンで表プールと重なるが実戦上到達しないため単純化する。
+		return this.$state.kingTiles.slice(7, 7 + this.$state.activatedDorasCount);
+	}
+
+	public get uraDoras(): TileType[] {
+		return this.uraDoraIndicateTiles.map(id => Common.nextTileForDora($type(id)));
+	}
+
 	public get handTiles(): Record<House, TileId[]> {
 		return this.$state.handTiles;
 	}
@@ -377,6 +387,16 @@ export class MasterGameEngine {
 
 	public get doraIndicateTiles(): TileId[] {
 		return this.$state.kingTiles.slice(0, this.$state.activatedDorasCount);
+	}
+
+	public get uraDoraIndicateTiles(): TileId[] {
+		// 王牌14枚の後半7枚を裏ドラ表示牌列とみなす。
+		// 8回以上のカンで表プールと重なるが実戦上到達しないため単純化する。
+		return this.$state.kingTiles.slice(7, 7 + this.$state.activatedDorasCount);
+	}
+
+	public get uraDoras(): TileType[] {
+		return this.stateManager.uraDoras;
 	}
 
 	public get handTiles(): Record<House, TileId[]> {
@@ -941,9 +961,7 @@ export class MasterGameEngine {
 			haitei: tx.$state.tiles.length === 0,
 		});
 		if (yakus.yakuNames.length === 0) throw new Error('No yaku');
-		const doraCount =
-			Common.calcOwnedDoraCount(handTiles, huros, tx.doras) +
-			Common.calcRedDoraCount(tx.$state.handTiles[house], huros);
+		const doraCount = Common.calcHoraDoraCount(handTiles, tx.$state.handTiles[house], huros, tx.doras, tx.uraDoras, tx.$state.riichis[house]);
 		const factor: Common.PointFactor = yakus.isYakuman
 			? { isYakuman: true, value: yakus.value }
 			: {
@@ -1066,9 +1084,7 @@ export class MasterGameEngine {
 					hotei: tx.$state.tiles.length === 0,
 					chankan: isKakanRon,
 				});
-				const doraCount =
-					Common.calcOwnedDoraCount(handTiles, huros, tx.doras) +
-					Common.calcRedDoraCount(tx.$state.handTiles[house].concat([ronTileId]), huros);
+				const doraCount = Common.calcHoraDoraCount(handTiles, tx.$state.handTiles[house].concat([ronTileId]), huros, tx.doras, tx.uraDoras, tx.$state.riichis[house]);
 				const factor: Common.PointFactor = yakus.isYakuman
 					? { isYakuman: true, value: yakus.value }
 					: {

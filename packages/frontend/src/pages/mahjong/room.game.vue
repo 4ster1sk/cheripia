@@ -1041,11 +1041,11 @@ function onStreamCiied(log: { caller: Mmj.House; callee: Mmj.House; tiles: reado
 	resetTurnTimer();
 }
 
-function onStreamRonned(log: { callers: Mmj.House[]; callee: Mmj.House; handTiles: Record<Mmj.House, number[]>; ronTile?: number; chankan?: boolean }) {
+function onStreamRonned(log: { callers: Mmj.House[]; callee: Mmj.House; handTiles: Record<Mmj.House, number[]>; ronTile?: number; chankan?: boolean; uraDoraIndicateTiles?: number[] }) {
 	console.log('onStreamRonned', log);
 	closeCiiChoices();
 
-	const res = mj.value.commit_ronHora(log.callers, log.callee, log.handTiles, log.ronTile != null && log.chankan != null ? { ronTile: log.ronTile, chankan: log.chankan } : undefined);
+	const res = mj.value.commit_ronHora(log.callers, log.callee, log.handTiles, log.ronTile != null && log.chankan != null ? { ronTile: log.ronTile, chankan: log.chankan, uraDoraIndicateTiles: log.uraDoraIndicateTiles } : { uraDoraIndicateTiles: log.uraDoraIndicateTiles });
 	triggerRef(mj);
 
 	kyokuResults.value = res;
@@ -1067,11 +1067,11 @@ function onStreamRonned(log: { callers: Mmj.House[]; callee: Mmj.House; handTile
 	startTimer(NEXT_KYOKU_SEC, 'confirm');
 }
 
-function onStreamTsumoHora(log: { house: Mmj.House; handTiles: number[]; tsumoTile: number }) {
+function onStreamTsumoHora(log: { house: Mmj.House; handTiles: number[]; tsumoTile: number; uraDoraIndicateTiles?: number[] }) {
 	console.log('onStreamTsumoHora', log);
 	closeCiiChoices();
 
-	const res = mj.value.commit_tsumoHora(log.house, log.handTiles, log.tsumoTile);
+	const res = mj.value.commit_tsumoHora(log.house, log.handTiles, log.tsumoTile, log.uraDoraIndicateTiles);
 	triggerRef(mj);
 
 	kyokuResults.value[log.house] = res;

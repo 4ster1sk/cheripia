@@ -362,7 +362,7 @@ export class PlayerGameEngine {
 		return getWaitTiles(this.myHandTileTypes, huros);
 	}
 
-	public commit_tsumoHora(house: House, handTiles: TileId[], tsumoTile: TileId): KyokuResult {
+	public commit_tsumoHora(house: House, handTiles: TileId[], tsumoTile: TileId, uraDoraIndicateTiles?: TileId[]): KyokuResult {
 		console.log('commit_tsumoHora', this.state.turn, house);
 		this.clearCalls();
 		this.state.drawnTile = null;
@@ -384,9 +384,7 @@ export class PlayerGameEngine {
 			rinshan: this.state.rinshanFlags[house],
 			haitei: this.state.tilesCount === 0,
 		});
-		const doraCount =
-			Common.calcOwnedDoraCount(handTileTypes, huros, this.doras) +
-			Common.calcRedDoraCount(handTiles, huros);
+		const doraCount = Common.calcHoraDoraCount(handTileTypes, handTiles, huros, this.doras, Common.uraDorasFromIndicateTiles(uraDoraIndicateTiles), this.state.riichis[house]);
 		const factor: Common.PointFactor = yakus.isYakuman
 			? { isYakuman: true, value: yakus.value }
 			: {
@@ -431,7 +429,7 @@ export class PlayerGameEngine {
 		s: TileId[];
 		w: TileId[];
 		n: TileId[];
-	}, opts?: { ronTile?: TileId; chankan?: boolean }): Record<House, KyokuResult | null> {
+	}, opts?: { ronTile?: TileId; chankan?: boolean; uraDoraIndicateTiles?: TileId[] }): Record<House, KyokuResult | null> {
 		console.log('commit_ronHora', this.state.turn, callers, callee);
 
 		this.clearCalls();
@@ -476,9 +474,7 @@ export class PlayerGameEngine {
 				hotei: this.state.tilesCount === 0,
 				chankan,
 			});
-			const doraCount =
-				Common.calcOwnedDoraCount(handTileTypes, huros, this.doras) +
-				Common.calcRedDoraCount(handTiles[house].concat([ronTileId]), huros);
+			const doraCount = Common.calcHoraDoraCount(handTileTypes, handTiles[house].concat([ronTileId]), huros, this.doras, Common.uraDorasFromIndicateTiles(opts?.uraDoraIndicateTiles), this.state.riichis[house]);
 			const factor: Common.PointFactor = yakus.isYakuman
 				? { isYakuman: true, value: yakus.value }
 				: {

@@ -1567,3 +1567,45 @@ describe('Master game engine kakan ron (chankan)', () => {
 		expect(engine.$state.kakanRon).toBeNull();
 	});
 });
+
+describe('Master game engine ura dora', () => {
+	it('adds ura dora on a riichi tsumo', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			...new TileSetBuilder()
+				.setHandTiles('e', ['m1', 'm2', 'm3', 'p6', 'p6', 'p6', 's6', 's7', 's8', 'n', 'n', 'n', 'm3', 'm3'])
+				.build(),
+			riichis: { e: true, s: false, w: false, n: false },
+			firstTurnFlags: { e: false, s: false, w: false, n: false },
+		}));
+		engine.$state.kingTiles[0] = 125; // 白表示 → 表ドラは發(手牌になし)
+		engine.$state.kingTiles[7] = 117; // 西表示 → 裏ドラは北(手牌に3枚)
+		expect(engine.uraDoraIndicateTiles).toEqual([117]);
+		expect(engine.uraDoras).toEqual(['n']);
+		expect(engine.commit_tsumoHora('e', false).yakus.yakuNames).toEqual(['tsumo', 'riichi']);
+		// 2飜 + 裏ドラ3 = 5飜で満貫 (12000)
+		expect(engine.$state.points).toEqual({
+			e: INITIAL_POINT + 12000,
+			s: INITIAL_POINT - 4000,
+			w: INITIAL_POINT - 4000,
+			n: INITIAL_POINT - 4000,
+		});
+	});
+
+	it('ignores ura dora without riichi', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			...new TileSetBuilder()
+				.setHandTiles('e', ['m1', 'm2', 'm3', 'p6', 'p6', 'p6', 's6', 's7', 's8', 'n', 'n', 'n', 'm3', 'm3'])
+				.build(),
+			firstTurnFlags: { e: false, s: false, w: false, n: false },
+		}));
+		engine.$state.kingTiles[0] = 125; // 白表示 → 表ドラは發(手牌になし)
+		engine.$state.kingTiles[7] = 117; // 西表示 → 裏ドラは北だが非リーチのため加算なし
+		expect(engine.commit_tsumoHora('e', false).yakus.yakuNames).toEqual(['tsumo']);
+		expect(engine.$state.points).toEqual({
+			e: INITIAL_POINT + 2100,
+			s: INITIAL_POINT - 700,
+			w: INITIAL_POINT - 700,
+			n: INITIAL_POINT - 700,
+		});
+	});
+});

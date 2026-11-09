@@ -567,6 +567,7 @@ export class MahjongService implements OnApplicationShutdown {
 					}, res.callers),
 					...(ronTile != null ? { ronTile } : {}),
 					...(chankan != null ? { chankan } : {}),
+					uraDoraIndicateTiles: mj.uraDoraIndicateTiles,
 				});
 				await this.endKyoku(room, mj, { agariHouse: Mmj.findAtamahane(res.callee, res.callers), tenpaiHouses: [] });
 				break;
@@ -767,7 +768,7 @@ export class MahjongService implements OnApplicationShutdown {
 		await this.clearTurnWaitingTimer(room.id);
 		await this.saveRoom(room);
 
-		this.globalEventService.publishMahjongRoomStream(room.id, 'tsumoHora', { house, handTiles: res.handTiles, tsumoTile: res.tsumoTile });
+		this.globalEventService.publishMahjongRoomStream(room.id, 'tsumoHora', { house, handTiles: res.handTiles, tsumoTile: res.tsumoTile, uraDoraIndicateTiles: mj.uraDoraIndicateTiles });
 		await this.endKyoku(room, mj, { agariHouse: house, tenpaiHouses: [] });
 	}
 

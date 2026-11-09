@@ -306,6 +306,7 @@ export interface MahjongRoomEventTypes {
 		handTiles: Record<MahjongHouse, number[]>;
 		ronTile?: number;
 		chankan?: boolean;
+		uraDoraIndicateTiles: TileId[];
 	};
 	ryuukyoku: {
 		tenpaiHouses: MahjongHouse[];
@@ -335,6 +336,7 @@ export interface MahjongRoomEventTypes {
 		house: MahjongHouse;
 		handTiles: number[];
 		tsumoTile: number;
+		uraDoraIndicateTiles: TileId[];
 	};
 }
 //#endregion

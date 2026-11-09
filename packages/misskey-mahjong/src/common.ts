@@ -381,6 +381,26 @@ export function calcRedDoraCount(handTiles: TileId[], huros: Huro[]): number {
 	return count;
 }
 
+/**
+ * 裏ドラ表示牌から裏ドラ種を導出する。表ドラと同様に nextTileForDora を使う。
+ */
+export function uraDorasFromIndicateTiles(uraDoraIndicateTiles: readonly TileId[] | undefined): TileType[] {
+	if (uraDoraIndicateTiles == null) return [];
+	return uraDoraIndicateTiles.map(tid => nextTileForDora(findTileByIdOrFail(tid).t));
+}
+
+/**
+ * 和了時のドラ合計 (表ドラ + 赤ドラ + リーチ時のみ裏ドラ) を計算する。
+ * 非リーチ和了では裏ドラを加算しない。
+ */
+export function calcHoraDoraCount(handTileTypes: TileType[], handTileIds: TileId[], huros: Huro[], doras: TileType[], uraDoras: TileType[], isRiichi: boolean): number {
+	let count = calcOwnedDoraCount(handTileTypes, huros, doras) + calcRedDoraCount(handTileIds, huros);
+	if (isRiichi) {
+		count += calcOwnedDoraCount(handTileTypes, huros, uraDoras);
+	}
+	return count;
+}
+
 export function calcTsumoHoraPointDeltas(house: House, fansOrFactor: number | PointFactor, doraCount = 0): Record<House, number> {
 	const isParent = house === 'e';
 
