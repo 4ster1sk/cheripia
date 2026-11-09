@@ -1690,13 +1690,15 @@ onUnmounted(() => {
 	rotate: 180deg;
 	display: grid;
 	grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
+	// 6 cols * 36px (36px = 72px + 2 * -18px: .v horizontal margin in tile.vue)
+	width: 216px;
 }
 
 .hoTilesContainerOfKamitya {
 	position: absolute;
 	right: calc(50% + 125px);
-	top: 0;
-	bottom: 0;
+	top: calc(50% - 125px);
+	bottom: auto;
 	margin: auto;
 	height: min-content;
 }
@@ -1706,13 +1708,15 @@ onUnmounted(() => {
 	grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
 	grid-template-rows: 1fr 1fr 1fr 1fr 1fr 1fr;
 	aspect-ratio: 1;
+	// 6 cols * 34px (34px = 72px + 2 * -19px: .h horizontal margin in tile.vue)
+	width: 204px;
 }
 
 .hoTilesContainerOfSimotya {
 	position: absolute;
 	left: calc(50% + 125px);
-	top: 0;
-	bottom: 0;
+	top: calc(50% - 125px);
+	bottom: auto;
 	margin: auto;
 	height: min-content;
 }
@@ -1722,6 +1726,10 @@ onUnmounted(() => {
 	grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
 	grid-template-rows: 1fr 1fr 1fr 1fr 1fr 1fr;
 	aspect-ratio: 1;
+	// 6 cols * 34px (34px = 72px + 2 * -19px: .h horizontal margin in tile.vue)
+	width: 204px;
+	// rtl keeps visual start at the top under rotate -90deg, so tiles grow downward (was visually bottom-start)
+	direction: rtl;
 }
 
 .hoTilesContainerOfMe {
@@ -1735,6 +1743,8 @@ onUnmounted(() => {
 .hoTilesOfMe {
 	display: grid;
 	grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
+	// 6 cols * 36px (36px = 72px + 2 * -18px: .v horizontal margin in tile.vue)
+	width: 216px;
 }
 
 .playersContainer {
