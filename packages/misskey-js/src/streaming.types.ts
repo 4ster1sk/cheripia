@@ -446,6 +446,10 @@ export type Channels = {
 		receives: {
 			ready: boolean;
 			addAi: Record<string, never>;
+			updateSettings: {
+				key: 'timeLimitForEachTurn';
+				value: number;
+			};
 			removeAi: {
 				index: number;
 			};

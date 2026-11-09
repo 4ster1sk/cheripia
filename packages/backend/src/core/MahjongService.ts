@@ -92,7 +92,7 @@ function isMahjongRound(value: unknown): value is Mmj.MasterState['round'] {
 
 /**
  * Redis 補助キー (`gameCallingAsking` / `gameNextKyokuConfirmation` / `gameTurnWaiting`) の TTL (秒)。
- * 正規フローは asking 解決 10 秒・次局確認 15 秒+α・手番待機は最大 300 秒 (`timeLimitForEachTurn` 上限) で
+ * 正規フローは asking 解決 (`timeLimitForEachTurn`)・次局確認 15 秒+α・手番待機は最大 300 秒 (`timeLimitForEachTurn` 上限) で
  * 自動進行するため、1 時間あれば十分な余裕がある。プロセス落ち・タイマー漏れ時のゴミ残留に上限を付ける。
  */
 const AUX_KEY_TTL_SECONDS = 60 * 60;
@@ -954,6 +954,7 @@ export class MahjongService implements OnApplicationShutdown {
 
 			await this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(answers), 'EX', AUX_KEY_TTL_SECONDS);
 			const waitingStartedAt = Date.now();
+			const askingTimeoutMs = room.timeLimitForEachTurn * 1000;
 			const roomId = room.id;
 			const askingCanPonHouses = [...canPonHouses];
 			const askingCanKanHouses = [...canKanHouses];
@@ -977,7 +978,7 @@ export class MahjongService implements OnApplicationShutdown {
 					(askingCanRonHouses.includes('w') && currentAnswers.ron.w == null) ||
 					(askingCanRonHouses.includes('n') && currentAnswers.ron.n == null)
 				);
-				if (allAnswered || (Date.now() - waitingStartedAt > Mmj.CALL_AND_RON_ASKING_TIMEOUT_MS)) {
+				if (allAnswered || (Date.now() - waitingStartedAt > askingTimeoutMs)) {
 					clearInterval(interval);
 					this.removeTimer(this.otherTimers, roomId, interval);
 					await this.redisClient.del(`mahjong:gameCallingAsking:${roomId}`);
@@ -1261,6 +1262,7 @@ export class MahjongService implements OnApplicationShutdown {
 
 				await this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(answers), 'EX', AUX_KEY_TTL_SECONDS);
 				const waitingStartedAt = Date.now();
+				const kakanAskingTimeoutMs = room.timeLimitForEachTurn * 1000;
 				const roomIdForAsking = room.id;
 				const canRonHouses = [...res.canRonHouses];
 				const interval = setInterval(async () => {
@@ -1273,7 +1275,7 @@ export class MahjongService implements OnApplicationShutdown {
 					const currentAnswers = JSON.parse(current) as CallingAnswers;
 					normalizeCallingAnswers(currentAnswers);
 					const allAnswered = !(canRonHouses.some(h => currentAnswers.ron[h] == null));
-					if (allAnswered || (Date.now() - waitingStartedAt > Mmj.CALL_AND_RON_ASKING_TIMEOUT_MS)) {
+					if (allAnswered || (Date.now() - waitingStartedAt > kakanAskingTimeoutMs)) {
 						clearInterval(interval);
 						this.removeTimer(this.otherTimers, roomIdForAsking, interval);
 						await this.redisClient.del(`mahjong:gameCallingAsking:${roomIdForAsking}`);

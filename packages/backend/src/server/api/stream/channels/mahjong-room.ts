@@ -109,6 +109,12 @@ export class MahjongRoomChannel extends Channel {
 			case 'addAi':
 				this.addAi();
 				break;
+			case 'updateSettings':
+				if (!isJsonObject(body)) return;
+				if (body.key !== 'timeLimitForEachTurn') return;
+				if (typeof body.value !== 'number' || !Number.isInteger(body.value) || body.value < 5 || body.value > 300) return;
+				this.updateSettings(body.key, body.value);
+				break;
 			case 'removeAi':
 				if (!isJsonObject(body)) return;
 				if (body.index !== 2 && body.index !== 3 && body.index !== 4) return;
@@ -169,6 +175,12 @@ export class MahjongRoomChannel extends Channel {
 	private async confirmNextKyoku() {
 		if (this.user == null) return;
 		await this.mahjongService.confirmNextKyoku(this.roomId!, this.user);
+	}
+
+	@bindThis
+	private async updateSettings(key: string, value: unknown) {
+		if (this.user == null) return;
+		await this.mahjongService.updateSettings(this.roomId!, this.user, key, value);
 	}
 
 	@bindThis

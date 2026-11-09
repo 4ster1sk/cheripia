@@ -594,7 +594,7 @@ if (room.value.isStarted && !room.value.isEnded) {
 }
 */
 
-const CALL_SEC = Mmj.CALL_AND_RON_ASKING_TIMEOUT_MS / 1000;
+const CALL_SEC = room.value.timeLimitForEachTurn;
 const NEXT_KYOKU_SEC = Mmj.NEXT_KYOKU_CONFIRMATION_TIMEOUT_MS / 1000;
 
 type TimerMode = 'turn' | 'call' | 'confirm' | 'hidden';

@@ -37,6 +37,12 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<div style="margin-top: 8px; font-size: 90%; opacity: 0.8;">
 					持ち時間: {{ room.timeLimitForEachTurn }}秒
 				</div>
+				<div v-if="isOwner && !room.isStarted && !room.isEnded" style="margin-top: 8px;">
+					<MkInput v-model="timeLimit" type="number" :min="5" :max="300" :step="1">
+						<template #label>{{ i18n.ts._reversi.timeLimitForEachTurn }}</template>
+						<template #suffix>{{ i18n.ts._time.second }}</template>
+					</MkInput>
+				</div>
 			</div>
 
 			<div v-if="isOwner" class="_buttonsCenter">
@@ -61,7 +67,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, onUnmounted } from 'vue';
+import { computed, ref, onUnmounted, watch } from 'vue';
 import * as Misskey from 'misskey-js';
 import { url } from '@@/js/config.js';
 import { i18n } from '@/i18n.js';
@@ -69,6 +75,7 @@ import { ensureSignin } from '@/i.js';
 import { deepClone } from '@/utility/clone.js';
 import { copyToClipboard } from '@/utility/copy-to-clipboard.js';
 import MkButton from '@/components/MkButton.vue';
+import MkInput from '@/components/MkInput.vue';
 import * as os from '@/os.js';
 import { useRouter } from '@/router.js';
 
@@ -82,6 +89,19 @@ const props = defineProps<{
 const router = useRouter();
 
 const room = ref<Misskey.entities.MahjongRoomDetailed>(deepClone(props.room));
+
+const timeLimit = ref<number>(room.value.timeLimitForEachTurn);
+
+watch(timeLimit, () => {
+	const value = Math.floor(Number(timeLimit.value));
+	if (!Number.isInteger(value) || value < 5 || value > 300) return;
+	if (value === room.value.timeLimitForEachTurn) return;
+	room.value.timeLimitForEachTurn = value;
+	props.connection.send('updateSettings', {
+		key: 'timeLimitForEachTurn',
+		value,
+	});
+});
 
 const roomUrl = computed(() => `${url}/mahjong/g/${room.value.id}`);
 const isOwner = computed(() => room.value.user1Id === $i.id);
