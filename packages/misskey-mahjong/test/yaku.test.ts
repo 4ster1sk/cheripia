@@ -425,6 +425,14 @@ describe('Yaku', () => {
 				tsumoTile: 'm3',
 			}).includes('sanshoku-dojun'), true);
 		});
+		it('valid with cii', () => {
+			assert.deepStrictEqual(calcYakus({
+				seatWind: 'e',
+				handTiles: ['p1', 'p2', 'p3', 's1', 's2', 's3', 'e', 'e', 'e', 'w', 'w'],
+				huros: [{ type: 'cii', tiles: ['m1', 'm2', 'm3'] }],
+				tsumoTile: 'w',
+			}).includes('sanshoku-dojun'), true);
+		});
 	});
 
 	describe('sanshoku-doko', () => {
@@ -434,6 +442,30 @@ describe('Yaku', () => {
 				handTiles: ['m2', 'm2', 'm2', 'p2', 'p2', 'p2', 's2', 's2', 's2', 's4', 's5', 's6', 'm3', 'm3'],
 				huros: [],
 				tsumoTile: 'm3',
+			}).includes('sanshoku-doko'), true);
+		});
+		it('valid with pon', () => {
+			assert.deepStrictEqual(calcYakus({
+				seatWind: 'e',
+				handTiles: ['p2', 'p2', 'p2', 's2', 's2', 's2', 'e', 'e', 'e', 'w', 'w'],
+				huros: [{ type: 'pon', tile: 'm2' }],
+				tsumoTile: 'w',
+			}).includes('sanshoku-doko'), true);
+		});
+		it('valid with minkan', () => {
+			assert.deepStrictEqual(calcYakus({
+				seatWind: 'e',
+				handTiles: ['p5', 'p5', 'p5', 's5', 's5', 's5', 'e', 'e', 'e', 'w', 'w'],
+				huros: [{ type: 'minkan', tile: 'm5' }],
+				tsumoTile: 'w',
+			}).includes('sanshoku-doko'), true);
+		});
+		it('valid with ankan', () => {
+			assert.deepStrictEqual(calcYakus({
+				seatWind: 'e',
+				handTiles: ['m1', 'm2', 'm3', 'p5', 'p5', 'p5', 's5', 's5', 's5', 'w', 'w'],
+				huros: [{ type: 'ankan', tile: 'm5' }],
+				tsumoTile: 'w',
 			}).includes('sanshoku-doko'), true);
 		});
 	});

@@ -614,6 +614,7 @@ export const NORMAL_YAKU_DEFINITIONS: NormalYakuDefinition[] = [
 			if (fourMentsuOneJyantou == null) return false;
 
 			const shuntsus = fourMentsuOneJyantou.mentsus.filter(tiles => isShuntu(tiles));
+			shuntsus.push(...state.huros.filter((huro): huro is Cii => huro.type === 'cii').map(huro => huro.tiles));
 
 			for (const shuntsu of shuntsus) {
 				if (isManzu(shuntsu[0])) {
@@ -649,6 +650,11 @@ export const NORMAL_YAKU_DEFINITIONS: NormalYakuDefinition[] = [
 			if (fourMentsuOneJyantou == null) return false;
 
 			const kotsus = fourMentsuOneJyantou.mentsus.filter(tiles => isKotsu(tiles));
+			for (const huro of state.huros) {
+				if (huro.type !== 'cii') {
+					kotsus.push([huro.tile, huro.tile, huro.tile]);
+				}
+			}
 
 			for (const kotsu of kotsus) {
 				if (isManzu(kotsu[0])) {
