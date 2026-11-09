@@ -149,6 +149,11 @@ describe('Master game engine', () => {
 				.setTile(-1, 'm3')
 				.build(),
 		));
+		// 嶺上牌は王牌末尾から取るため、生き壁先頭(旧嶺上位置)のm3を王牌末尾へ移す (一意性維持のため交換)。
+		const lastKing = engine.$state.kingTiles.length - 1;
+		const tmpRinshan = engine.$state.kingTiles[lastKing];
+		engine.$state.kingTiles[lastKing] = engine.$state.tiles[0];
+		engine.$state.tiles[0] = tmpRinshan;
 		engine.commit_ankan('e', engine.$state.handTiles.e.at(-1)!);
 		engine.$state.kingTiles[0] = 125; // ドラ表示牌を白にして、和了者の手牌にドラが乗らないようにする
 		expect(engine.commit_tsumoHora('e', false).yakus.yakuNames).toEqual(['tsumo', 'rinshan']);
@@ -275,8 +280,8 @@ describe('Master game engine state transitions', () => {
 				w: [],
 				n: [],
 			},
-			tiles: [9, 33], // 嶺上牌(m3), その後ろの牌
-			kingTiles: [125], // ドラ表示牌は白。手牌にドラが乗らないようにする
+			tiles: [33, 34],
+			kingTiles: [125, 9], // ドラ表示牌は白。嶺上牌(m3)は王牌末尾
 			activatedDorasCount: 1,
 			turn: 'e',
 		}));
@@ -328,11 +333,11 @@ describe('Master game engine state transitions', () => {
 
 		engine.commit_kakan('e', 20);
 		expect(engine.doraIndicateTiles).toEqual([125, 121]);
-		expect(engine.$state.drawnTile).toBe(33);
+		expect(engine.$state.drawnTile).toBe(123);
 
 		engine.commit_ankan('e', 1);
 		expect(engine.doraIndicateTiles).toEqual([125, 121, 122]);
-		expect(engine.$state.drawnTile).toBe(34);
+		expect(engine.$state.drawnTile).toBe(122);
 
 		expect(engine.$state.activatedDorasCount).toBe(3);
 	});
@@ -701,8 +706,8 @@ describe('Master game engine drawn tile', () => {
 
 		const res = engine.commit_ankan('e', 1);
 
-		expect(res.rinsyan).toBe(33);
-		expect(engine.$state.drawnTile).toBe(33);
+		expect(res.rinsyan).toBe(125);
+		expect(engine.$state.drawnTile).toBe(125);
 	});
 
 	it('clears the drawn tile on pon, cii and daiminkan', () => {
@@ -1520,8 +1525,8 @@ describe('Master game engine kakan ron (chankan)', () => {
 		expect(engine.$state.askings.ron).toBeNull();
 		expect(engine.$state.kakanRon).toBeNull();
 		expect(engine.$state.turn).toBe('e');
-		expect(engine.$state.handTiles.e).toContain(34);
-		expect(engine.$state.drawnTile).toBe(34);
+		expect(engine.$state.handTiles.e).toContain(125);
+		expect(engine.$state.drawnTile).toBe(125);
 		// ドラ表示は宣言時に1回だけ増える
 		expect(engine.$state.activatedDorasCount).toBe(2);
 	});
@@ -1539,10 +1544,10 @@ describe('Master game engine kakan ron (chankan)', () => {
 		expect(resolved.type).toBe('kakanRinshan');
 		if (resolved.type !== 'kakanRinshan') throw new Error('unexpected result');
 		expect(resolved.house).toBe('e');
-		expect(resolved.rinsyan).toBe(34);
+		expect(resolved.rinsyan).toBe(125);
 		expect(engine.$state.turn).toBe('e');
-		expect(engine.$state.handTiles.e).toContain(34);
-		expect(engine.$state.drawnTile).toBe(34);
+		expect(engine.$state.handTiles.e).toContain(125);
+		expect(engine.$state.drawnTile).toBe(125);
 		expect(engine.$state.kakanRon).toBeNull();
 		expect(engine.$state.askings.ron).toBeNull();
 	});
@@ -1607,5 +1612,79 @@ describe('Master game engine ura dora', () => {
 			w: INITIAL_POINT - 700,
 			n: INITIAL_POINT - 700,
 		});
+	});
+});
+
+describe('Master game engine rinshan from the dead wall', () => {
+	it('takes the rinshan tile from the king-tile tail without consuming the living wall', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [1, 2, 3, 4, 5, 9, 13, 17, 21, 25, 29, 33, 37],
+				s: [],
+				w: [],
+				n: [],
+			},
+			tiles: [38, 39, 40],
+			kingTiles: [125, 121, 122, 123],
+			activatedDorasCount: 1,
+			turn: 'e',
+		}));
+		const tilesBefore = [...engine.$state.tiles];
+
+		const res = engine.commit_ankan('e', 1);
+
+		// 初回嶺上は王牌末尾
+		expect(res.rinsyan).toBe(123);
+		expect(engine.$state.drawnTile).toBe(123);
+		// 生き壁は減らない
+		expect(engine.$state.tiles).toEqual(tilesBefore);
+		expect(engine.$state.activatedDorasCount).toBe(2);
+	});
+
+	it('takes consecutive rinshan tiles toward the front of the king-tile tail', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 17, 21, 25],
+				s: [],
+				w: [],
+				n: [],
+			},
+			tiles: [37, 38],
+			kingTiles: [125, 121, 33, 34, 35, 36],
+			activatedDorasCount: 1,
+			turn: 'e',
+		}));
+
+		const first = engine.commit_ankan('e', 1);
+		expect(first.rinsyan).toBe(36);
+		expect(engine.$state.tiles).toEqual([37, 38]);
+		expect(engine.doraIndicateTiles).toEqual([125, 121]);
+
+		const second = engine.commit_ankan('e', 5);
+		expect(second.rinsyan).toBe(35);
+		expect(engine.$state.tiles).toEqual([37, 38]);
+		expect(engine.doraIndicateTiles).toEqual([125, 121, 33]);
+		expect(engine.$state.activatedDorasCount).toBe(3);
+	});
+
+	it('still takes rinshan when the living wall is exhausted', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [1, 2, 3, 4, 5, 9, 13, 17, 21, 25, 29, 33, 37],
+				s: [],
+				w: [],
+				n: [],
+			},
+			tiles: [],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: 'e',
+		}));
+
+		const res = engine.commit_ankan('e', 1);
+
+		expect(res.rinsyan).toBe(125);
+		expect(engine.$state.drawnTile).toBe(125);
+		expect(engine.$state.tiles).toEqual([]);
 	});
 });

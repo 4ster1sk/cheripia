@@ -207,7 +207,16 @@ class StateManager {
 	}
 
 	public rinshanTsumo(): TileId {
-		return this.withTsumoTile(this.$state.tiles.shift(), true);
+		// 嶺上牌は王牌から取る。カン1回につき嶺上1枚・ドラ表示+1で、
+		// activatedDorasCount は初期値1のため今回分を含む消費枚数 = activatedDorasCount - 1。
+		// 初回嶺上が王牌末尾になるよう index = kingTiles.length - (activatedDorasCount - 1)
+		// = kingTiles.length - activatedDorasCount + 1 とする。
+		// kingTiles 自体は削らず読み取るだけとし、表ドラ slice(0,n)・裏ドラ slice(7,7+n) の
+		// 参照位置を保つ。3回までのカン(n<=4)では嶺上範囲と表・裏ドラ表示範囲は重ならない。
+		// 4回目以降は裏ドラ表示と重なりうるが、四開槓の中断は対象外のため単純化する。
+		const kanCountIncludingCurrent = this.$state.activatedDorasCount - 1;
+		const index = this.$state.kingTiles.length - kanCountIncludingCurrent;
+		return this.withTsumoTile(this.$state.kingTiles[index], true);
 	}
 
 	public clearFirstTurnAndIppatsus(): void {
@@ -1279,15 +1288,6 @@ export class MasterGameEngine {
 			const pendingKakan = tx.$state.kakanRon;
 			const kakanHouse = pendingKakan.house;
 			tx.$state.kakanRon = null;
-			if (tx.$state.tiles.length === 0) {
-				tx.$state.turn = null;
-				tx.$state.nextTurnAfterAsking = null;
-				tx.$commit();
-
-				return {
-					type: 'ryuukyoku' as const,
-				};
-			}
 			tx.$state.turn = kakanHouse;
 			tx.$state.nextTurnAfterAsking = null;
 			const kakanRinsyan = tx.rinshanTsumo();

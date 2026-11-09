@@ -587,7 +587,7 @@ export class PlayerGameEngine {
 			this.myHandTiles.push(rinsyan);
 			this.furiten = false;
 		}
-		this.state.tilesCount--;
+		// 嶺上牌は王牌から取るため生き壁残数は減らさない。
 		this.state.huros[caller].push({ type: 'minkan', tiles: tiles, from: callee });
 
 		if (doraIndicateTiles != null) this.state.doraIndicateTiles = [...doraIndicateTiles];
@@ -628,7 +628,7 @@ export class PlayerGameEngine {
 			const index = this.state.huros[house].indexOf(pon);
 			this.state.huros[house][index] = { type: 'minkan', tiles: [tiles[0], tiles[1], tiles[2], tiles[3]], from: pon.from, kakan: true };
 		}
-		this.state.tilesCount--;
+		// 嶺上牌は王牌から取るため生き壁残数は減らさない。
 		this.state.turn = house;
 		this.state.drawnTile = house === this.myHouse ? rinsyan : null;
 		this.state.canRon = null;
@@ -718,7 +718,7 @@ export class PlayerGameEngine {
 			this.state.handTiles[house].push(0);
 			this.state.drawnTile = null;
 		}
-		this.state.tilesCount--;
+		// 嶺上牌は王牌から取るため生き壁残数は減らさない。
 		this.state.turn = house;
 		this.state.canRon = null;
 		this.state.canPon = null;
@@ -748,7 +748,7 @@ export class PlayerGameEngine {
 			type: 'ankan',
 			tiles: house === this.myHouse ? [tiles[0], tiles[1], tiles[2], tiles[3]] : [0, 0, 0, 0],
 		});
-		this.state.tilesCount--;
+		// 嶺上牌は王牌から取るため生き壁残数は減らさない。
 		this.state.turn = house;
 		this.state.drawnTile = house === this.myHouse ? rinsyan : null;
 		this.state.canRon = null;
