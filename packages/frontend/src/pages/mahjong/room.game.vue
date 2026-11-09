@@ -292,7 +292,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</Transition>
 		</div>
 
-		<div :class="$style.actions" class="_buttons">
+		<div v-if="!tsumoPending" :class="$style.actions" class="_buttons">
 			<MkButton v-if="mj.canRon != null" primary gradate @click="ron">{{ i18n.ts._mahjong.ron }}</MkButton>
 			<MkButton v-if="mj.canPon != null" primary @click="pon">{{ i18n.ts._mahjong.pon }}</MkButton>
 			<MkButton v-if="mj.canCii != null" primary @click="cii">{{ i18n.ts._mahjong.cii }}</MkButton>
@@ -575,6 +575,12 @@ const ABORTIVE_DRAW_REASONS: Record<string, string> = {
 const CII_PATTERN_CODES: CiiPatternCode[] = ['x__', '_x_', '__x'];
 const ciiChoices = ref<CiiChoice[] | null>(null);
 
+/**
+ * ツモ送信後に操作ボタン欄を隠すためのフラグ。
+ * 次のサーバイベント（closeCiiChoices 経由）で戻す。
+ */
+const tsumoPending = ref(false);
+
 /*
 if (room.value.isStarted && !room.value.isEnded) {
 	useInterval(() => {
@@ -732,6 +738,7 @@ function backToLobby() {
 }
 
 function chooseTile(tile: Mmj.TileId, ev: MouseEvent) {
+	if (tsumoPending.value) return;
 	if (!isMyTurn.value) return;
 
 	const selection = tileSelection.value;
@@ -836,6 +843,8 @@ function tsumoHora() {
 
 	props.connection!.send('tsumoHora', {
 	});
+	tileSelection.value = null;
+	tsumoPending.value = true;
 }
 
 /**
@@ -901,6 +910,7 @@ function sendCii(choice: CiiChoice) {
 function closeCiiChoices() {
 	ciiChoices.value = null;
 	tileSelection.value = null;
+	tsumoPending.value = false;
 }
 
 function kan() {

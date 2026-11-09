@@ -529,3 +529,116 @@ describe('room.game abortive draw', () => {
 		}
 	});
 });
+
+describe('room.game tsumo', () => {
+	test('hides action buttons after tsumo press and restores on next event', async () => {
+		const zeros = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+		const { container, findAllByRole, queryAllByRole, connection } = renderRoomGame(createPlayerState({
+			turn: 'e',
+			handTiles: {
+				e: [1, 5, 9, 57, 58, 59, 93, 97, 101, 121, 122, 123, 10],
+				s: zeros,
+				w: zeros,
+				n: zeros,
+			},
+		}));
+
+		// 自分のツモで和了可能にする（iTsumoed が立つ）
+		connection.emit('tsumo', { house: 'e', tile: 11 });
+		await nextTick();
+
+		const buttons = await findAllByRole('button');
+		const tsumoButton = buttons.find(b => b.textContent?.includes('ツモ'));
+		assert.ok(tsumoButton, 'tsumo button should be visible after tsumo');
+
+		const actionsOf = () => container.querySelector('[class*="actions"]');
+		assert.ok(actionsOf(), 'actions should be visible before tsumo press');
+
+		await fireEvent.click(tsumoButton);
+		await nextTick();
+
+		assert.deepStrictEqual(sentActions(connection.send, 'tsumoHora'), [['tsumoHora', {}]]);
+		assert.strictEqual(actionsOf(), null, 'actions should be hidden after tsumo press');
+
+		// 次のサーバイベントで表示に戻り、手番が移ればツモは残らない
+		connection.emit('tsumo', { house: 's', tile: 1 });
+		await nextTick();
+
+		assert.ok(actionsOf(), 'actions should be restored on next event');
+		assert.ok(!queryAllByRole('button').some(b => b.textContent?.includes('ツモ')), 'tsumo button should not remain when turn moves');
+	});
+
+	test('ignores hand tile clicks while tsumo is pending', async () => {
+		const zeros = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+		const { container, findAllByRole, connection } = renderRoomGame(createPlayerState({
+			turn: 'e',
+			handTiles: {
+				e: [1, 5, 9, 57, 58, 59, 93, 97, 101, 121, 122, 123, 10],
+				s: zeros,
+				w: zeros,
+				n: zeros,
+			},
+		}));
+
+		connection.emit('tsumo', { house: 'e', tile: 11 });
+		await nextTick();
+
+		const tsumoButton = (await findAllByRole('button')).find(b => b.textContent?.includes('ツモ'));
+		assert.ok(tsumoButton, 'tsumo button should be visible after tsumo');
+		await fireEvent.click(tsumoButton);
+		await nextTick();
+
+		await clickHandTile(container, 'm1');
+		await nextTick();
+
+		assert.deepStrictEqual(sentActions(connection.send, 'tsumoHora'), [['tsumoHora', {}]]);
+		assert.strictEqual(sentActions(connection.send, 'dahai').length, 0, 'dahai should not be sent while tsumo is pending');
+		assert.strictEqual(sentActions(connection.send, 'ankan').length, 0, 'ankan should not be sent while tsumo is pending');
+	});
+
+	test('tsumo press during riichi selection sends tsumoHora and drops the selection', async () => {
+		const zeros = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+		const { container, findAllByRole, queryAllByRole, connection } = renderRoomGame(createPlayerState({
+			turn: 'e',
+			handTiles: {
+				e: [1, 5, 9, 57, 58, 59, 93, 97, 101, 121, 122, 123, 10],
+				s: zeros,
+				w: zeros,
+				n: zeros,
+			},
+		}));
+
+		connection.emit('tsumo', { house: 'e', tile: 11 });
+		await nextTick();
+
+		const riichiButton = (await findAllByRole('button')).find(b => b.textContent?.includes('リーチ'));
+		assert.ok(riichiButton, 'riichi button should be visible');
+		await fireEvent.click(riichiButton);
+		await nextTick();
+		assert.ok(queryAllByRole('button').some(b => b.textContent?.includes('キャンセル') === true || b.textContent?.includes('Cancel') === true), 'cancel button should be visible during tile selection');
+
+		const tsumoButton = queryAllByRole('button').find(b => b.textContent?.includes('ツモ'));
+		assert.ok(tsumoButton, 'tsumo button should be visible during tile selection');
+		await fireEvent.click(tsumoButton);
+		await nextTick();
+
+		assert.deepStrictEqual(sentActions(connection.send, 'tsumoHora'), [['tsumoHora', {}]]);
+		assert.strictEqual(container.querySelector('[class*="actions"]'), null, 'actions should be hidden after tsumo press');
+
+		// 選択中でもツモ送信後は手牌クリックが無視される（リーチ打牌にならない）
+		await clickHandTile(container, 'm1');
+		await nextTick();
+		assert.strictEqual(sentActions(connection.send, 'dahai').length, 0, 'dahai should not be sent while tsumo is pending');
+
+		// 次イベントで復帰し、選択は破棄されているので通常打牌になる
+		connection.emit('tsumo', { house: 'e', tile: 12 });
+		await nextTick();
+		assert.ok(container.querySelector('[class*="actions"]'), 'actions should be restored on next event');
+
+		await clickHandTile(container, 'm1');
+		await nextTick();
+		const dahai = sentActions(connection.send, 'dahai');
+		assert.strictEqual(dahai.length, 1, 'normal dahai should be sent after restore');
+		assert.strictEqual(dahai[0][1].riichi, false, 'selection should be discarded, not a riichi discard');
+	});
+});
