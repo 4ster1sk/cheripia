@@ -15,8 +15,6 @@ import { IdService } from '@/core/IdService.js';
 import { Packed } from '@/misc/json-schema.js';
 import type { OnApplicationShutdown } from '@nestjs/common';
 
-const EAST_ROUND_KYOKU_COUNT = 4;
-
 export type MahjongRoom = {
 	id: string;
 	createdAt: string;
@@ -540,21 +538,21 @@ export class MahjongService implements OnApplicationShutdown {
 						n: mj.handTiles.n,
 					},
 				});
-				await this.endKyoku(room, mj);
+				await this.endKyoku(room, mj, { agariHouse: Mmj.findAtamahane(res.callee, res.callers), tenpaiHouses: [] });
 				break;
 			case 'ryuukyoku': {
 				const ryuukyokuResult = mj.commit_ryuukyoku();
 				room.gameState = mj.getState();
 				await this.saveRoom(room);
 				this.globalEventService.publishMahjongRoomStream(room.id, 'ryuukyoku', ryuukyokuResult);
-				await this.endKyoku(room, mj);
+				await this.endKyoku(room, mj, { agariHouse: null, tenpaiHouses: ryuukyokuResult.tenpaiHouses });
 				break;
 			}
 		}
 	}
 
 	@bindThis
-	private async endKyoku(room: MahjongRoom, mj: Mmj.MasterGameEngine): Promise<void> {
+	private async endKyoku(room: MahjongRoom, mj: Mmj.MasterGameEngine, kyokuResult: { agariHouse: Mmj.House | null; tenpaiHouses: Mmj.House[] }): Promise<void> {
 		this.clearTurnTimers(room.id);
 
 		const confirmation: NextKyokuConfirmation = {
@@ -579,7 +577,7 @@ export class MahjongService implements OnApplicationShutdown {
 				this.removeTimer(this.otherTimers, room.id, interval);
 				await this.redisClient.del(`mahjong:gameNextKyokuConfirmation:${room.id}`);
 				try {
-					await this.nextKyoku(room, mj);
+					await this.nextKyoku(room, mj, kyokuResult);
 				} catch (err) {
 					console.error('mahjong: failed to nextKyoku', err);
 				}
@@ -589,14 +587,19 @@ export class MahjongService implements OnApplicationShutdown {
 	}
 
 	@bindThis
-	private async nextKyoku(room: MahjongRoom, mj: Mmj.MasterGameEngine): Promise<void> {
-		mj.commit_nextKyoku();
-		room.gameState = mj.getState();
-
-		if (room.gameState.kyoku > EAST_ROUND_KYOKU_COUNT) {
+	private async nextKyoku(room: MahjongRoom, mj: Mmj.MasterGameEngine, kyokuResult: { agariHouse: Mmj.House | null; tenpaiHouses: Mmj.House[] }): Promise<void> {
+		// トビ終了: いずれかの持ち点が0以下なら次局に進まず対局終了する
+		if (Mmj.isTobiPoints(mj.$state.points)) {
 			await this.endGame(room);
 			return;
 		}
+		// オーラス止め（和了止め）は実装しない。南4局の親流れは単純終了する。
+		const { ended } = mj.commit_nextKyoku(kyokuResult.agariHouse, kyokuResult.tenpaiHouses);
+		if (ended) {
+			await this.endGame(room);
+			return;
+		}
+		room.gameState = mj.getState();
 
 		await this.saveRoom(room);
 		this.globalEventService.publishMahjongRoomStream(room.id, 'nextKyoku', { room });
@@ -629,7 +632,7 @@ export class MahjongService implements OnApplicationShutdown {
 			// asking を伴う場合は asking 分岐で解決前に dahai を publish 済み
 			this.globalEventService.publishMahjongRoomStream(room.id, 'dahai', { house, tile, riichi });
 			this.globalEventService.publishMahjongRoomStream(room.id, 'ryuukyoku', ryuukyokuResult);
-			await this.endKyoku(room, mj);
+			await this.endKyoku(room, mj, { agariHouse: null, tenpaiHouses: ryuukyokuResult.tenpaiHouses });
 			return;
 		}
 
@@ -720,7 +723,7 @@ export class MahjongService implements OnApplicationShutdown {
 		await this.saveRoom(room);
 
 		this.globalEventService.publishMahjongRoomStream(room.id, 'tsumoHora', { house, handTiles: res.handTiles, tsumoTile: res.tsumoTile });
-		await this.endKyoku(room, mj);
+		await this.endKyoku(room, mj, { agariHouse: house, tenpaiHouses: [] });
 	}
 
 	@bindThis

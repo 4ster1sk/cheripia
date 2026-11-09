@@ -5,7 +5,7 @@
 
 import * as Common from '../src/common.js';
 import { House, TileType, TileId } from '../src/common.js';
-import { MasterGameEngine, MasterState, INITIAL_POINT } from '../src/engine.master.js';
+import { MasterGameEngine, MasterState, INITIAL_POINT, isTobiPoints } from '../src/engine.master.js';
 
 const TILES = [71, 132, 108, 51, 39, 19, 3, 86, 104, 18, 50, 7, 45, 82, 43, 34, 111, 78, 53, 105, 126, 91, 112, 75, 119, 55, 95, 93, 65, 9, 66, 52, 79, 32, 99, 109, 56, 5, 101, 92, 1, 37, 62, 23, 27, 117, 77, 14, 31, 96, 120, 130, 29, 135, 100, 17, 102, 124, 59, 89, 49, 115, 107, 97, 90, 48, 25, 110, 68, 15, 74, 129, 69, 61, 73, 81, 11, 41, 44, 84, 13, 40, 33, 58, 30, 8, 38, 10, 87, 125, 57, 121, 21, 2, 54, 46, 22, 4, 133, 16, 76, 70, 60, 103, 114, 122, 24, 88, 36, 123, 47, 12, 128, 118, 116, 63, 26, 94, 67, 131, 64, 35, 113, 134, 6, 127, 80, 72, 42, 98, 85, 20, 106, 136, 83, 28];
 
@@ -239,7 +239,8 @@ describe('Master game engine', () => {
 			n: 16000,
 		};
 
-		engine.commit_nextKyoku();
+		// 子の和了による親流れでは席が回転する
+		engine.commit_nextKyoku('s', []);
 
 		// 席は e -> s -> w -> n -> e と移動する
 		expect(engine.$state.user1House).toBe('s');
@@ -642,7 +643,7 @@ describe('Master game engine drawn tile', () => {
 		expect(state.drawnTile).toBe(state.handTiles.e.at(-1));
 
 		const engine = new MasterGameEngine(state);
-		engine.commit_nextKyoku();
+		engine.commit_nextKyoku('s', []);
 		expect(engine.$state.drawnTile).toBe(engine.$state.handTiles.e.at(-1));
 	});
 
@@ -1051,8 +1052,125 @@ describe('Master game engine honba and kyotaku', () => {
 		expect(result.pointDeltas).toEqual({ e: 0, s: 0, w: 0, n: 0 });
 		expect(engine.$state.honba).toBe(3);
 		expect(engine.$state.kyotaku).toBe(3);
-		engine.commit_nextKyoku();
-		expect(engine.$state.honba).toBe(3);
+		// 親ノーテン流局のため親流れとなり、本場はリセットされる
+		engine.commit_nextKyoku(null, []);
+		expect(engine.$state.honba).toBe(0);
 		expect(engine.$state.kyotaku).toBe(3);
+	});
+});
+
+describe('Master game engine renchan and round advancement', () => {
+	function createRenchanState(preset: Partial<MasterState> = {}): MasterState {
+		return MasterGameEngine.createInitialState({
+			round: 'e',
+			kyoku: 1,
+			honba: 0,
+			kyotaku: 0,
+			points: {
+				e: 30000,
+				s: 25000,
+				w: 20000,
+				n: 15000,
+			},
+			user1House: 'e',
+			user2House: 's',
+			user3House: 'w',
+			user4House: 'n',
+			...preset,
+		});
+	}
+
+	it('renchan on dealer tsumo keeps seats and kyoku and increments honba', () => {
+		const engine = new MasterGameEngine(createRenchanState({ honba: 0, kyotaku: 2 }));
+		const result = engine.commit_nextKyoku('e', []);
+
+		expect(result).toEqual({ ended: false });
+		expect(engine.$state.round).toBe('e');
+		expect(engine.$state.kyoku).toBe(1);
+		expect(engine.$state.user1House).toBe('e');
+		expect(engine.$state.user2House).toBe('s');
+		expect(engine.$state.user3House).toBe('w');
+		expect(engine.$state.user4House).toBe('n');
+		expect(engine.$state.honba).toBe(1);
+		expect(engine.$state.kyotaku).toBe(2);
+		expect(engine.$state.points).toEqual({
+			e: 30000,
+			s: 25000,
+			w: 20000,
+			n: 15000,
+		});
+	});
+
+	it('oya-nagare on child ron rotates seats, advances kyoku and resets honba', () => {
+		const engine = new MasterGameEngine(createRenchanState({ honba: 2, kyotaku: 1 }));
+		const result = engine.commit_nextKyoku('s', []);
+
+		expect(result).toEqual({ ended: false });
+		expect(engine.$state.round).toBe('e');
+		expect(engine.$state.kyoku).toBe(2);
+		expect(engine.$state.user1House).toBe('s');
+		expect(engine.$state.user2House).toBe('w');
+		expect(engine.$state.user3House).toBe('n');
+		expect(engine.$state.user4House).toBe('e');
+		expect(engine.$state.honba).toBe(0);
+		expect(engine.$state.kyotaku).toBe(1);
+		expect(engine.$state.points).toEqual({
+			e: 15000,
+			s: 30000,
+			w: 25000,
+			n: 20000,
+		});
+	});
+
+	it('renchan on ryuukyoku with dealer tenpai keeps honba incremented by ryuukyoku', () => {
+		const engine = new MasterGameEngine(createRenchanState({ honba: 3, kyotaku: 1 }));
+		const result = engine.commit_nextKyoku(null, ['e', 's']);
+
+		expect(result).toEqual({ ended: false });
+		expect(engine.$state.kyoku).toBe(1);
+		expect(engine.$state.user1House).toBe('e');
+		expect(engine.$state.honba).toBe(3);
+		expect(engine.$state.kyotaku).toBe(1);
+	});
+
+	it('oya-nagare on ryuukyoku without dealer tenpai rotates seats and resets honba', () => {
+		const engine = new MasterGameEngine(createRenchanState({ honba: 3, kyotaku: 1 }));
+		const result = engine.commit_nextKyoku(null, ['s']);
+
+		expect(result).toEqual({ ended: false });
+		expect(engine.$state.kyoku).toBe(2);
+		expect(engine.$state.user1House).toBe('s');
+		expect(engine.$state.honba).toBe(0);
+		expect(engine.$state.kyotaku).toBe(1);
+		expect(engine.$state.points).toEqual({
+			e: 15000,
+			s: 30000,
+			w: 25000,
+			n: 20000,
+		});
+	});
+
+	it('advances to south round on oya-nagare from east 4', () => {
+		const engine = new MasterGameEngine(createRenchanState({ round: 'e', kyoku: 4, honba: 1, kyotaku: 0 }));
+		const result = engine.commit_nextKyoku('s', []);
+
+		expect(result).toEqual({ ended: false });
+		expect(engine.$state.round).toBe('s');
+		expect(engine.$state.kyoku).toBe(1);
+		expect(engine.$state.user1House).toBe('s');
+		expect(engine.$state.honba).toBe(0);
+	});
+
+	it('ends the game on oya-nagare from south 4', () => {
+		const engine = new MasterGameEngine(createRenchanState({ round: 's', kyoku: 4, honba: 0 }));
+		const result = engine.commit_nextKyoku('s', []);
+
+		expect(result).toEqual({ ended: true });
+	});
+
+	it('detects tobi when any player has no points left', () => {
+		expect(isTobiPoints({ e: 0, s: 25000, w: 20000, n: 15000 })).toBe(true);
+		expect(isTobiPoints({ e: 30000, s: -100, w: 20000, n: 15000 })).toBe(true);
+		expect(isTobiPoints({ e: 30000, s: 25000, w: 20000, n: 15000 })).toBe(false);
 	});
 });

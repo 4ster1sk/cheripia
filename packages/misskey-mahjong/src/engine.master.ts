@@ -11,6 +11,13 @@ import { calcFu } from './common.fu.js';
 
 export const INITIAL_POINT = 25000;
 
+/**
+ * いずれかの持ち点が0以下ならトビ終了とする。
+ */
+export function isTobiPoints(points: Record<House, number>): boolean {
+	return (['e', 's', 'w', 'n'] as const).some(house => points[house] <= 0);
+}
+
 //#region syntax suger
 function $(tid: TileId): Common.TileInstance {
 	return Common.findTileByIdOrFail(tid);
@@ -533,10 +540,64 @@ export class MasterGameEngine {
 		});
 	}
 
-	public commit_nextKyoku() {
+	public commit_nextKyoku(agariHouse: House | null, tenpaiHouses: House[] = []): { ended: boolean } {
 		const tx = this.startTransaction();
+		// 連荘判定: 親（席 'e'）の和了、または流局時の親テンパイなら連荘。
+		const renchan = agariHouse === 'e' || (agariHouse == null && tenpaiHouses.includes('e'));
+		if (renchan) {
+			const newState = MasterGameEngine.createInitialState();
+			newState.round = tx.$state.round;
+			newState.kyoku = tx.$state.kyoku;
+			// 点数は席ではなくプレイヤーに紐づくが、席回転しないため写像はそのまま
+			newState.points = {
+				e: tx.$state.points.e,
+				s: tx.$state.points.s,
+				w: tx.$state.points.w,
+				n: tx.$state.points.n,
+			};
+			newState.turn = 'e';
+			newState.user1House = tx.$state.user1House;
+			newState.user2House = tx.$state.user2House;
+			newState.user3House = tx.$state.user3House;
+			newState.user4House = tx.$state.user4House;
+			// 親和了時は +1。流局時は commit_ryuukyoku で既に +1 済みのため加算しない
+			newState.honba = agariHouse != null ? (tx.$state.honba ?? 0) + 1 : (tx.$state.honba ?? 0);
+			newState.kyotaku = tx.$state.kyotaku ?? 0;
+			tx.$state = newState;
+			tx.$commit();
+			return { ended: false };
+		}
+
+		const nextKyoku = tx.$state.kyoku + 1;
+		// オーラス止め（和了止め）は実装しない。南4局の親流れは単純終了とする。
+		if (nextKyoku > 4) {
+			if (tx.$state.round !== 'e') {
+				return { ended: true };
+			}
+			const newState = MasterGameEngine.createInitialState();
+			newState.round = 's';
+			newState.kyoku = 1;
+			newState.points = {
+				e: tx.$state.points.n,
+				s: tx.$state.points.e,
+				w: tx.$state.points.s,
+				n: tx.$state.points.w,
+			};
+			newState.turn = 'e';
+			newState.user1House = Common.nextHouse(tx.$state.user1House);
+			newState.user2House = Common.nextHouse(tx.$state.user2House);
+			newState.user3House = Common.nextHouse(tx.$state.user3House);
+			newState.user4House = Common.nextHouse(tx.$state.user4House);
+			newState.honba = 0;
+			newState.kyotaku = tx.$state.kyotaku ?? 0;
+			tx.$state = newState;
+			tx.$commit();
+			return { ended: false };
+		}
+
 		const newState = MasterGameEngine.createInitialState();
-		newState.kyoku = tx.$state.kyoku + 1;
+		newState.round = tx.$state.round;
+		newState.kyoku = nextKyoku;
 		// 点数は席風ではなくプレイヤーに紐づくため、席の移動に合わせて回転させる
 		newState.points = {
 			e: tx.$state.points.n,
@@ -549,11 +610,11 @@ export class MasterGameEngine {
 		newState.user2House = Common.nextHouse(tx.$state.user2House);
 		newState.user3House = Common.nextHouse(tx.$state.user3House);
 		newState.user4House = Common.nextHouse(tx.$state.user4House);
-		// TODO: 連荘判定・親流れ時のリセット・南入は別途実装
-		newState.honba = tx.$state.honba ?? 0;
+		newState.honba = 0;
 		newState.kyotaku = tx.$state.kyotaku ?? 0;
 		tx.$state = newState;
 		tx.$commit();
+		return { ended: false };
 	}
 
 	public commit_dahai(house: House, tid: TileId, riichi = false) {
