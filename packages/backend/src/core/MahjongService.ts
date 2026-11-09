@@ -686,7 +686,9 @@ export class MahjongService implements OnApplicationShutdown {
 				room.gameState = mj.getState();
 				await this.saveRoom(room);
 				this.globalEventService.publishMahjongRoomStream(room.id, 'ryuukyoku', ryuukyokuResult);
-				await this.endKyoku(room, mj, { agariHouse: null, tenpaiHouses: ryuukyokuResult.tenpaiHouses });
+				// 流し満貫の成就時は親連荘とするため tenpaiHouses ['e'] で既存経路に乗せる
+				// (commit_nextKyoku は親テンパイ流局で連荘する)。
+				await this.endKyoku(room, mj, { agariHouse: null, tenpaiHouses: ryuukyokuResult.nagashiHouses.length > 0 ? ['e'] : ryuukyokuResult.tenpaiHouses });
 				break;
 			}
 		}
@@ -892,7 +894,9 @@ export class MahjongService implements OnApplicationShutdown {
 			// asking を伴う場合は asking 分岐で解決前に dahai を publish 済み
 			this.globalEventService.publishMahjongRoomStream(room.id, 'dahai', { house, tile, riichi });
 			this.globalEventService.publishMahjongRoomStream(room.id, 'ryuukyoku', ryuukyokuResult);
-			await this.endKyoku(room, mj, { agariHouse: null, tenpaiHouses: ryuukyokuResult.tenpaiHouses });
+			// 流し満貫の成就時は親連荘とするため tenpaiHouses ['e'] で既存経路に乗せる
+			// (commit_nextKyoku は親テンパイ流局で連荘する)。
+			await this.endKyoku(room, mj, { agariHouse: null, tenpaiHouses: ryuukyokuResult.nagashiHouses.length > 0 ? ['e'] : ryuukyokuResult.tenpaiHouses });
 			return;
 		}
 

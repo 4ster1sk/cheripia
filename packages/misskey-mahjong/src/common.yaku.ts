@@ -13,6 +13,7 @@ export const NORMAL_YAKU_NAMES = [
 	'riichi',
 	'ippatsu',
 	'tsumo',
+	'renhou',
 	'tanyao',
 	'pinfu',
 	'iipeko',
@@ -221,6 +222,12 @@ export type EnvForCalcYaku = {
 	 * 河底牌か
 	 */
 	hotei?: boolean;
+
+	/**
+	 * 局の最初の捨て牌への門前ロンか (人和の前提)。
+	 * 河合計1枚・初巡フラグ残存・副露なしで呼出側が判定し、ここでは門前確認のみ行う (単純化)。
+	 */
+	renhou?: boolean;
 });
 
 interface YakuDataBase {
@@ -406,6 +413,20 @@ export const NORMAL_YAKU_DEFINITIONS: NormalYakuDefinition[] = [
 		isYakuman: false,
 		calc: (state: EnvForCalcYaku, fourMentsuOneJyantou: FourMentsuOneJyantou | null) => {
 			return state.ippatsu ?? false;
+		},
+	},
+	{
+		name: 'renhou',
+		fan: 5,
+		isYakuman: false,
+		calc: (state: EnvForCalcYaku) => {
+			// 人和: 局の最初の捨て牌への門前ロン (5翻、鳴き不可)。
+			// 初巡であることの判定は Env.renhou 側 (河合計1枚・初巡フラグ残存) に寄せ、
+			// ここではロン和了かつ完全門前 (暗槓含め副露なし) のみ確認する (単純化)。
+			// 天和・地和には触れない。
+			if (state.ronTile == null) return false;
+			if (!(state.renhou ?? false)) return false;
+			return state.huros.length === 0;
 		},
 	},
 	{
@@ -1075,6 +1096,35 @@ export const YAKUMAN_DEFINITIONS: YakumanDefinition[] = [
 		},
 	},
 ];
+
+/**
+ * 人和の前提 (局の最初の捨て牌へのロン) を判定する。
+ * 材料は河の合計枚数 (今回の捨て牌のみで1枚)・初巡フラグの残存・副露なし。
+ * turnCount は打牌で加算されない実装のため常に0であり、初巡の材料として turnCount === 0 を要求する (単純化)。
+ * 鳴きによる河の取下げ・フラグ消去で初巡条件が崩れるため、鳴き後の2枚目以降の河合計1枚を誤検出しない。
+ */
+export function isFirstDiscardRon(
+	hoTileCounts: Record<House, number>,
+	firstTurnFlags: Record<House, boolean>,
+	turnCount: number,
+	callee: House,
+): boolean {
+	if (turnCount !== 0) return false;
+	const total = hoTileCounts.e + hoTileCounts.s + hoTileCounts.w + hoTileCounts.n;
+	if (total !== 1) return false;
+	return (['e', 's', 'w', 'n'] as const).every(h => h === callee || firstTurnFlags[h]);
+}
+
+/**
+ * 流し満貫の成就判定: 副露なし (huros 空) かつ捨て牌が全て幺九牌。
+ * 鳴かれた牌は河から取り除かれるため、残った河だけを見ればよい (単純化)。
+ * テンパイ要件は課さない (成就条件の簡略形として不問とする)。
+ */
+export function isNagashimanganHo(hoTiles: TileType[], huros: HuroForCalcYaku[]): boolean {
+	if (huros.length > 0) return false;
+	if (hoTiles.length === 0) return false;
+	return hoTiles.every(t => includes(YAOCHU_TILES, t));
+}
 
 export function convertHuroForCalcYaku(huro: Huro): HuroForCalcYaku {
 	switch (huro.type) {

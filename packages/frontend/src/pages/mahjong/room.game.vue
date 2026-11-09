@@ -334,6 +334,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 		<div :class="$style.kyokuResultCard">
 			<div :class="$style.kyokuResultTitle">{{ roundLabel }} {{ ryuukyokued ? '流局' : '局結果' }}</div>
 			<div v-if="ryuukyokued && abortiveKind != null" :class="$style.kyokuResultYaku">{{ ABORTIVE_DRAW_REASONS[abortiveKind] ?? abortiveKind }}による途中流局</div>
+			<div v-if="ryuukyokued && (ryuukyokuResult?.nagashiHouses?.length ?? 0) > 0" :class="$style.kyokuResultYaku">流し満貫{{ (ryuukyokuResult?.nagashiHouses ?? []).map((h) => houseLabel(h)).join('・') }}</div>
 			<div v-if="ryuukyokued">
 				<div v-for="house in houses" :key="house" :class="[$style.kyokuResultRow, $style.kyokuResultRowCompact]">
 					<div :class="$style.kyokuResultHouseRow">
@@ -506,6 +507,7 @@ const ryuukyokuResult = ref<{
 	notenHouses: Mmj.House[];
 	pointDeltas: Record<Mmj.House, number>;
 	abortive?: string;
+	nagashiHouses?: Mmj.House[];
 } | null>(null);
 const abortiveKind = ref<string | null>(null);
 const startTextShowing = ref(false);
@@ -1127,7 +1129,7 @@ function onStreamTsumoHora(log: { house: Mmj.House; handTiles: number[]; tsumoTi
 	startTimer(NEXT_KYOKU_SEC, 'confirm');
 }
 
-function onStreamRyuukyoku(log: { tenpaiHouses: Mmj.House[]; notenHouses: Mmj.House[]; pointDeltas: Record<Mmj.House, number>; abortive?: string }) {
+function onStreamRyuukyoku(log: { tenpaiHouses: Mmj.House[]; notenHouses: Mmj.House[]; pointDeltas: Record<Mmj.House, number>; abortive?: string; nagashiHouses?: Mmj.House[] }) {
 	console.log('onStreamRyuukyoku', log);
 	closeCiiChoices();
 

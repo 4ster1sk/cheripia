@@ -4,7 +4,7 @@
  */
 
 import * as assert from 'node:assert';
-import { calcYakus } from '../src/common.yaku.js';
+import { calcYakus, isNagashimanganHo } from '../src/common.yaku.js';
 
 describe('Yaku', () => {
 	describe('Riichi', () => {
@@ -1144,6 +1144,62 @@ describe('Yaku', () => {
 				tsumoTile: 'm3',
 				chankan: true,
 			}).includes('chankan'), false);
+		});
+	});
+
+	describe('renhou', () => {
+		it('valid', () => {
+			// 門前の完成形 (m123 p456 s789 hhh + n 単騎) への初巡捨て牌ロン
+			assert.deepStrictEqual(calcYakus({
+				seatWind: 's',
+				handTiles: ['m1', 'm2', 'm3', 'p4', 'p5', 'p6', 's7', 's8', 's9', 'haku', 'haku', 'haku', 'n', 'n'],
+				huros: [],
+				ronTile: 'n',
+				renhou: true,
+			}), ['renhou', 'white']);
+		});
+
+		it('invalid', () => {
+			// フラグなしでは人和にならない (白のみ)
+			assert.deepStrictEqual(calcYakus({
+				seatWind: 's',
+				handTiles: ['m1', 'm2', 'm3', 'p4', 'p5', 'p6', 's7', 's8', 's9', 'haku', 'haku', 'haku', 'n', 'n'],
+				huros: [],
+				ronTile: 'n',
+			}), ['white']);
+
+			// 副露ありでは人和にならない
+			assert.deepStrictEqual(calcYakus({
+				seatWind: 's',
+				handTiles: ['m1', 'm2', 'm3', 'p4', 'p5', 'p6', 's7', 's8', 's9', 'n', 'n'],
+				huros: [{ type: 'pon', tile: 'haku' }],
+				ronTile: 'n',
+				renhou: true,
+			}).includes('renhou'), false);
+
+			// ツモでは人和にならない
+			assert.deepStrictEqual(calcYakus({
+				seatWind: 's',
+				handTiles: ['m1', 'm2', 'm3', 'p4', 'p5', 'p6', 's7', 's8', 's9', 'haku', 'haku', 'haku', 'n', 'n'],
+				huros: [],
+				tsumoTile: 'n',
+				renhou: true,
+			}).includes('renhou'), false);
+		});
+	});
+
+	describe('nagashimangan detection', () => {
+		it('valid', () => {
+			assert.deepStrictEqual(isNagashimanganHo(['m1', 'm9', 'p1', 'p9', 's1', 's9', 'e', 's', 'w', 'n', 'haku', 'hatsu', 'chun'], []), true);
+		});
+
+		it('invalid', () => {
+			// 中張牌が混ざると不成立
+			assert.deepStrictEqual(isNagashimanganHo(['m1', 'm9', 'm2'], []), false);
+			// 副露ありは不成立
+			assert.deepStrictEqual(isNagashimanganHo(['m1', 'm9'], [{ type: 'pon', tile: 'e' }]), false);
+			// 捨て牌なしは不成立
+			assert.deepStrictEqual(isNagashimanganHo([], []), false);
 		});
 	});
 });

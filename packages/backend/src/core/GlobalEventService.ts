@@ -313,6 +313,7 @@ export interface MahjongRoomEventTypes {
 		notenHouses: MahjongHouse[];
 		pointDeltas: Record<MahjongHouse, number>;
 		abortive?: MahjongAbortiveDrawKind;
+		nagashiHouses?: MahjongHouse[];
 	};
 	ankanned: {
 		house: MahjongHouse;

@@ -5,7 +5,7 @@
 
 import { TileType, House, Huro, TileId } from './common.js';
 import * as Common from './common.js';
-import { calcYakusWithDetail, convertHuroForCalcYaku, getWaitTiles, isAgarikeiWithHuros } from './common.yaku.js';
+import { calcYakusWithDetail, convertHuroForCalcYaku, getWaitTiles, isAgarikeiWithHuros, isFirstDiscardRon } from './common.yaku.js';
 import { calcFu } from './common.fu.js';
 
 //#region syntax suger
@@ -315,6 +315,13 @@ export class PlayerGameEngine {
 				doubleRiichi: this.state.doubleRiichis[this.myHouse],
 				ippatsu: this.state.ippatsus[this.myHouse],
 				hotei: this.state.tilesCount === 0,
+				// 人和の前提 (局の最初の捨て牌) は河・初巡フラグで判定する。
+				renhou: isFirstDiscardRon(
+					{ e: this.state.hoTiles.e.length, s: this.state.hoTiles.s.length, w: this.state.hoTiles.w.length, n: this.state.hoTiles.n.length },
+					this.state.firstTurnFlags,
+					this.state.turnCount,
+					house,
+				),
 			});
 			const canRon = isAgarikeiWithHuros(this.myHandTileTypes.concat([ronTile]), huros) && ronYakus.yakuNames.length > 0
 				&& !this.furiten
@@ -461,6 +468,13 @@ export class PlayerGameEngine {
 		if (ronTileId == null) throw new Error('No ron tile');
 		const ronTile = $type(ronTileId);
 		const chankan = opts?.chankan ?? (fallbackRonTileId != null && ronTileId === fallbackRonTileId ? fallbackChankan : false);
+		// 人和の前提 (局の最初の捨て牌) は河・初巡フラグで判定する。局表示用の再計算であり master と同条件にする。
+		const renhou = !chankan && isFirstDiscardRon(
+			{ e: this.state.hoTiles.e.length, s: this.state.hoTiles.s.length, w: this.state.hoTiles.w.length, n: this.state.hoTiles.n.length },
+			this.state.firstTurnFlags,
+			this.state.turnCount,
+			callee,
+		);
 		for (const house of callers) {
 			const handTileTypes = handTiles[house].map(id => $type(id)).concat([ronTile]);
 			const huros = this.state.huros[house];
@@ -477,6 +491,7 @@ export class PlayerGameEngine {
 				ippatsu: this.state.ippatsus[house],
 				hotei: this.state.tilesCount === 0,
 				chankan,
+				renhou,
 			});
 			const doraCount = Common.calcHoraDoraCount(handTileTypes, handTiles[house].concat([ronTileId]), huros, this.doras, Common.uraDorasFromIndicateTiles(opts?.uraDoraIndicateTiles), this.state.riichis[house]);
 			const factor: Common.PointFactor = yakus.isYakuman
@@ -695,6 +710,8 @@ export class PlayerGameEngine {
 					ippatsu: this.state.ippatsus[this.myHouse],
 					hotei: this.state.tilesCount === 0,
 					chankan: true,
+					// 槍槓時は加槓宣言で初巡フラグ消去済みのため人和は不成立になる。
+					renhou: false,
 				});
 				canRon = isAgarikeiWithHuros(this.myHandTileTypes.concat([ronTile]), huros) && ronYakus.yakuNames.length > 0
 					&& !this.furiten

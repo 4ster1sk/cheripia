@@ -6,7 +6,7 @@
 import { TileType, House, Huro, TileId } from './common.js';
 import * as Common from './common.js';
 import { PlayerState } from './engine.player.js';
-import { calcYakusWithDetail, convertHuroForCalcYaku, getWaitTiles, isAgarikeiWithHuros, YakuData, YakuSet } from './common.yaku.js';
+import { calcYakusWithDetail, convertHuroForCalcYaku, getWaitTiles, isAgarikeiWithHuros, isFirstDiscardRon, isNagashimanganHo, YakuData, YakuSet } from './common.yaku.js';
 import { calcFu } from './common.fu.js';
 
 export const INITIAL_POINT = 25000;
@@ -201,7 +201,7 @@ class StateManager {
 		});
 	}
 
-	public canRon(house: House, tid: TileId): boolean {
+	public canRon(house: House, tid: TileId, callee: House | null = null): boolean {
 		if (this.$state.furitenFlags?.[house]) return false;
 		if (this.$state.riichiFuritenFlags?.[house]) return false;
 		// フリテン（自河現物）
@@ -223,6 +223,13 @@ class StateManager {
 			ippatsu: this.$state.ippatsus[house],
 			hotei: this.$state.tiles.length === 0,
 			chankan: this.$state.kakanRon != null && $type(tid) === this.$state.kakanRon.tile,
+			// 人和の前提 (局の最初の捨て牌) は河・初巡フラグで判定する。加槓時はフラグ消去済みのため不成立になる。
+			renhou: callee != null && isFirstDiscardRon(
+				{ e: this.$state.hoTiles.e.length, s: this.$state.hoTiles.s.length, w: this.$state.hoTiles.w.length, n: this.$state.hoTiles.n.length },
+				this.$state.firstTurnFlags,
+				this.$state.turnCount,
+				callee,
+			),
 		});
 
 		return yakus.yakuNames.length > 0; // 役がない
@@ -533,8 +540,49 @@ export class MasterGameEngine {
 		tenpaiHouses: House[];
 		notenHouses: House[];
 		pointDeltas: Record<House, number>;
+		nagashiHouses: House[];
 	} {
 		const tx = this.startTransaction();
+
+		// 流し満貫: 副露なし・捨て牌全幺九牌の家を成就者として検出する。
+		const nagashiHouses = (['e', 's', 'w', 'n'] as const).filter(house =>
+			isNagashimanganHo(tx.hoTileTypes[house], tx.$state.huros[house].map(convertHuroForCalcYaku)),
+		);
+
+		if (nagashiHouses.length > 0) {
+			// 成就者がいる場合、テンパイ料の授受は行わず、成就者への役満ツモ相当の支払いに置き換える。
+			// 既存のツモ点数ヘルパーを流用し、本場加算あり・供託は成就者が総取りとする。
+			// 複数成就は各自に支払う稀なケースとして重ね合わせ、供託は席順先頭が取得する (単純化)。
+			const pointDeltas: Record<House, number> = { e: 0, s: 0, w: 0, n: 0 };
+			const honba = tx.$state.honba ?? 0;
+			for (const house of nagashiHouses) {
+				const deltas = Common.calcTsumoHoraPointDeltas(house, { isYakuman: true, value: 1 });
+				Common.applyHonbaToTsumoDeltas(deltas, house, honba);
+				pointDeltas.e += deltas.e;
+				pointDeltas.s += deltas.s;
+				pointDeltas.w += deltas.w;
+				pointDeltas.n += deltas.n;
+			}
+			const kyotaku = tx.$state.kyotaku ?? 0;
+			if (kyotaku > 0) pointDeltas[nagashiHouses[0]] += 1000 * kyotaku;
+			tx.$state.points.e += pointDeltas.e;
+			tx.$state.points.s += pointDeltas.s;
+			tx.$state.points.w += pointDeltas.w;
+			tx.$state.points.n += pointDeltas.n;
+			tx.$state.kyotaku = 0;
+			tx.$state.honba = (tx.$state.honba ?? 0) + 1;
+			tx.$state.turn = null;
+			tx.$state.drawnTile = null;
+
+			tx.$commit();
+
+			return {
+				tenpaiHouses: [],
+				notenHouses: (['e', 's', 'w', 'n'] as const).filter(house => !nagashiHouses.includes(house)),
+				pointDeltas,
+				nagashiHouses,
+			};
+		}
 
 		const tenpaiHouses = tx.getTenpaiHouses();
 		const notenHouses = (['e', 's', 'w', 'n'] as const).filter(house => !tenpaiHouses.includes(house));
@@ -562,6 +610,7 @@ export class MasterGameEngine {
 			tenpaiHouses,
 			notenHouses,
 			pointDeltas,
+			nagashiHouses: [],
 		};
 	}
 
@@ -866,24 +915,24 @@ export class MasterGameEngine {
 		const canRonHouses: House[] = [];
 		switch (house) {
 			case 'e':
-				if (tx.canRon('s', tid)) canRonHouses.push('s');
-				if (tx.canRon('w', tid)) canRonHouses.push('w');
-				if (tx.canRon('n', tid)) canRonHouses.push('n');
+				if (tx.canRon('s', tid, house)) canRonHouses.push('s');
+				if (tx.canRon('w', tid, house)) canRonHouses.push('w');
+				if (tx.canRon('n', tid, house)) canRonHouses.push('n');
 				break;
 			case 's':
-				if (tx.canRon('e', tid)) canRonHouses.push('e');
-				if (tx.canRon('w', tid)) canRonHouses.push('w');
-				if (tx.canRon('n', tid)) canRonHouses.push('n');
+				if (tx.canRon('e', tid, house)) canRonHouses.push('e');
+				if (tx.canRon('w', tid, house)) canRonHouses.push('w');
+				if (tx.canRon('n', tid, house)) canRonHouses.push('n');
 				break;
 			case 'w':
-				if (tx.canRon('e', tid)) canRonHouses.push('e');
-				if (tx.canRon('s', tid)) canRonHouses.push('s');
-				if (tx.canRon('n', tid)) canRonHouses.push('n');
+				if (tx.canRon('e', tid, house)) canRonHouses.push('e');
+				if (tx.canRon('s', tid, house)) canRonHouses.push('s');
+				if (tx.canRon('n', tid, house)) canRonHouses.push('n');
 				break;
 			case 'n':
-				if (tx.canRon('e', tid)) canRonHouses.push('e');
-				if (tx.canRon('s', tid)) canRonHouses.push('s');
-				if (tx.canRon('w', tid)) canRonHouses.push('w');
+				if (tx.canRon('e', tid, house)) canRonHouses.push('e');
+				if (tx.canRon('s', tid, house)) canRonHouses.push('s');
+				if (tx.canRon('w', tid, house)) canRonHouses.push('w');
 				break;
 		}
 
@@ -998,7 +1047,7 @@ export class MasterGameEngine {
 		const kakanTile = $type(tid);
 		tx.$state.kakanRon = { house, tile: kakanTile, tileId: tid };
 
-		const canRonHouses = (['e', 's', 'w', 'n'] as const).filter(h => h !== house && tx.canRon(h, tid));
+		const canRonHouses = (['e', 's', 'w', 'n'] as const).filter(h => h !== house && tx.canRon(h, tid, house));
 
 		if (canRonHouses.length > 0) {
 			tx.$state.askings.ron = {
@@ -1211,6 +1260,13 @@ export class MasterGameEngine {
 			const isKakanRon = kakanRon != null;
 			const ronTileId = isKakanRon ? kakanRon.tileId : tx.$state.hoTiles[callee].at(-1)!;
 			const ronTile = isKakanRon ? kakanRon.tile : $type(ronTileId);
+			// 人和の前提 (局の最初の捨て牌) は河・初巡フラグで判定する。加槓時は宣言時にフラグ消去済みのため不成立になる。
+			const renhou = isFirstDiscardRon(
+				{ e: tx.$state.hoTiles.e.length, s: tx.$state.hoTiles.s.length, w: tx.$state.hoTiles.w.length, n: tx.$state.hoTiles.n.length },
+				tx.$state.firstTurnFlags,
+				tx.$state.turnCount,
+				callee,
+			);
 			const yakus: { [K in House]?: YakuSet } = Object.fromEntries(callers.map(house => {
 				const handTiles = tx.handTileTypes[house].concat([ronTile]);
 				const huros = tx.$state.huros[house];
@@ -1227,6 +1283,7 @@ export class MasterGameEngine {
 					ippatsu: tx.$state.ippatsus[house],
 					hotei: tx.$state.tiles.length === 0,
 					chankan: isKakanRon,
+					renhou,
 				});
 				const doraCount = Common.calcHoraDoraCount(handTiles, tx.$state.handTiles[house].concat([ronTileId]), huros, tx.doras, tx.uraDoras, tx.$state.riichis[house]);
 				const factor: Common.PointFactor = yakus.isYakuman

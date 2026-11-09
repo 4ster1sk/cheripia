@@ -993,6 +993,8 @@ describe('Master game engine honba and kyotaku', () => {
 			hoTiles: { e: [], s: [69], w: [], n: [] },
 			askings: { ron: { callee: 's', callers: ['e'] }, pon: null, cii: null, kan: null },
 			riichis: { e: true, s: false, w: false, n: false },
+			// 残り山2枚の終盤想定のため初巡フラグは落とす (人和の誤検出防止)
+			firstTurnFlags: { e: false, s: false, w: false, n: false },
 			tiles: [33, 34],
 			kingTiles: [125],
 			activatedDorasCount: 1,
@@ -1023,6 +1025,8 @@ describe('Master game engine honba and kyotaku', () => {
 			hoTiles: { e: [], s: [69], w: [], n: [] },
 			askings: { ron: { callee: 's', callers: ['e', 'w'] }, pon: null, cii: null, kan: null },
 			riichis: { e: true, s: false, w: true, n: false },
+			// 残り山2枚の終盤想定のため初巡フラグは落とす (人和の誤検出防止)
+			firstTurnFlags: { e: false, s: false, w: false, n: false },
 			tiles: [33, 34],
 			kingTiles: [125],
 			activatedDorasCount: 1,
@@ -2125,5 +2129,106 @@ describe('Master game engine abortive draws review fixes', () => {
 		expect(resolved.house).toBe('s');
 		expect(engine.$state.turn).toBe('s');
 		expect(engine.$state.tiles).toHaveLength(2);
+	});
+});
+
+describe('Master game engine renhou', () => {
+	function findTileOfType(engine: MasterGameEngine, house: House, tile: TileType): TileId {
+		const found = engine.handTiles[house].find(t => Common.TILE_ID_MAP.get(t)!.t === tile);
+		if (found == null) throw new Error(`No such tile: ${tile}`);
+		return found;
+	}
+
+	it('offers renhou ron on the first discard of the kyoku', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState(
+			new TileSetBuilder()
+				.setHandTiles('e', ['m1', 'm2', 'm3', 'p4', 'p5', 'p6', 's7', 's8', 's9', 'e', 'e', 'e', 'n', 'n'])
+				.setHandTiles('s', ['m1', 'm2', 'm3', 'p4', 'p5', 'p6', 's7', 's8', 's9', 'haku', 'haku', 'haku', 'n'])
+				.setHandTiles('w', ['m4', 'm5', 'm6', 'p1', 'p2', 'p3', 's1', 's2', 's3', 's', 's', 's', 'w'])
+				.setHandTiles('n', ['m7', 'm8', 'm9', 'p7', 'p8', 'p9', 's4', 's5', 's6', 'w', 'w', 'w', 'chun'])
+				.build(),
+		));
+		const res = engine.commit_dahai('e', findTileOfType(engine, 'e', 'n'));
+		expect(res.asking).toBe(true);
+		if (!res.asking) throw new Error('unexpected result');
+		expect(res.canRonHouses).toEqual(['s']);
+		const resolved = engine.commit_resolveCallingInterruption({
+			pon: false,
+			cii: false,
+			kan: false,
+			ron: ['s'],
+		}, false);
+		expect(resolved.type).toBe('ronned');
+		if (resolved.type !== 'ronned') throw new Error('unexpected result');
+		expect(resolved.yakus.s?.yakuNames).toContain('renhou');
+	});
+
+	it('does not offer renhou ron after the first discard', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState(
+			new TileSetBuilder()
+				.setHandTiles('e', ['m1', 'm2', 'm3', 'p4', 'p5', 'p6', 's7', 's8', 's9', 'e', 'e', 'e', 'n', 'haku'])
+				.setHandTiles('s', ['m1', 'm2', 'm3', 'p4', 'p5', 'p6', 's1', 's2', 's3', 'haku', 'haku', 'chun', 'e'])
+				.setHandTiles('w', ['m4', 'm5', 'm7', 'm8', 'p1', 'p2', 'p7', 'p8', 's2', 's5', 's8', 'w', 'haku'])
+				.setHandTiles('n', ['m7', 'm8', 'm9', 'p7', 'p8', 'p9', 's4', 's5', 's6', 'n', 'n', 'n', 'chun'])
+				.build(),
+		));
+		// 初打は誰もロンできない (s のポンのみ成立し辞退する)
+		const first = engine.commit_dahai('e', findTileOfType(engine, 'e', 'haku'));
+		expect(first.asking).toBe(true);
+		if (!first.asking) throw new Error('unexpected result');
+		expect(first.canRonHouses).toEqual([]);
+		engine.commit_resolveCallingInterruption({
+			pon: false,
+			cii: false,
+			kan: false,
+			ron: [],
+		}, false);
+		// 2枚目の捨て牌へのロンは人和にならない (自風の役のみ)
+		const second = engine.commit_dahai('s', findTileOfType(engine, 's', 'chun'));
+		expect(second.asking).toBe(true);
+		if (!second.asking) throw new Error('unexpected result');
+		expect(second.canRonHouses).toEqual(['n']);
+		const resolved = engine.commit_resolveCallingInterruption({
+			pon: false,
+			cii: false,
+			kan: false,
+			ron: ['n'],
+		}, false);
+		expect(resolved.type).toBe('ronned');
+		if (resolved.type !== 'ronned') throw new Error('unexpected result');
+		expect(resolved.yakus.n?.yakuNames).toContain('seat-wind-n');
+		expect(resolved.yakus.n?.yakuNames).not.toContain('renhou');
+	});
+});
+
+describe('Master game engine nagashimangan', () => {
+	it('replaces tenpai payment with yakuman-tsumo payment and renchan on exhaustive draw', () => {
+		const hoTileIds: TileId[] = [];
+		for (const id of Common.TILE_ID_MAP.keys()) {
+			if (hoTileIds.length >= 18) break;
+			if (Common.includes(Common.YAOCHU_TILES, Common.TILE_ID_MAP.get(id)!.t)) hoTileIds.push(id);
+		}
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			tiles: [],
+			honba: 1,
+			kyotaku: 2,
+			hoTiles: { e: hoTileIds, s: [], w: [], n: [] },
+		}));
+		const result = engine.commit_ryuukyoku();
+		expect(result.nagashiHouses).toEqual(['e']);
+		expect(result.tenpaiHouses).toEqual([]);
+		// 親の役満ツモ相当 48000/16000 + 本場 + 供託総取り、テンパイ料なし
+		expect(result.pointDeltas).toEqual({
+			e: 48000 + 300 + 2000,
+			s: -16000 - 100,
+			w: -16000 - 100,
+			n: -16000 - 100,
+		});
+		expect(engine.$state.honba).toBe(2);
+		expect(engine.$state.kyotaku).toBe(0);
+		// 親連荘: 既存経路に tenpaiHouses ['e'] で乗せる
+		expect(engine.commit_nextKyoku(null, ['e'])).toEqual({ ended: false });
+		expect(engine.$state.kyoku).toBe(1);
+		expect(engine.$state.honba).toBe(2);
 	});
 });
