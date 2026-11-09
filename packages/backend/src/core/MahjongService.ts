@@ -76,6 +76,7 @@ type NextKyokuWaiting = {
 	confirmation: NextKyokuConfirmation;
 	kyokuResult: { agariHouse: Mmj.House | null; tenpaiHouses: Mmj.House[] };
 	expected: NextKyokuKey;
+	token?: string;
 };
 
 function isSameNextKyokuKey(a: NextKyokuKey, b: NextKyokuKey): boolean {
@@ -155,6 +156,7 @@ function parseNextKyokuWaiting(raw: string): NextKyokuWaiting | null {
 			kyoku: expected.kyoku as number,
 			turnCount: expected.turnCount as number,
 		},
+		token: typeof record.token === 'string' ? record.token : undefined,
 	};
 }
 
@@ -715,39 +717,10 @@ export class MahjongService implements OnApplicationShutdown {
 	}
 
 	@bindThis
-	private async endKyoku(room: MahjongRoom, mj: Mmj.MasterGameEngine, kyokuResult: { agariHouse: Mmj.House | null; tenpaiHouses: Mmj.House[] }): Promise<void> {
-		// NOTE: ロック保持中に呼ぶこと。次局への進行はタイマー発火時に roomId のみから再取得して別ロックで行う。
-		this.clearTurnTimers(room.id);
-
-		const key = `mahjong:gameNextKyokuConfirmation:${room.id}`;
-		const expected: NextKyokuKey = {
-			round: mj.$state.round,
-			kyoku: mj.$state.kyoku,
-			turnCount: mj.$state.turnCount,
-		};
-		// 同一局の待機が既に進行中なら二重開始しない（多重 endKyoku の抑止）
-		const existingRaw = await this.redisClient.get(key);
-		if (existingRaw != null) {
-			const existing = parseNextKyokuWaiting(existingRaw);
-			if (existing != null && isSameNextKyokuKey(existing.expected, expected)) {
-				console.warn('mahjong: endKyoku already waiting for same kyoku', { roomId: room.id, expected });
-				return;
-			}
-		}
-
-		const waiting: NextKyokuWaiting = {
-			confirmation: {
-				user1: room.user1Ai,
-				user2: room.user2Ai,
-				user3: room.user3Ai,
-				user4: room.user4Ai,
-			},
-			kyokuResult,
-			expected,
-		};
-		await this.redisClient.set(key, JSON.stringify(waiting), 'EX', AUX_KEY_TTL_SECONDS);
+	private watchNextKyokuConfirmation(roomId: MahjongRoom['id'], expected: NextKyokuKey, kyokuResult: { agariHouse: Mmj.House | null; tenpaiHouses: Mmj.House[] }): void {
+		// NOTE: endKyoku の通常経路と同一待機抑止経路の双方から呼ぶ。キーの内容には触れず監視だけ追加する。
+		const key = `mahjong:gameNextKyokuConfirmation:${roomId}`;
 		const waitingStartedAt = Date.now();
-		const roomId = room.id;
 		const interval = setInterval(async () => {
 			// Redis 取得失敗時は interval を維持して次 tick で再試行する
 			try {
@@ -775,7 +748,14 @@ export class MahjongService implements OnApplicationShutdown {
 							}
 							const freshMj = new Mmj.MasterGameEngine(fresh.gameState);
 							await this.nextKyokuLocked(fresh, freshMj, kyokuResult, expected);
-							await this.redisClient.del(key);
+							// ネスト中断で新待機に置き換わっていたら削除しない（token 付きの新待機は残す）。
+							const afterRaw = await this.redisClient.get(key);
+							if (afterRaw != null) {
+								const after = parseNextKyokuWaiting(afterRaw);
+								if (after == null || after.token == null) {
+									await this.redisClient.del(key);
+								}
+							}
 						});
 					} catch (err) {
 						console.error('mahjong: failed to recover nextKyoku waiting', err);
@@ -799,6 +779,8 @@ export class MahjongService implements OnApplicationShutdown {
 							if (latestRaw == null) return true;
 							const latestWaiting = parseNextKyokuWaiting(latestRaw);
 							if (latestWaiting != null && !isSameNextKyokuKey(latestWaiting.expected, expected)) return true;
+							// 自世代トークン。進行中のネスト中断で置き換わった新待機を消さないよう末尾削除の一致判定に使う。
+							const ownToken = latestWaiting?.token;
 							const fresh = await this.getRoom(roomId);
 							// 空室なら進行不能のためキーを掃除する
 							if (fresh == null || fresh.gameState == null) {
@@ -806,9 +788,16 @@ export class MahjongService implements OnApplicationShutdown {
 								return true;
 							}
 							const freshMj = new Mmj.MasterGameEngine(fresh.gameState);
-							// 進行成功後にキーを削除する（del 直後の失敗で進行もキーも失う永久停止を避ける）
+							// 進行成功後にキーを削除する（del 直後の失敗で進行もキーも失う永久停止を避ける）。
+							// ネスト中断で新待機に置き換わっていたら削除しない（高速経路と同一方式）。
 							await this.nextKyokuLocked(fresh, freshMj, kyokuResult, expected);
-							await this.redisClient.del(key);
+							const afterRaw = await this.redisClient.get(key);
+							if (afterRaw != null) {
+								const after = parseNextKyokuWaiting(afterRaw);
+								if (after == null || after.token === ownToken) {
+									await this.redisClient.del(key);
+								}
+							}
 							return true;
 						});
 					} catch (err) {
@@ -824,7 +813,46 @@ export class MahjongService implements OnApplicationShutdown {
 				console.error('mahjong: failed to poll nextKyoku confirmation', err);
 			}
 		}, 500);
-		this.addTimer(this.otherTimers, room.id, interval);
+		this.addTimer(this.otherTimers, roomId, interval);
+	}
+
+	@bindThis
+	private async endKyoku(room: MahjongRoom, mj: Mmj.MasterGameEngine, kyokuResult: { agariHouse: Mmj.House | null; tenpaiHouses: Mmj.House[] }): Promise<void> {
+		// NOTE: ロック保持中に呼ぶこと。次局への進行はタイマー発火時に roomId のみから再取得して別ロックで行う。
+		this.clearTurnTimers(room.id);
+
+		const key = `mahjong:gameNextKyokuConfirmation:${room.id}`;
+		const expected: NextKyokuKey = {
+			round: mj.$state.round,
+			kyoku: mj.$state.kyoku,
+			turnCount: mj.$state.turnCount,
+		};
+		// 同一局の待機が既に進行中なら二重開始しない（多重 endKyoku の抑止）
+		const existingRaw = await this.redisClient.get(key);
+		if (existingRaw != null) {
+			const existing = parseNextKyokuWaiting(existingRaw);
+			if (existing != null && isSameNextKyokuKey(existing.expected, expected)) {
+				console.warn('mahjong: endKyoku already waiting for same kyoku', { roomId: room.id, expected });
+				// 同一待機の抑止時も監視だけ追加する（キーの内容は書き換えない）。
+				// 既存 interval と多重になっても、期待局不一致ガードと単一進行保証で多重進行は起きない（冪等）。
+				this.watchNextKyokuConfirmation(room.id, existing.expected, existing.kyokuResult);
+				return;
+			}
+		}
+
+		const waiting: NextKyokuWaiting = {
+			confirmation: {
+				user1: room.user1Ai,
+				user2: room.user2Ai,
+				user3: room.user3Ai,
+				user4: room.user4Ai,
+			},
+			kyokuResult,
+			expected,
+			token: Math.random().toString(36).slice(2),
+		};
+		await this.redisClient.set(key, JSON.stringify(waiting), 'EX', AUX_KEY_TTL_SECONDS);
+		this.watchNextKyokuConfirmation(room.id, expected, kyokuResult);
 	}
 
 	@bindThis
@@ -1179,6 +1207,8 @@ export class MahjongService implements OnApplicationShutdown {
 				expected: current,
 			};
 		}
+		// 自世代の待機を識別するトークン。旧形式キーには無いため付与する。
+		if (waiting.token == null) waiting.token = Math.random().toString(36).slice(2);
 		if (!(confirmation.user1 && confirmation.user2 && confirmation.user3 && confirmation.user4)) {
 			await this.redisClient.set(key, JSON.stringify({ ...waiting, confirmation }), 'EX', AUX_KEY_TTL_SECONDS);
 			return;
@@ -1188,12 +1218,20 @@ export class MahjongService implements OnApplicationShutdown {
 			console.warn('mahjong: confirmNextKyoku skipped: key mismatch', { roomId, current, expected: waiting.expected });
 			return;
 		}
-		// 確認完了点を高速進行させる。フラグを先に保存してから進行し、
-		// 進行成功後にキーを削除する（失敗時はキーが残るため再確認でリトライできる）。
+		// 確認完了点を高速進行させる。フラグを先に保存してから進行する。
+		// 末尾の削除は自世代トークン一致時のみ行う。nextKyokuLocked 内で中断→endKyoku が起きると
+		// キーがネスト側の新待機に置き換わるため、無条件 del では新待機を消して永久停止する。
 		// ポーリング側はキー消失を見て自消し、仮に発火しても期待局不一致ガードで多重進行しない。
+		const ownToken = waiting.token;
 		await this.redisClient.set(key, JSON.stringify({ ...waiting, confirmation }), 'EX', AUX_KEY_TTL_SECONDS);
 		await this.nextKyokuLocked(room, mj, waiting.kyokuResult, waiting.expected);
-		await this.redisClient.del(key);
+		const latestRaw = await this.redisClient.get(key);
+		if (latestRaw != null) {
+			const latest = parseNextKyokuWaiting(latestRaw);
+			if (latest != null && latest.token === ownToken) {
+				await this.redisClient.del(key);
+			}
+		}
 	}
 
 	@bindThis
