@@ -111,9 +111,13 @@ export class MahjongRoomChannel extends Channel {
 				break;
 			case 'updateSettings':
 				if (!isJsonObject(body)) return;
-				if (body.key !== 'timeLimitForEachTurn') return;
-				if (typeof body.value !== 'number' || !Number.isInteger(body.value) || body.value < 5 || body.value > 300) return;
-				this.updateSettings(body.key, body.value);
+				if (body.key === 'timeLimitForEachTurn') {
+					if (typeof body.value !== 'number' || !Number.isInteger(body.value) || body.value < 5 || body.value > 300) return;
+					this.updateSettings(body.key, body.value);
+				} else if (body.key === 'matchLength') {
+					if (body.value !== 'east' && body.value !== 'south') return;
+					this.updateSettings(body.key, body.value);
+				}
 				break;
 			case 'removeAi':
 				if (!isJsonObject(body)) return;

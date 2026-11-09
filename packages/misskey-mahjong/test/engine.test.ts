@@ -1197,6 +1197,75 @@ describe('Master game engine renchan and round advancement', () => {
 	});
 });
 
+describe('Master game engine match length', () => {
+	function createMatchState(preset: Partial<MasterState> = {}): MasterState {
+		return MasterGameEngine.createInitialState({
+			round: 'e',
+			kyoku: 4,
+			honba: 0,
+			kyotaku: 0,
+			...preset,
+		});
+	}
+
+	it('defaults to south match', () => {
+		expect(MasterGameEngine.createInitialState().matchLength).toBe('south');
+	});
+
+	it('falls back to south match for old saves without matchLength', () => {
+		const raw = createMatchState() as unknown as Record<string, unknown>;
+		delete raw.matchLength;
+		const engine = new MasterGameEngine(raw as unknown as MasterState);
+		expect(engine.$state.matchLength).toBe('south');
+		// 東南戦扱いのため東4局の親流れで南入する
+		const result = engine.commit_nextKyoku('s', []);
+		expect(result).toEqual({ ended: false });
+		expect(engine.$state.round).toBe('s');
+		expect(engine.$state.kyoku).toBe(1);
+	});
+
+	it('enters south round on oya-nagare from east 4 in south match', () => {
+		const engine = new MasterGameEngine(createMatchState({ matchLength: 'south' }));
+		const result = engine.commit_nextKyoku('s', []);
+
+		expect(result).toEqual({ ended: false });
+		expect(engine.$state.round).toBe('s');
+		expect(engine.$state.kyoku).toBe(1);
+		expect(engine.$state.matchLength).toBe('south');
+	});
+
+	it('ends the game on oya-nagare from east 4 in east match without entering south', () => {
+		const engine = new MasterGameEngine(createMatchState({ matchLength: 'east' }));
+		const result = engine.commit_nextKyoku('s', []);
+
+		expect(result).toEqual({ ended: true });
+		expect(engine.$state.round).toBe('e');
+		expect(engine.$state.kyoku).toBe(4);
+	});
+
+	it('keeps east match through renchan at east 4', () => {
+		const engine = new MasterGameEngine(createMatchState({ matchLength: 'east', honba: 0, kyotaku: 1 }));
+		const result = engine.commit_nextKyoku('e', []);
+
+		expect(result).toEqual({ ended: false });
+		expect(engine.$state.round).toBe('e');
+		expect(engine.$state.kyoku).toBe(4);
+		expect(engine.$state.matchLength).toBe('east');
+		expect(engine.$state.honba).toBe(1);
+		expect(engine.$state.kyotaku).toBe(1);
+	});
+
+	it('keeps east match on normal advancement before east 4', () => {
+		const engine = new MasterGameEngine(createMatchState({ matchLength: 'east', round: 'e', kyoku: 1 }));
+		const result = engine.commit_nextKyoku('s', []);
+
+		expect(result).toEqual({ ended: false });
+		expect(engine.$state.round).toBe('e');
+		expect(engine.$state.kyoku).toBe(2);
+		expect(engine.$state.matchLength).toBe('east');
+	});
+});
+
 describe('Master game engine furiten', () => {
 	// e: m123 p345 s678 p78 s22 の p9 待ち (ロンすればピンフ)
 	const E_TENPAI: TileId[] = [1, 5, 9, 45, 49, 53, 93, 97, 101, 61, 65, 77, 78];

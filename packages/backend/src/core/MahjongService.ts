@@ -40,6 +40,11 @@ export type MahjongRoom = {
 	user3Ready: boolean;
 	user4Ready: boolean;
 	timeLimitForEachTurn: number;
+	/**
+	 * 対局形式。'east' は東風戦（東4局で終了）、'south' は東南戦（南入あり。既定）。
+	 * 対局開始前のルーム設定でのみ変更できる。
+	 */
+	matchLength: 'east' | 'south';
 
 	gameState?: Mmj.MasterState;
 };
@@ -351,6 +356,7 @@ export class MahjongService implements OnApplicationShutdown {
 			user3Ready: false,
 			user4Ready: false,
 			timeLimitForEachTurn: 30,
+			matchLength: 'south',
 		};
 		await this.saveRoom(room);
 		return room;
@@ -360,7 +366,12 @@ export class MahjongService implements OnApplicationShutdown {
 	public async getRoom(id: MahjongRoom['id']): Promise<MahjongRoom | null> {
 		const room = await this.redisClient.get(`mahjong:room:${id}`);
 		if (room == null) return null;
-		return JSON.parse(room) as MahjongRoom;
+		const parsed = JSON.parse(room) as MahjongRoom;
+		// matchLength 導入前の既存ルームは東南戦 ('south') 扱いとする。
+		if (parsed.matchLength !== 'east' && parsed.matchLength !== 'south') {
+			parsed.matchLength = 'south';
+		}
+		return parsed;
 	}
 
 	@bindThis
@@ -539,6 +550,12 @@ export class MahjongService implements OnApplicationShutdown {
 			room.timeLimitForEachTurn = value;
 			await this.saveRoom(room);
 		}
+
+		if (key === 'matchLength') {
+			if (value !== 'east' && value !== 'south') return;
+			room.matchLength = value;
+			await this.saveRoom(room);
+		}
 	}
 
 	@bindThis
@@ -583,7 +600,7 @@ export class MahjongService implements OnApplicationShutdown {
 	@bindThis
 	private async startGame(room: MahjongRoom): Promise<void> {
 		if (room.isStarted) return;
-		room.gameState = Mmj.MasterGameEngine.createInitialState();
+		room.gameState = Mmj.MasterGameEngine.createInitialState({ matchLength: room.matchLength ?? 'south' });
 		room.isStarted = true;
 		room.startedAt = new Date().toISOString();
 		await this.saveRoom(room);

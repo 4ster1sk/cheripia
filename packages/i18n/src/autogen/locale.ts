@@ -16205,6 +16205,18 @@ export interface Locale extends ILocale {
          */
         "noActiveRooms": string;
         /**
+         * 対局形式
+         */
+        "matchLength": string;
+        /**
+         * 東風戦
+         */
+        "eastMatch": string;
+        /**
+         * 東南戦
+         */
+        "southMatch": string;
+        /**
          * 飜
          */
         "fan": string;

@@ -449,6 +449,9 @@ export type Channels = {
 			updateSettings: {
 				key: 'timeLimitForEachTurn';
 				value: number;
+			} | {
+				key: 'matchLength';
+				value: 'east' | 'south';
 			};
 			removeAi: {
 				index: number;

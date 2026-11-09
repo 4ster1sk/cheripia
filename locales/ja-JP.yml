@@ -4341,6 +4341,9 @@ _mahjong:
   spectating: "観戦中"
   activeRooms: "対局中のルーム"
   noActiveRooms: "対局中のルームはありません"
+  matchLength: "対局形式"
+  eastMatch: "東風戦"
+  southMatch: "東南戦"
   fan: "飜"
   _fanNames:
     mangan: "満貫"

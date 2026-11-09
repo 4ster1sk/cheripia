@@ -116,6 +116,10 @@ function normalizeAskings(state: MasterState): void {
 	if ((state as { riichiTiles?: MasterState['riichiTiles'] }).riichiTiles === undefined) {
 		state.riichiTiles = { e: null, s: null, w: null, n: null };
 	}
+	// 旧セーブには対局形式が無いため、欠落・不正値は東南戦 ('south') 扱いとする。
+	if ((state as { matchLength?: unknown }).matchLength !== 'east' && (state as { matchLength?: unknown }).matchLength !== 'south') {
+		state.matchLength = 'south';
+	}
 }
 
 class StateManager {
@@ -316,6 +320,11 @@ export type MasterState = {
 
 	round: 'e' | 's' | 'w' | 'n';
 	kyoku: number;
+	/**
+	 * 対局形式。'east' は東風戦（東4局の終了で対局終了）、'south' は東南戦（南入あり）。
+	 * 旧セーブには存在しないため、読み込み時は 'south' にフォールバックする。
+	 */
+	matchLength: 'east' | 'south';
 	turnCount: number;
 	tiles: TileId[];
 	kingTiles: TileId[];
@@ -684,6 +693,7 @@ export class MasterGameEngine {
 			user4House: 'n',
 			round: 'e',
 			kyoku: 1,
+			matchLength: 'south',
 			turnCount: 0,
 			tiles,
 			kingTiles,
@@ -803,7 +813,7 @@ export class MasterGameEngine {
 		// 連荘判定: 親（席 'e'）の和了、または流局時の親テンパイなら連荘。
 		const renchan = agariHouse === 'e' || (agariHouse == null && tenpaiHouses.includes('e'));
 		if (renchan) {
-			const newState = MasterGameEngine.createInitialState();
+			const newState = MasterGameEngine.createInitialState({ matchLength: tx.$state.matchLength ?? 'south' });
 			newState.round = tx.$state.round;
 			newState.kyoku = tx.$state.kyoku;
 			// 点数は席ではなくプレイヤーに紐づくが、席回転しないため写像はそのまま
@@ -827,12 +837,14 @@ export class MasterGameEngine {
 		}
 
 		const nextKyoku = tx.$state.kyoku + 1;
-		// オーラス止め（和了止め）は実装しない。南4局の親流れは単純終了とする。
+		// オーラス止め（和了止め）は実装しない。東風戦は東4局の親流れで、
+		// 東南戦は南4局の親流れで単純終了する。東4局の親流れは東南戦のみ南入する。
 		if (nextKyoku > 4) {
-			if (tx.$state.round !== 'e') {
+			const matchLength = tx.$state.matchLength ?? 'south';
+			if (tx.$state.round !== 'e' || matchLength === 'east') {
 				return { ended: true };
 			}
-			const newState = MasterGameEngine.createInitialState();
+			const newState = MasterGameEngine.createInitialState({ matchLength });
 			newState.round = 's';
 			newState.kyoku = 1;
 			newState.points = {
@@ -853,7 +865,7 @@ export class MasterGameEngine {
 			return { ended: false };
 		}
 
-		const newState = MasterGameEngine.createInitialState();
+		const newState = MasterGameEngine.createInitialState({ matchLength: tx.$state.matchLength ?? 'south' });
 		newState.round = tx.$state.round;
 		newState.kyoku = nextKyoku;
 		// 点数は席風ではなくプレイヤーに紐づくため、席の移動に合わせて回転させる

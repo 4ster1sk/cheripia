@@ -43,6 +43,12 @@ SPDX-License-Identifier: AGPL-3.0-only
 						<template #suffix>{{ i18n.ts._time.second }}</template>
 					</MkInput>
 				</div>
+				<div style="margin-top: 8px; font-size: 90%; opacity: 0.8;">
+					{{ i18n.ts._mahjong.matchLength }}: {{ room.matchLength === 'east' ? i18n.ts._mahjong.eastMatch : i18n.ts._mahjong.southMatch }}
+				</div>
+				<div v-if="isOwner && !room.isStarted && !room.isEnded" style="margin-top: 8px;">
+					<MkRadios v-model="matchLength" :options="matchLengthOptions"/>
+				</div>
 			</div>
 
 			<div v-if="isOwner" class="_buttonsCenter">
@@ -74,8 +80,10 @@ import { i18n } from '@/i18n.js';
 import { ensureSignin } from '@/i.js';
 import { deepClone } from '@/utility/clone.js';
 import { copyToClipboard } from '@/utility/copy-to-clipboard.js';
+import type { MkRadiosOption } from '@/components/MkRadios.vue';
 import MkButton from '@/components/MkButton.vue';
 import MkInput from '@/components/MkInput.vue';
+import MkRadios from '@/components/MkRadios.vue';
 import * as os from '@/os.js';
 import { useRouter } from '@/router.js';
 
@@ -100,6 +108,23 @@ watch(timeLimit, () => {
 	props.connection.send('updateSettings', {
 		key: 'timeLimitForEachTurn',
 		value,
+	});
+});
+
+const matchLength = ref<'east' | 'south'>(room.value.matchLength ?? 'south');
+
+const matchLengthOptions = [
+	{ value: 'east', label: i18n.ts._mahjong.eastMatch },
+	{ value: 'south', label: i18n.ts._mahjong.southMatch },
+] as MkRadiosOption<string>[];
+
+watch(matchLength, () => {
+	if (matchLength.value !== 'east' && matchLength.value !== 'south') return;
+	if (matchLength.value === room.value.matchLength) return;
+	room.value.matchLength = matchLength.value;
+	props.connection.send('updateSettings', {
+		key: 'matchLength',
+		value: matchLength.value,
 	});
 });
 
