@@ -28,6 +28,8 @@ function createState(): PlayerState {
 		ippatsus: { e: false, s: false, w: false, n: false },
 		rinshanFlags: { e: false, s: false, w: false, n: false },
 		points: { e: 25000, s: 25000, w: 25000, n: 25000 },
+		honba: 0,
+		kyotaku: 0,
 		latestDahaiedTile: null,
 		turn: null,
 		canPon: null,

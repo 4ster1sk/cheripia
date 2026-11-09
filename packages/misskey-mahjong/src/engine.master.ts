@@ -260,6 +260,8 @@ export type MasterState = {
 		w: number;
 		n: number;
 	};
+	honba: number;
+	kyotaku: number;
 	turn: House | null;
 	nextTurnAfterAsking: House | null;
 	askings: {
@@ -399,6 +401,7 @@ export class MasterGameEngine {
 		tx.$state.points.s += pointDeltas.s;
 		tx.$state.points.w += pointDeltas.w;
 		tx.$state.points.n += pointDeltas.n;
+		tx.$state.honba = (tx.$state.honba ?? 0) + 1;
 		tx.$state.turn = null;
 		tx.$state.drawnTile = null;
 
@@ -494,6 +497,8 @@ export class MasterGameEngine {
 				w: INITIAL_POINT,
 				n: INITIAL_POINT,
 			},
+			honba: 0,
+			kyotaku: 0,
 			turn: 'e',
 			nextTurnAfterAsking: null,
 			askings: {
@@ -544,6 +549,9 @@ export class MasterGameEngine {
 		newState.user2House = Common.nextHouse(tx.$state.user2House);
 		newState.user3House = Common.nextHouse(tx.$state.user3House);
 		newState.user4House = Common.nextHouse(tx.$state.user4House);
+		// TODO: 連荘判定・親流れ時のリセット・南入は別途実装
+		newState.honba = tx.$state.honba ?? 0;
+		newState.kyotaku = tx.$state.kyotaku ?? 0;
 		tx.$state = newState;
 		tx.$commit();
 	}
@@ -579,6 +587,8 @@ export class MasterGameEngine {
 			if (tx.$state.firstTurnFlags[house]) {
 				tx.$state.doubleRiichis[house] = true;
 			}
+			tx.$state.points[house] -= 1000;
+			tx.$state.kyotaku = (tx.$state.kyotaku ?? 0) + 1;
 		}
 
 		tx.$state.firstTurnFlags[house] = false;
@@ -813,10 +823,15 @@ export class MasterGameEngine {
 				}),
 			};
 		const pointDeltas = Common.calcTsumoHoraPointDeltas(house, factor, doraCount);
+		const honba = tx.$state.honba ?? 0;
+		const kyotaku = tx.$state.kyotaku ?? 0;
+		Common.applyHonbaToTsumoDeltas(pointDeltas, house, honba);
+		if (kyotaku > 0) pointDeltas[house] += 1000 * kyotaku;
 		tx.$state.points.e += pointDeltas.e;
 		tx.$state.points.s += pointDeltas.s;
 		tx.$state.points.w += pointDeltas.w;
 		tx.$state.points.n += pointDeltas.n;
+		tx.$state.kyotaku = 0;
 		tx.$state.turn = null;
 		tx.$state.drawnTile = null;
 		if (doLog) console.log('yakus', house, yakus);
@@ -891,7 +906,7 @@ export class MasterGameEngine {
 							isYakuman: yakus.isYakuman,
 						}),
 					};
-				const point = Common.calcPoint(factor, house === 'e', doraCount);
+				const point = Common.ronPointWithHonba(Common.calcPoint(factor, house === 'e', doraCount), tx.$state.honba ?? 0);
 				tx.$state.points[callee] -= point;
 				tx.$state.points[house] += point;
 				if (doLog) {
@@ -900,6 +915,12 @@ export class MasterGameEngine {
 				return [house, yakus] as const;
 			}));
 
+			const kyotaku = tx.$state.kyotaku ?? 0;
+			if (kyotaku > 0) {
+				const head = Common.findAtamahane(callee, callers);
+				tx.$state.points[head] += 1000 * kyotaku;
+			}
+			tx.$state.kyotaku = 0;
 			tx.$state.turn = null;
 			tx.$commit();
 
@@ -1157,6 +1178,8 @@ export class MasterGameEngine {
 				w: this.$state.points.w,
 				n: this.$state.points.n,
 			},
+			honba: this.$state.honba ?? 0,
+			kyotaku: this.$state.kyotaku ?? 0,
 			latestDahaiedTile: null,
 			turn: this.$state.turn,
 			canPon: canCall && askings.pon?.caller === house ? { callee: askings.pon.callee } : null,

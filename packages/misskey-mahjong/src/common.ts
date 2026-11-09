@@ -704,3 +704,33 @@ export function getTilesForRiichi(handTiles: TileType[]): TileType[] {
 		return isTenpai(tempHandTiles);
 	});
 }
+
+/**
+ * ツモ和了の本場分を点数差分に反映する。勝者に +300*本場、非勝者各々に -100*本場。
+ */
+export function applyHonbaToTsumoDeltas(pointDeltas: Record<House, number>, winner: House, honba: number): void {
+	if (honba === 0) return;
+	pointDeltas[winner] += 300 * honba;
+	for (const house of ['e', 's', 'w', 'n'] as const) {
+		if (house !== winner) pointDeltas[house] -= 100 * honba;
+	}
+}
+
+/**
+ * ロン和了の基本点に本場分を上乗せする。
+ */
+export function ronPointWithHonba(basePoint: number, honba: number): number {
+	return basePoint + 300 * honba;
+}
+
+/**
+ * 頭ハネ者を返す。放銃者の下家から順に callers を探して最初に一致した者。
+ */
+export function findAtamahane(callee: House, callers: House[]): House {
+	let house = nextHouse(callee);
+	for (let i = 0; i < 4; i++) {
+		if (callers.includes(house)) return house;
+		house = nextHouse(house);
+	}
+	return callers[0];
+}

@@ -94,6 +94,8 @@ export type PlayerState = {
 		w: number;
 		n: number;
 	};
+	honba: number;
+	kyotaku: number;
 	latestDahaiedTile: TileId | null;
 	turn: House | null;
 	canPon: { callee: House } | null;
@@ -233,6 +235,7 @@ export class PlayerGameEngine {
 		this.state.points.s += pointDeltas.s;
 		this.state.points.w += pointDeltas.w;
 		this.state.points.n += pointDeltas.n;
+		this.state.honba = (this.state.honba ?? 0) + 1;
 		this.state.turn = null;
 		this.state.drawnTile = null;
 	}
@@ -262,6 +265,8 @@ export class PlayerGameEngine {
 			if (this.state.firstTurnFlags[house]) this.state.doubleRiichis[house] = true;
 			this.state.riichis[house] = true;
 			this.state.ippatsus[house] = true;
+			this.state.points[house] -= 1000;
+			this.state.kyotaku = (this.state.kyotaku ?? 0) + 1;
 		} else if (this.state.riichis[house]) {
 			this.state.ippatsus[house] = false;
 		} else {
@@ -391,10 +396,15 @@ export class PlayerGameEngine {
 				}),
 			};
 		const pointDeltas = Common.calcTsumoHoraPointDeltas(house, factor, doraCount);
+		const honba = this.state.honba ?? 0;
+		const kyotaku = this.state.kyotaku ?? 0;
+		Common.applyHonbaToTsumoDeltas(pointDeltas, house, honba);
+		if (kyotaku > 0) pointDeltas[house] += 1000 * kyotaku;
 		this.state.points.e += pointDeltas.e;
 		this.state.points.s += pointDeltas.s;
 		this.state.points.w += pointDeltas.w;
 		this.state.points.n += pointDeltas.n;
+		this.state.kyotaku = 0;
 
 		return {
 			yakus: yakus.yakus,
@@ -463,7 +473,7 @@ export class PlayerGameEngine {
 						isYakuman: yakus.isYakuman,
 					}),
 				};
-			const point = Common.calcPoint(factor, house === 'e', doraCount);
+			const point = Common.ronPointWithHonba(Common.calcPoint(factor, house === 'e', doraCount), this.state.honba ?? 0);
 			this.state.points[callee] -= point;
 			this.state.points[house] += point;
 			resultMap[house].yakus = yakus.yakus;
@@ -471,6 +481,13 @@ export class PlayerGameEngine {
 			resultMap[house].pointDeltas[callee] = -point;
 			resultMap[house].pointDeltas[house] = point;
 		}
+		const kyotaku = this.state.kyotaku ?? 0;
+		if (kyotaku > 0 && callers.length > 0) {
+			const head = Common.findAtamahane(callee, callers);
+			this.state.points[head] += 1000 * kyotaku;
+			resultMap[head].pointDeltas[head] += 1000 * kyotaku;
+		}
+		this.state.kyotaku = 0;
 
 		return {
 			e: callers.includes('e') ? resultMap.e : null,

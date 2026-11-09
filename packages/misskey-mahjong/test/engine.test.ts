@@ -938,3 +938,121 @@ describe('Master game engine ryuukyoku', () => {
 		});
 	});
 });
+
+describe('Master game engine honba and kyotaku', () => {
+	it('takes a 1000 deposit on riichi', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState(
+			new TileSetBuilder()
+				.setHandTiles('e', ['m1', 'm2', 'm3', 'p6', 'p6', 'p6', 's6', 's7', 's8', 'n', 'n', 'n', 'm3', 's'])
+				.setTile(3, 'm3')
+				.build(),
+		));
+		engine.commit_dahai('e', engine.handTiles.e.at(-1)!, true);
+		expect(engine.$state.points.e).toBe(INITIAL_POINT - 1000);
+		expect(engine.$state.kyotaku).toBe(1);
+		expect(engine.createPlayerState(1).honba).toBe(0);
+		expect(engine.createPlayerState(1).kyotaku).toBe(1);
+		if (engine.askings.pon != null || engine.askings.cii != null || engine.askings.kan != null || engine.askings.ron != null) {
+			engine.commit_resolveCallingInterruption({ pon: false, cii: false, kan: false, ron: [] });
+		}
+	});
+
+	it('applies honba and kyotaku on tsumo', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			honba: 2,
+			kyotaku: 1,
+			...new TileSetBuilder().setHandTiles('e', ['m1', 'm2', 'm3', 'p6', 'p6', 'p6', 's6', 's7', 's8', 'n', 'n', 'n', 'm3', 'm3']).build(),
+		}));
+		engine.commit_tsumoHora('e', false);
+		// 天和 48000 + 本場 600 + 供託 1000
+		expect(engine.$state.points).toEqual({
+			e: INITIAL_POINT + 48000 + 600 + 1000,
+			s: INITIAL_POINT - 16000 - 200,
+			w: INITIAL_POINT - 16000 - 200,
+			n: INITIAL_POINT - 16000 - 200,
+		});
+		expect(engine.$state.honba).toBe(2);
+		expect(engine.$state.kyotaku).toBe(0);
+	});
+
+	it('applies honba and kyotaku on ron', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [1, 5, 9, 45, 49, 53, 93, 97, 101, 61, 65, 77, 78],
+				s: [],
+				w: [],
+				n: [],
+			},
+			hoTiles: { e: [], s: [69], w: [], n: [] },
+			askings: { ron: { callee: 's', callers: ['e'] }, pon: null, cii: null, kan: null },
+			riichis: { e: true, s: false, w: false, n: false },
+			tiles: [33, 34],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: null,
+			nextTurnAfterAsking: 's',
+			honba: 1,
+			kyotaku: 2,
+		}));
+		engine.commit_resolveCallingInterruption({ pon: false, cii: false, kan: false, ron: ['e'] }, false);
+		// 素点 2900 + 本場 300、頭ハネが供託 2000 を取得
+		expect(engine.$state.points).toEqual({
+			e: INITIAL_POINT + 3200 + 2000,
+			s: INITIAL_POINT - 3200,
+			w: INITIAL_POINT,
+			n: INITIAL_POINT,
+		});
+		expect(engine.$state.kyotaku).toBe(0);
+	});
+
+	it('gives kyotaku to the atamahane winner on double ron', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [1, 5, 9, 45, 49, 53, 93, 97, 101, 61, 65, 77, 78],
+				s: [],
+				w: [2, 6, 11, 46, 50, 54, 94, 98, 102, 62, 66, 79, 80],
+				n: [],
+			},
+			hoTiles: { e: [], s: [69], w: [], n: [] },
+			askings: { ron: { callee: 's', callers: ['e', 'w'] }, pon: null, cii: null, kan: null },
+			riichis: { e: true, s: false, w: true, n: false },
+			tiles: [33, 34],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: null,
+			nextTurnAfterAsking: 's',
+			honba: 2,
+			kyotaku: 2,
+		}));
+		engine.commit_resolveCallingInterruption({ pon: false, cii: false, kan: false, ron: ['e', 'w'] }, false);
+		// e は親で素点 2900、w は子で素点 2000。各 +本場 600、供託 2000 は下家順で先の w が取得
+		expect(engine.$state.points).toEqual({
+			e: INITIAL_POINT + 3500,
+			s: INITIAL_POINT - 6100,
+			w: INITIAL_POINT + 2600 + 2000,
+			n: INITIAL_POINT,
+		});
+		expect(engine.$state.kyotaku).toBe(0);
+	});
+
+	it('increments honba and keeps kyotaku on ryuukyoku', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			honba: 2,
+			kyotaku: 3,
+			tiles: [],
+			handTiles: {
+				e: [13, 17, 21, 25, 33, 37, 41, 49, 53, 65, 109, 113, 125],
+				s: [14, 18, 22, 26, 34, 38, 42, 50, 54, 66, 110, 114, 126],
+				w: [15, 19, 23, 27, 35, 39, 43, 51, 55, 67, 111, 115, 127],
+				n: [16, 20, 24, 28, 36, 40, 44, 52, 56, 68, 112, 116, 128],
+			},
+		}));
+		const result = engine.commit_ryuukyoku();
+		expect(result.pointDeltas).toEqual({ e: 0, s: 0, w: 0, n: 0 });
+		expect(engine.$state.honba).toBe(3);
+		expect(engine.$state.kyotaku).toBe(3);
+		engine.commit_nextKyoku();
+		expect(engine.$state.honba).toBe(3);
+		expect(engine.$state.kyotaku).toBe(3);
+	});
+});
