@@ -304,6 +304,8 @@ export interface MahjongRoomEventTypes {
 		callers: MahjongHouse[];
 		callee: MahjongHouse;
 		handTiles: Record<MahjongHouse, number[]>;
+		ronTile?: number;
+		chankan?: boolean;
 	};
 	ryuukyoku: {
 		tenpaiHouses: MahjongHouse[];
@@ -320,6 +322,12 @@ export interface MahjongRoomEventTypes {
 		house: MahjongHouse;
 		tiles: readonly [number, number, number, number];
 		rinsyan: number;
+		from: MahjongHouse;
+		doraIndicateTiles: TileId[];
+	};
+	kakanDeclared: {
+		house: MahjongHouse;
+		tiles: readonly [number, number, number, number];
 		from: MahjongHouse;
 		doraIndicateTiles: TileId[];
 	};

@@ -194,6 +194,12 @@ export type EnvForCalcYaku = {
 	 * リーチしてから誰の副露もない一巡目以内かどうか
 	 */
 	ippatsu?: boolean;
+
+	/**
+	 * 槍槓かどうか（加槓牌へのロンのみ成立）。
+	 * 国士無双の暗槓に対する槍槓などの例外は実装しない（単純化）。
+	 */
+	chankan?: boolean;
 } & ({
 	tsumoTile: TileType;
 	ronTile?: null;
@@ -408,6 +414,15 @@ export const NORMAL_YAKU_DEFINITIONS: NormalYakuDefinition[] = [
 		isYakuman: false,
 		calc: (state: EnvForCalcYaku, fourMentsuOneJyantou: FourMentsuOneJyantou | null) => {
 			return (state.tsumoTile != null && state.rinshan) ?? false;
+		},
+	},
+	{
+		name: 'chankan',
+		fan: 1,
+		isYakuman: false,
+		// 国士無双の暗槓に対する槍槓などの例外は実装しない（単純化）。
+		calc: (state: EnvForCalcYaku) => {
+			return (state.ronTile != null && (state.chankan ?? false)) ?? false;
 		},
 	},
 	{

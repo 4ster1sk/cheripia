@@ -1441,3 +1441,129 @@ describe('Master game engine calling competition', () => {
 		expect(engine.$state.huros.s[0].type).toBe('pon');
 	});
 });
+
+describe('Master game engine kakan ron (chankan)', () => {
+	// e が p9 のポン (69,70,71) + 72 で加槓し、s が p9 待ち (ピンフ) で構える
+	function createKakanRonState(): MasterState {
+		return MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [13, 17, 21, 25, 29, 33, 37, 41, 109, 121, 72],
+				// m123 p345 s678 p78 s22 の p9 待ち
+				s: [1, 5, 9, 45, 49, 53, 93, 97, 101, 61, 65, 77, 78],
+				w: [],
+				n: [],
+			},
+			huros: {
+				e: [{ type: 'pon', tiles: [69, 70, 71], from: 's' }],
+				s: [],
+				w: [],
+				n: [],
+			},
+			tiles: [34, 35],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: 'e',
+		});
+	}
+
+	it('holds ron asking on kakan instead of immediate rinshan', () => {
+		const engine = new MasterGameEngine(createKakanRonState());
+
+		const res = engine.commit_kakan('e', 72);
+		expect(res.asking).toBe(true);
+		if (!('asking' in res) || !res.asking) throw new Error('unexpected result');
+		expect(res.canRonHouses).toContain('s');
+		expect(engine.$state.askings.ron).toEqual({ callee: 'e', callers: ['s'] });
+		expect(engine.$state.turn).toBeNull();
+		expect(engine.$state.nextTurnAfterAsking).toBe('e');
+		// 嶺上ツモはまだ行われない
+		expect(engine.$state.handTiles.e).not.toContain(34);
+		expect(engine.$state.drawnTile).toBeNull();
+		// ポンはミンカンに置換され、ドラ表示は宣言時に増える
+		expect(engine.$state.huros.e).toHaveLength(1);
+		expect(engine.$state.huros.e[0]).toEqual({
+			type: 'minkan',
+			tiles: [72, 69, 70, 71],
+			from: 's',
+			kakan: true,
+		});
+		expect(engine.$state.activatedDorasCount).toBe(2);
+		expect(engine.$state.kakanRon).toEqual({ house: 'e', tile: 'p9', tileId: 72 });
+	});
+
+	it('does immediate rinshan without asking when no house can ron the kakan tile', () => {
+		const engine = new MasterGameEngine(MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [13, 17, 21, 25, 29, 33, 37, 41, 109, 121, 72],
+				// バラバラのノーテン手牌 (p9 を足しても和了形にならない)
+				s: [14, 18, 22, 26, 34, 38, 42, 50, 54, 66, 110, 114, 126],
+				w: [],
+				n: [],
+			},
+			huros: {
+				e: [{ type: 'pon', tiles: [69, 70, 71], from: 's' }],
+				s: [],
+				w: [],
+				n: [],
+			},
+			tiles: [34, 35],
+			kingTiles: [125],
+			activatedDorasCount: 1,
+			turn: 'e',
+		}));
+
+		const res = engine.commit_kakan('e', 72);
+		expect(res.asking).toBe(false);
+		if (!('rinsyan' in res)) throw new Error('unexpected result');
+		expect(res.tiles).toEqual([72, 69, 70, 71]);
+		expect(res.from).toBe('s');
+		expect(engine.$state.askings.ron).toBeNull();
+		expect(engine.$state.kakanRon).toBeNull();
+		expect(engine.$state.turn).toBe('e');
+		expect(engine.$state.handTiles.e).toContain(34);
+		expect(engine.$state.drawnTile).toBe(34);
+		// ドラ表示は宣言時に1回だけ増える
+		expect(engine.$state.activatedDorasCount).toBe(2);
+	});
+
+	it('does rinshan tsumo and continues the turn when everyone declines kakan ron', () => {
+		const engine = new MasterGameEngine(createKakanRonState());
+
+		engine.commit_kakan('e', 72);
+		const resolved = engine.commit_resolveCallingInterruption({
+			pon: false,
+			cii: false,
+			kan: false,
+			ron: [],
+		});
+		expect(resolved.type).toBe('kakanRinshan');
+		if (resolved.type !== 'kakanRinshan') throw new Error('unexpected result');
+		expect(resolved.house).toBe('e');
+		expect(resolved.rinsyan).toBe(34);
+		expect(engine.$state.turn).toBe('e');
+		expect(engine.$state.handTiles.e).toContain(34);
+		expect(engine.$state.drawnTile).toBe(34);
+		expect(engine.$state.kakanRon).toBeNull();
+		expect(engine.$state.askings.ron).toBeNull();
+	});
+
+	it('resolves chankan ron with the kakan house as the discarder', () => {
+		const engine = new MasterGameEngine(createKakanRonState());
+		engine.$state.kingTiles[0] = 125;
+
+		engine.commit_kakan('e', 72);
+		const resolved = engine.commit_resolveCallingInterruption({
+			pon: false,
+			cii: false,
+			kan: false,
+			ron: ['s'],
+		}, false);
+		expect(resolved.type).toBe('ronned');
+		if (resolved.type !== 'ronned') throw new Error('unexpected result');
+		expect(resolved.callers).toEqual(['s']);
+		expect(resolved.callee).toBe('e');
+		expect(resolved.yakus?.s?.yakuNames).toContain('chankan');
+		expect(engine.$state.turn).toBeNull();
+		expect(engine.$state.kakanRon).toBeNull();
+	});
+});

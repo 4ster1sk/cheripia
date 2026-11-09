@@ -990,6 +990,25 @@ function onStreamKakanned(log: { house: Mmj.House; tiles: readonly [number, numb
 	resetTurnTimer();
 }
 
+function onStreamKakanDeclared(log: { house: Mmj.House; tiles: readonly [number, number, number, number]; from: Mmj.House; doraIndicateTiles: number[] }) {
+	console.log('onStreamKakanDeclared', log);
+	closeCiiChoices();
+
+	mj.value.commit_kakanDeclared(log.house, log.tiles, log.from, log.doraIndicateTiles);
+	triggerRef(mj);
+
+	kanSerifHouses[log.house] = true;
+	window.setTimeout(() => {
+		kanSerifHouses[log.house] = false;
+	}, 2000);
+
+	if (hasCall.value) {
+		startTimer(CALL_SEC, 'call');
+	} else {
+		hideTimer();
+	}
+}
+
 function onStreamAnkanned(log: { house: Mmj.House; tiles: readonly [number, number, number, number]; rinsyan: number; doraIndicateTiles: number[] }) {
 	console.log('onStreamAnkanned', log);
 	closeCiiChoices();
@@ -1022,11 +1041,11 @@ function onStreamCiied(log: { caller: Mmj.House; callee: Mmj.House; tiles: reado
 	resetTurnTimer();
 }
 
-function onStreamRonned(log: { callers: Mmj.House[]; callee: Mmj.House; handTiles: Record<Mmj.House, number[]> }) {
+function onStreamRonned(log: { callers: Mmj.House[]; callee: Mmj.House; handTiles: Record<Mmj.House, number[]>; ronTile?: number; chankan?: boolean }) {
 	console.log('onStreamRonned', log);
 	closeCiiChoices();
 
-	const res = mj.value.commit_ronHora(log.callers, log.callee, log.handTiles);
+	const res = mj.value.commit_ronHora(log.callers, log.callee, log.handTiles, log.ronTile != null && log.chankan != null ? { ronTile: log.ronTile, chankan: log.chankan } : undefined);
 	triggerRef(mj);
 
 	kyokuResults.value = res;
@@ -1132,6 +1151,7 @@ function attachListeners() {
 	props.connection.on('ponned', onStreamPonned);
 	props.connection.on('kanned', onStreamKanned);
 	props.connection.on('kakanned', onStreamKakanned);
+	props.connection.on('kakanDeclared', onStreamKakanDeclared);
 	props.connection.on('ankanned', onStreamAnkanned);
 	props.connection.on('ciied', onStreamCiied);
 	props.connection.on('ronned', onStreamRonned);
@@ -1150,6 +1170,7 @@ function detachListeners() {
 	props.connection.off('ponned', onStreamPonned);
 	props.connection.off('kanned', onStreamKanned);
 	props.connection.off('kakanned', onStreamKakanned);
+	props.connection.off('kakanDeclared', onStreamKakanDeclared);
 	props.connection.off('ankanned', onStreamAnkanned);
 	props.connection.off('ciied', onStreamCiied);
 	props.connection.off('ronned', onStreamRonned);

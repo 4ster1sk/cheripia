@@ -431,7 +431,7 @@ export class PlayerGameEngine {
 		s: TileId[];
 		w: TileId[];
 		n: TileId[];
-	}): Record<House, KyokuResult | null> {
+	}, opts?: { ronTile?: TileId; chankan?: boolean }): Record<House, KyokuResult | null> {
 		console.log('commit_ronHora', this.state.turn, callers, callee);
 
 		this.clearCalls();
@@ -444,8 +444,21 @@ export class PlayerGameEngine {
 			n: { yakus: [], doraCount: 0, pointDeltas: { e: 0, s: 0, w: 0, n: 0 } },
 		};
 
-		const ronTileId = this.state.hoTiles[callee].at(-1)!;
+		// 槍槓ロンは捨て牌ではなく加槓牌がロン牌になる。opts がなければ河底牌を使い、
+		// 不発なら加槓ミンカン牌へのロンを試す (旧イベントとの互換フォールバック)。
+		let fallbackRonTileId: TileId | null = null;
+		let fallbackChankan = false;
+		if (opts?.ronTile == null) {
+			const kakanHuro = this.state.huros[callee].find(h => h.type === 'minkan' && (h as { kakan?: boolean }).kakan === true);
+			if (kakanHuro != null) {
+				fallbackRonTileId = kakanHuro.tiles[0];
+				fallbackChankan = true;
+			}
+		}
+		const ronTileId = opts?.ronTile ?? this.state.hoTiles[callee].at(-1) ?? fallbackRonTileId;
+		if (ronTileId == null) throw new Error('No ron tile');
 		const ronTile = $type(ronTileId);
+		const chankan = opts?.chankan ?? (fallbackRonTileId != null && ronTileId === fallbackRonTileId ? fallbackChankan : false);
 		for (const house of callers) {
 			const handTileTypes = handTiles[house].map(id => $type(id)).concat([ronTile]);
 			const huros = this.state.huros[house];
@@ -461,6 +474,7 @@ export class PlayerGameEngine {
 				doubleRiichi: this.state.doubleRiichis[house],
 				ippatsu: this.state.ippatsus[house],
 				hotei: this.state.tilesCount === 0,
+				chankan,
 			});
 			const doraCount =
 				Common.calcOwnedDoraCount(handTileTypes, huros, this.doras) +
@@ -588,6 +602,12 @@ export class PlayerGameEngine {
 
 	public commit_kakan(house: House, tiles: readonly TileId[], rinsyan: TileId, doraIndicateTiles?: TileId[]) {
 		console.log('commit_kakan', this.state.turn, house, tiles);
+		// 既に宣言済み (asking を経た嶺上継続) の場合は嶺上牌の追加のみ行う
+		const alreadyDeclared = !this.state.huros[house].some((h): h is Huro & { type: 'pon' } => h.type === 'pon' && $type(h.tiles[0]) === $type(tiles[0]));
+		if (alreadyDeclared) {
+			this.commit_kakanRinshan(house, rinsyan, doraIndicateTiles);
+			return;
+		}
 		this.clearCalls();
 		this.clearFirstTurnAndIppatsus();
 		this.state.rinshanFlags[house] = true;
@@ -615,6 +635,95 @@ export class PlayerGameEngine {
 		this.state.tilesCount--;
 		this.state.turn = house;
 		this.state.drawnTile = house === this.myHouse ? rinsyan : null;
+		this.state.canRon = null;
+		this.state.canPon = null;
+		this.state.canKan = null;
+		this.state.canCii = null;
+		if (doraIndicateTiles != null) this.state.doraIndicateTiles = [...doraIndicateTiles];
+	}
+
+	/**
+	 * 加槓の宣言 (槍槓 asking 開始)。4枚目の除去とポン→ミンカン置換のみ行い、嶺上牌はまだ配らない。
+	 */
+	public commit_kakanDeclared(house: House, tiles: readonly TileId[], from: House, doraIndicateTiles?: TileId[]) {
+		console.log('commit_kakanDeclared', this.state.turn, house, tiles);
+		this.clearCalls();
+		this.clearFirstTurnAndIppatsus();
+
+		const pon = this.state.huros[house].find((h): h is Huro & { type: 'pon' } => h.type === 'pon' && $type(h.tiles[0]) === $type(tiles[0]));
+		if (house === this.myHouse) {
+			const index = this.myHandTiles.indexOf(tiles[0]);
+			if (index !== -1) {
+				this.myHandTiles.splice(index, 1);
+			} else {
+				const tile = this.myHandTiles.find(t => $type(t) === $type(tiles[0]));
+				if (tile != null) this.myHandTiles.splice(this.myHandTiles.indexOf(tile), 1);
+			}
+		} else {
+			this.state.handTiles[house].pop();
+		}
+		if (pon != null) {
+			const index = this.state.huros[house].indexOf(pon);
+			this.state.huros[house][index] = { type: 'minkan', tiles: [tiles[0], tiles[1], tiles[2], tiles[3]], from: pon.from, kakan: true };
+		} else {
+			this.state.huros[house].push({ type: 'minkan', tiles: [tiles[0], tiles[1], tiles[2], tiles[3]], from, kakan: true });
+		}
+		if (doraIndicateTiles != null) this.state.doraIndicateTiles = [...doraIndicateTiles];
+
+		this.state.turn = null;
+		this.state.drawnTile = null;
+		this.state.canRon = null;
+		this.state.canPon = null;
+		this.state.canKan = null;
+		this.state.canCii = null;
+
+		if (house !== this.myHouse) {
+			const ronTile = $type(tiles[0]);
+			const huros = this.state.huros[this.myHouse].map(convertHuroForCalcYaku);
+			let canRon = false;
+			try {
+				const ronYakus = calcYakusWithDetail({
+					seatWind: this.myHouse,
+					fieldWind: this.state.round,
+					handTiles: this.myHandTileTypes.concat([ronTile]),
+					huros,
+					tsumoTile: null,
+					ronTile,
+					firstTurn: this.state.firstTurnFlags[this.myHouse],
+					riichi: this.state.riichis[this.myHouse],
+					doubleRiichi: this.state.doubleRiichis[this.myHouse],
+					ippatsu: this.state.ippatsus[this.myHouse],
+					hotei: this.state.tilesCount === 0,
+					chankan: true,
+				});
+				canRon = isAgarikeiWithHuros(this.myHandTileTypes.concat([ronTile]), huros) && ronYakus.yakuNames.length > 0
+					&& !this.furiten
+					&& !this.riichiFuriten
+					&& !this.state.hoTiles[this.myHouse].some(id => $type(id) === ronTile);
+			} catch {
+				canRon = false;
+			}
+			this.state.canRon = canRon ? { callee: house } : null;
+		}
+	}
+
+	/**
+	 * 加槓ロン全辞退後の嶺上ツモ継続。宣言済みの状態に嶺上牌を配る。
+	 */
+	public commit_kakanRinshan(house: House, rinsyan: TileId, doraIndicateTiles?: TileId[]) {
+		console.log('commit_kakanRinshan', this.state.turn, house, rinsyan);
+		this.clearCalls();
+		this.state.rinshanFlags[house] = true;
+		if (house === this.myHouse) {
+			this.myHandTiles.push(rinsyan);
+			this.furiten = false;
+			this.state.drawnTile = rinsyan;
+		} else {
+			this.state.handTiles[house].push(0);
+			this.state.drawnTile = null;
+		}
+		this.state.tilesCount--;
+		this.state.turn = house;
 		this.state.canRon = null;
 		this.state.canPon = null;
 		this.state.canKan = null;

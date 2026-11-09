@@ -56,6 +56,9 @@ function normalizeAskings(state: MasterState): void {
 			state.askings[key] = { callee: asking.callee, callers: [asking.caller] };
 		}
 	}
+	if ((state as { kakanRon?: MasterState['kakanRon'] }).kakanRon === undefined) {
+		state.kakanRon = null;
+	}
 }
 
 class StateManager {
@@ -155,6 +158,7 @@ class StateManager {
 			doubleRiichi: this.$state.doubleRiichis[house],
 			ippatsu: this.$state.ippatsus[house],
 			hotei: this.$state.tiles.length === 0,
+			chankan: this.$state.kakanRon != null && $type(tid) === this.$state.kakanRon.tile,
 		});
 
 		return yakus.yakuNames.length > 0; // 役がない
@@ -301,6 +305,10 @@ export type MasterState = {
 	kyotaku: number;
 	turn: House | null;
 	nextTurnAfterAsking: House | null;
+	/**
+	 * 加槓ロン待ちの保留情報。commit_kakan で asking を立てた場合のみ設定される。
+	 */
+	kakanRon: { house: House; tile: TileType; tileId: TileId } | null;
 	askings: {
 		ron: {
 			/**
@@ -550,6 +558,7 @@ export class MasterGameEngine {
 			kyotaku: 0,
 			turn: 'e',
 			nextTurnAfterAsking: null,
+			kakanRon: null,
 			askings: {
 				ron: null,
 				pon: null,
@@ -827,11 +836,41 @@ export class MasterGameEngine {
 
 		tx.$state.activatedDorasCount++;
 
+		// 槍槓のロン可否を判定するため、嶺上ツモの前に保留情報を立てる
+		const kakanTile = $type(tid);
+		tx.$state.kakanRon = { house, tile: kakanTile, tileId: tid };
+
+		const canRonHouses = (['e', 's', 'w', 'n'] as const).filter(h => h !== house && tx.canRon(h, tid));
+
+		if (canRonHouses.length > 0) {
+			tx.$state.askings.ron = {
+				callee: house,
+				callers: canRonHouses,
+			};
+			tx.$state.turn = null;
+			tx.$state.nextTurnAfterAsking = house;
+			tx.$state.drawnTile = null;
+			tx.$commit();
+
+			return {
+				asking: true as const,
+				canRonHouses,
+				canKanHouses: [] as House[],
+				canPonHouses: [] as House[],
+				canCiiHouse: null as House | null,
+				tiles,
+				from: pon.from,
+			};
+		}
+
+		tx.$state.kakanRon = null;
+
 		const rinsyan = tx.rinshanTsumo();
 
 		tx.$commit();
 
 		return {
+			asking: false as const,
 			rinsyan,
 			tiles,
 			from: pon.from,
@@ -1006,10 +1045,11 @@ export class MasterGameEngine {
 		if (ron != null && answers.ron.length > 0) {
 			const callers = answers.ron;
 			const callee = ron.callee;
-
+			const kakanRon = tx.$state.kakanRon;
+			const isKakanRon = kakanRon != null;
+			const ronTileId = isKakanRon ? kakanRon.tileId : tx.$state.hoTiles[callee].at(-1)!;
+			const ronTile = isKakanRon ? kakanRon.tile : $type(ronTileId);
 			const yakus: { [K in House]?: YakuSet } = Object.fromEntries(callers.map(house => {
-				const ronTileId = tx.$state.hoTiles[callee].at(-1)!;
-				const ronTile = $type(ronTileId);
 				const handTiles = tx.handTileTypes[house].concat([ronTile]);
 				const huros = tx.$state.huros[house];
 				const yakus = calcYakusWithDetail({
@@ -1024,6 +1064,7 @@ export class MasterGameEngine {
 					doubleRiichi: tx.$state.doubleRiichis[house],
 					ippatsu: tx.$state.ippatsus[house],
 					hotei: tx.$state.tiles.length === 0,
+					chankan: isKakanRon,
 				});
 				const doraCount =
 					Common.calcOwnedDoraCount(handTiles, huros, tx.doras) +
@@ -1060,6 +1101,7 @@ export class MasterGameEngine {
 			}
 			tx.$state.kyotaku = 0;
 			tx.$state.turn = null;
+			tx.$state.kakanRon = null;
 			tx.$commit();
 
 			return {
@@ -1214,6 +1256,35 @@ export class MasterGameEngine {
 				caller: cii.caller,
 				callee: cii.callee,
 				tiles: tiles,
+				turn: tx.$state.turn,
+			};
+		} else if (tx.$state.kakanRon != null) {
+			// 加槓ロンの全辞退: 嶺上ツモを行い加槓者の手番継続とする
+			const pendingKakan = tx.$state.kakanRon;
+			const kakanHouse = pendingKakan.house;
+			tx.$state.kakanRon = null;
+			if (tx.$state.tiles.length === 0) {
+				tx.$state.turn = null;
+				tx.$state.nextTurnAfterAsking = null;
+				tx.$commit();
+
+				return {
+					type: 'ryuukyoku' as const,
+				};
+			}
+			tx.$state.turn = kakanHouse;
+			tx.$state.nextTurnAfterAsking = null;
+			const kakanRinsyan = tx.rinshanTsumo();
+			const kakanHuro = tx.$state.huros[kakanHouse].find((h): h is Huro & { type: 'minkan' } => h.type === 'minkan' && (h as { kakan?: boolean }).kakan === true && h.tiles.includes(pendingKakan.tileId));
+			if (kakanHuro == null) throw new Error('Kakan huro not found');
+			tx.$commit();
+
+			return {
+				type: 'kakanRinshan' as const,
+				house: kakanHouse,
+				tiles: kakanHuro.tiles,
+				from: kakanHuro.from,
+				rinsyan: kakanRinsyan,
 				turn: tx.$state.turn,
 			};
 		} else if (tx.$state.tiles.length === 0) {

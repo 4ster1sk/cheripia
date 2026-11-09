@@ -1117,4 +1117,33 @@ describe('Yaku', () => {
 			}), ['chiho']);
 		});
 	});
+
+	describe('chankan', () => {
+		it('valid', () => {
+			assert.deepStrictEqual(calcYakus({
+				seatWind: 'e',
+				handTiles: ['m1', 'm2', 'm3', 'p6', 'p6', 'p6', 's6', 's7', 's8', 'n', 'n', 'n', 'm3', 'm3'],
+				huros: [],
+				ronTile: 'm3',
+				chankan: true,
+			}).includes('chankan'), true);
+		});
+
+		it('invalid', () => {
+			assert.deepStrictEqual(calcYakus({
+				seatWind: 'e',
+				handTiles: ['m1', 'm2', 'm3', 'p6', 'p6', 'p6', 's6', 's7', 's8', 'n', 'n', 'n', 'm3', 'm3'],
+				huros: [],
+				ronTile: 'm3',
+			}).includes('chankan'), false);
+
+			assert.deepStrictEqual(calcYakus({
+				seatWind: 'e',
+				handTiles: ['m1', 'm2', 'm3', 'p6', 'p6', 'p6', 's6', 's7', 's8', 'n', 'n', 'n', 'm3', 'm3'],
+				huros: [],
+				tsumoTile: 'm3',
+				chankan: true,
+			}).includes('chankan'), false);
+		});
+	});
 });

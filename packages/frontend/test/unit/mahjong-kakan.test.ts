@@ -302,4 +302,60 @@ describe('room.game kakan', () => {
 		assert.deepStrictEqual(sentActions(connection.send, 'kakan'), [['kakan', { tile: 20 }]]);
 		assert.strictEqual(sentActions(connection.send, 'ankan').length, 0);
 	});
+
+	test('shows ron on kakanDeclared when waiting on the kakan tile', async () => {
+		const { queryAllByRole, findAllByRole, connection } = renderRoomGame(createPlayerState({
+			turn: 's',
+			handTiles: {
+				e: [1, 5, 9, 45, 49, 53, 93, 97, 101, 61, 65, 77, 78],
+				s: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+				w: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+				n: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			},
+			huros: {
+				e: [],
+				s: [{ type: 'pon', tiles: [69, 70, 71], from: 'e' }],
+				w: [],
+				n: [],
+			},
+		}));
+
+		const before = queryAllByRole('button');
+		assert.ok(!before.some(b => b.textContent?.includes('ロン')), 'ron button should be hidden before declare');
+
+		connection.emit('kakanDeclared', { house: 's', tiles: [72, 69, 70, 71], from: 'e', doraIndicateTiles: [125, 121] });
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		const after = await findAllByRole('button');
+		assert.ok(after.some(b => b.textContent?.includes('ロン')), 'ron button should be visible on kakan declare');
+	});
+
+	test('adds the rinshan tile only on kakanned, not on kakanDeclared', async () => {
+		const { container, connection } = renderRoomGame(createPlayerState({
+			turn: 'e',
+			handTiles: {
+				e: [72, 13, 17, 21, 25, 29, 33, 37, 41, 109, 121, 45, 49],
+				s: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+				w: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+				n: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			},
+			huros: {
+				e: [{ type: 'pon', tiles: [69, 70, 71], from: 's' }],
+				s: [],
+				w: [],
+				n: [],
+			},
+		}));
+
+		const countHandTiles = () => container.querySelector('[class*="handTilesOfMe"]')!.querySelectorAll('img').length;
+		const before = countHandTiles();
+
+		connection.emit('kakanDeclared', { house: 'e', tiles: [72, 69, 70, 71], from: 's', doraIndicateTiles: [125, 121] });
+		await new Promise(resolve => setTimeout(resolve, 0));
+		assert.strictEqual(countHandTiles(), before - 1);
+
+		connection.emit('kakanned', { house: 'e', tiles: [72, 69, 70, 71], rinsyan: 34, from: 's', doraIndicateTiles: [125, 121] });
+		await new Promise(resolve => setTimeout(resolve, 0));
+		assert.strictEqual(countHandTiles(), before);
+	});
 });

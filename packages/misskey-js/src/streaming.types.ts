@@ -406,6 +406,8 @@ export type Channels = {
 				callers: MahjongHouse[];
 				callee: MahjongHouse;
 				handTiles: Record<MahjongHouse, number[]>;
+				ronTile?: number;
+				chankan?: boolean;
 			}) => void;
 			ryuukyoku: (payload: {
 				tenpaiHouses: MahjongHouse[];
@@ -422,6 +424,12 @@ export type Channels = {
 				house: MahjongHouse;
 				tiles: readonly [number, number, number, number];
 				rinsyan: number;
+				from: MahjongHouse;
+				doraIndicateTiles: number[];
+			}) => void;
+			kakanDeclared: (payload: {
+				house: MahjongHouse;
+				tiles: readonly [number, number, number, number];
 				from: MahjongHouse;
 				doraIndicateTiles: number[];
 			}) => void;

@@ -516,6 +516,8 @@ export class MahjongService implements OnApplicationShutdown {
 
 	@bindThis
 	private async answer(room: MahjongRoom, mj: Mmj.MasterGameEngine, answers: CallingAnswers): Promise<void> {
+		const kakanRonTile = mj.getState().kakanRon?.tile ?? null;
+		const wasKakanRon = kakanRonTile != null;
 		const res = mj.commit_resolveCallingInterruption({
 			pon: { ...answers.pon },
 			cii: answers.cii ?? false,
@@ -538,11 +540,22 @@ export class MahjongService implements OnApplicationShutdown {
 				this.globalEventService.publishMahjongRoomStream(room.id, 'kanned', { caller: res.caller, callee: res.callee, tiles: res.tiles, rinsyan: res.rinsyan, doraIndicateTiles: mj.doraIndicateTiles });
 				this.waitForTurn(room, res.turn, mj);
 				break;
+			case 'kakanRinshan':
+				this.globalEventService.publishMahjongRoomStream(room.id, 'kakanned', { house: res.house, tiles: res.tiles as readonly [number, number, number, number], rinsyan: res.rinsyan, from: res.from as Mmj.House, doraIndicateTiles: mj.doraIndicateTiles });
+				this.waitForTurn(room, res.turn, mj);
+				break;
 			case 'ciied':
 				this.globalEventService.publishMahjongRoomStream(room.id, 'ciied', { caller: res.caller, callee: res.callee, tiles: res.tiles });
 				this.waitForTurn(room, res.turn, mj);
 				break;
-			case 'ronned':
+			case 'ronned': {
+				let ronTile: number | undefined;
+				let chankan: boolean | undefined;
+				if (wasKakanRon) {
+					const kakanHuro = mj.$state.huros[res.callee].find(h => h.type === 'minkan' && (h as { kakan?: boolean }).kakan === true && Mmj.findTileByIdOrFail(h.tiles[0]).t === kakanRonTile);
+					if (kakanHuro != null) ronTile = kakanHuro.tiles[0] as number;
+					chankan = true;
+				}
 				this.globalEventService.publishMahjongRoomStream(room.id, 'ronned', {
 					callers: res.callers,
 					callee: res.callee,
@@ -552,9 +565,12 @@ export class MahjongService implements OnApplicationShutdown {
 						w: mj.handTiles.w,
 						n: mj.handTiles.n,
 					}, res.callers),
+					...(ronTile != null ? { ronTile } : {}),
+					...(chankan != null ? { chankan } : {}),
 				});
 				await this.endKyoku(room, mj, { agariHouse: Mmj.findAtamahane(res.callee, res.callers), tenpaiHouses: [] });
 				break;
+			}
 			case 'ryuukyoku': {
 				const ryuukyokuResult = mj.commit_ryuukyoku();
 				room.gameState = mj.getState();
@@ -892,7 +908,60 @@ export class MahjongService implements OnApplicationShutdown {
 			room.gameState = mj.getState();
 			await this.clearTurnWaitingTimer(room.id);
 			await this.saveRoom(room);
-			this.globalEventService.publishMahjongRoomStream(room.id, 'kakanned', { house: myHouse, tiles: res.tiles, rinsyan: res.rinsyan, from: res.from, doraIndicateTiles: mj.doraIndicateTiles });
+			if ('asking' in res && res.asking) {
+				const answers: CallingAnswers = {
+					pon: { e: null, s: null, w: null, n: null },
+					cii: null,
+					kan: { e: null, s: null, w: null, n: null },
+					ron: {
+						e: null,
+						s: null,
+						w: null,
+						n: null,
+					},
+				};
+
+				const aiHouses = this.getAiHouses(room, mj);
+				for (const h of res.canRonHouses) {
+					if (aiHouses.includes(h)) {
+						answers.ron[h] = true;
+					}
+				}
+
+				await this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(answers));
+				const waitingStartedAt = Date.now();
+				const canRonHouses = [...res.canRonHouses];
+				const interval = setInterval(async () => {
+					const current = await this.redisClient.get(`mahjong:gameCallingAsking:${room.id}`);
+					if (current == null) {
+						clearInterval(interval);
+						this.removeTimer(this.otherTimers, room.id, interval);
+						return;
+					}
+					const currentAnswers = JSON.parse(current) as CallingAnswers;
+					normalizeCallingAnswers(currentAnswers);
+					const allAnswered = !(canRonHouses.some(h => currentAnswers.ron[h] == null));
+					if (allAnswered || (Date.now() - waitingStartedAt > Mmj.CALL_AND_RON_ASKING_TIMEOUT_MS)) {
+						clearInterval(interval);
+						this.removeTimer(this.otherTimers, room.id, interval);
+						await this.redisClient.del(`mahjong:gameCallingAsking:${room.id}`);
+						for (const h of canRonHouses) {
+							if (currentAnswers.ron[h] == null) currentAnswers.ron[h] = false;
+						}
+						try {
+							await this.answer(room, mj, currentAnswers);
+						} catch (err) {
+							console.error('mahjong: failed to resolve kakan asking', err);
+						}
+					}
+				}, 500);
+				this.addTimer(this.otherTimers, room.id, interval);
+
+				this.globalEventService.publishMahjongRoomStream(room.id, 'kakanDeclared', { house: myHouse, tiles: res.tiles as unknown as readonly [number, number, number, number], from: res.from, doraIndicateTiles: mj.doraIndicateTiles });
+				return;
+			}
+			const completed = res as { rinsyan: number; tiles: readonly [number, number, number, number]; from: Mmj.House };
+			this.globalEventService.publishMahjongRoomStream(room.id, 'kakanned', { house: myHouse, tiles: completed.tiles, rinsyan: completed.rinsyan, from: completed.from, doraIndicateTiles: mj.doraIndicateTiles });
 			this.waitForTurn(room, myHouse, mj);
 		} catch (err) {
 			console.error('mahjong: failed to kakan', err);
