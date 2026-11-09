@@ -507,6 +507,47 @@ const ryuukyokuResult = ref<{
 } | null>(null);
 const startTextShowing = ref(false);
 
+let kyokuResultTimer: number | undefined = undefined;
+let serifTimers: number[] = [];
+
+function clearKyokuResultTimer() {
+	if (kyokuResultTimer !== undefined) {
+		window.clearTimeout(kyokuResultTimer);
+		kyokuResultTimer = undefined;
+	}
+}
+
+function clearSerifTimers() {
+	for (const id of serifTimers) {
+		window.clearTimeout(id);
+	}
+	serifTimers = [];
+	for (const house of houses) {
+		ronSerifHouses[house] = false;
+		ciiSerifHouses[house] = false;
+		ponSerifHouses[house] = false;
+		kanSerifHouses[house] = false;
+		tsumoSerifHouses[house] = false;
+		riichiSerifHouses[house] = false;
+	}
+}
+
+function scheduleKyokuResult() {
+	clearKyokuResultTimer();
+	kyokuResultTimer = window.setTimeout(() => {
+		showKyokuResults.value = true;
+		kyokuResultTimer = undefined;
+	}, 1500);
+}
+
+function showSerif(target: Record<Mmj.House, boolean>, house: Mmj.House) {
+	target[house] = true;
+	const id = window.setTimeout(() => {
+		target[house] = false;
+	}, 2000);
+	serifTimers.push(id);
+}
+
 type CiiPatternCode = 'x__' | '_x_' | '__x';
 
 type CiiChoice = {
@@ -868,9 +909,12 @@ function onStreamDahai(log: { house: Mmj.House; tile: number; riichi: boolean })
 	triggerRef(mj);
 
 	riichiSerifHouses[log.house] = log.riichi;
-	window.setTimeout(() => {
-		riichiSerifHouses[log.house] = false;
-	}, 2000);
+	if (log.riichi) {
+		const id = window.setTimeout(() => {
+			riichiSerifHouses[log.house] = false;
+		}, 2000);
+		serifTimers.push(id);
+	}
 
 	if (hasCall.value) {
 		startTimer(CALL_SEC, 'call');
@@ -922,9 +966,12 @@ function onStreamDahaiAndTsumo(log: { dahaiHouse: Mmj.House; dahaiTile: number; 
 	triggerRef(mj);
 
 	riichiSerifHouses[log.dahaiHouse] = log.riichi;
-	window.setTimeout(() => {
-		riichiSerifHouses[log.dahaiHouse] = false;
-	}, 2000);
+	if (log.riichi) {
+		const id = window.setTimeout(() => {
+			riichiSerifHouses[log.dahaiHouse] = false;
+		}, 2000);
+		serifTimers.push(id);
+	}
 
 	window.setTimeout(() => {
 		mj.value.commit_tsumo(Mmj.nextHouse(log.dahaiHouse), log.tsumoTile);
@@ -953,10 +1000,7 @@ function onStreamPonned(log: { caller: Mmj.House; callee: Mmj.House; tiles: read
 	mj.value.commit_pon(log.caller, log.callee, log.tiles);
 	triggerRef(mj);
 
-	ponSerifHouses[log.caller] = true;
-	window.setTimeout(() => {
-		ponSerifHouses[log.caller] = false;
-	}, 2000);
+	showSerif(ponSerifHouses, log.caller);
 
 	resetTurnTimer();
 }
@@ -970,10 +1014,7 @@ function onStreamKanned(log: { caller: Mmj.House; callee: Mmj.House; tiles: read
 
 	if (log.caller === mj.value.myHouse) iTsumoed.value = true;
 
-	kanSerifHouses[log.caller] = true;
-	window.setTimeout(() => {
-		kanSerifHouses[log.caller] = false;
-	}, 2000);
+	showSerif(kanSerifHouses, log.caller);
 
 	resetTurnTimer();
 }
@@ -987,10 +1028,7 @@ function onStreamKakanned(log: { house: Mmj.House; tiles: readonly [number, numb
 
 	if (log.house === mj.value.myHouse) iTsumoed.value = true;
 
-	kanSerifHouses[log.house] = true;
-	window.setTimeout(() => {
-		kanSerifHouses[log.house] = false;
-	}, 2000);
+	showSerif(kanSerifHouses, log.house);
 
 	resetTurnTimer();
 }
@@ -1002,10 +1040,7 @@ function onStreamKakanDeclared(log: { house: Mmj.House; tiles: readonly [number,
 	mj.value.commit_kakanDeclared(log.house, log.tiles, log.from, log.doraIndicateTiles);
 	triggerRef(mj);
 
-	kanSerifHouses[log.house] = true;
-	window.setTimeout(() => {
-		kanSerifHouses[log.house] = false;
-	}, 2000);
+	showSerif(kanSerifHouses, log.house);
 
 	if (hasCall.value) {
 		startTimer(CALL_SEC, 'call');
@@ -1023,10 +1058,7 @@ function onStreamAnkanned(log: { house: Mmj.House; tiles: readonly [number, numb
 
 	if (log.house === mj.value.myHouse) iTsumoed.value = true;
 
-	kanSerifHouses[log.house] = true;
-	window.setTimeout(() => {
-		kanSerifHouses[log.house] = false;
-	}, 2000);
+	showSerif(kanSerifHouses, log.house);
 
 	resetTurnTimer();
 }
@@ -1038,10 +1070,7 @@ function onStreamCiied(log: { caller: Mmj.House; callee: Mmj.House; tiles: reado
 	mj.value.commit_cii(log.caller, log.callee, log.tiles);
 	triggerRef(mj);
 
-	ciiSerifHouses[log.caller] = true;
-	window.setTimeout(() => {
-		ciiSerifHouses[log.caller] = false;
-	}, 2000);
+	showSerif(ciiSerifHouses, log.caller);
 
 	resetTurnTimer();
 }
@@ -1055,16 +1084,10 @@ function onStreamRonned(log: { callers: Mmj.House[]; callee: Mmj.House; handTile
 
 	kyokuResults.value = res;
 
-	window.setTimeout(() => {
-		showKyokuResults.value = true;
-	}, 1500);
+	scheduleKyokuResult();
 
 	for (const caller of log.callers) {
-		ronSerifHouses[caller] = true;
-
-		window.setTimeout(() => {
-			ronSerifHouses[caller] = false;
-		}, 2000);
+		showSerif(ronSerifHouses, caller);
 	}
 
 	console.log('ronned', res);
@@ -1081,14 +1104,9 @@ function onStreamTsumoHora(log: { house: Mmj.House; handTiles: number[]; tsumoTi
 
 	kyokuResults.value[log.house] = res;
 
-	window.setTimeout(() => {
-		showKyokuResults.value = true;
-	}, 1500);
+	scheduleKyokuResult();
 
-	tsumoSerifHouses[log.house] = true;
-	window.setTimeout(() => {
-		tsumoSerifHouses[log.house] = false;
-	}, 2000);
+	showSerif(tsumoSerifHouses, log.house);
 
 	console.log('tsumohora', res);
 
@@ -1105,9 +1123,7 @@ function onStreamRyuukyoku(log: { tenpaiHouses: Mmj.House[]; notenHouses: Mmj.Ho
 
 	ryuukyokued.value = true;
 
-	window.setTimeout(() => {
-		showKyokuResults.value = true;
-	}, 1500);
+	scheduleKyokuResult();
 
 	startTimer(NEXT_KYOKU_SEC, 'confirm');
 }
@@ -1115,6 +1131,8 @@ function onStreamRyuukyoku(log: { tenpaiHouses: Mmj.House[]; notenHouses: Mmj.Ho
 function onStreamNextKyoku(log: { room: Misskey.entities.MahjongRoomDetailed }) {
 	console.log('onStreamNextKyoku', log);
 	closeCiiChoices();
+	clearKyokuResultTimer();
+	clearSerifTimers();
 
 	room.value = log.room;
 	mj.value.commit_nextKyoku(log.room.gameState as unknown as Mmj.PlayerState);
@@ -1136,6 +1154,8 @@ function onStreamNextKyoku(log: { room: Misskey.entities.MahjongRoomDetailed }) 
 
 function onStreamEnded(log: { room: Misskey.entities.MahjongRoomDetailed }) {
 	closeCiiChoices();
+	clearKyokuResultTimer();
+	clearSerifTimers();
 	room.value = log.room;
 	if (room.value.gameState != null) {
 		mj.value = new Mmj.PlayerGameEngine(myUserNumber.value, room.value.gameState as unknown as Mmj.PlayerState);
@@ -1189,6 +1209,10 @@ onMounted(attachListeners);
 onActivated(attachListeners);
 onDeactivated(detachListeners);
 onUnmounted(detachListeners);
+onUnmounted(() => {
+	clearKyokuResultTimer();
+	clearSerifTimers();
+});
 
 </script>
 

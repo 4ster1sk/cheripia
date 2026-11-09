@@ -4,6 +4,7 @@
  */
 
 import { describe, test, assert, afterEach, vi } from 'vitest';
+import { nextTick } from 'vue';
 import { render, cleanup, fireEvent } from '@testing-library/vue';
 import * as Mmj from 'misskey-mahjong';
 import RoomGame from '@/pages/mahjong/room.game.vue';
@@ -381,6 +382,58 @@ describe('room.game kakan', () => {
 				}
 			}
 			cleanup();
+		}
+	});
+});
+
+describe('room.game stale kyoku result', () => {
+	test('does not show a stale result dialog when nextKyoku arrives before the 1500ms delay', async () => {
+		const ronHand = [5, 9, 13, 21, 25, 29, 41, 45, 49, 77, 81, 85, 57];
+		const zeros = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+		const { container, connection } = renderRoomGame(createPlayerState({
+			turn: null,
+			riichis: { e: true, s: false, w: false, n: false },
+			handTiles: { e: ronHand, s: zeros, w: zeros, n: zeros },
+			hoTiles: { e: [], s: [58], w: [], n: [] },
+		}));
+
+		vi.useFakeTimers();
+		try {
+			connection.emit('ronned', {
+				callers: ['e'],
+				callee: 's',
+				handTiles: { e: ronHand, s: [], w: [], n: [] },
+			});
+			await nextTick();
+
+			const nextState = createPlayerState({ kyoku: 2 });
+			const user = (id: string) => ({ id, username: id, name: null });
+			connection.emit('nextKyoku', {
+				room: {
+					id: 'room',
+					isStarted: true,
+					isEnded: false,
+					user1Id: 'u1',
+					user2Id: 'u2',
+					user3Id: 'u3',
+					user4Id: 'u4',
+					user1: user('u1'),
+					user2: user('u2'),
+					user3: user('u3'),
+					user4: user('u4'),
+					timeLimitForEachTurn: 30,
+					gameState: nextState,
+				},
+			});
+			await nextTick();
+
+			await vi.advanceTimersByTimeAsync(2500);
+			await nextTick();
+
+			assert.ok(!container.textContent?.includes('局結果'), 'stale kyoku result dialog should not be shown in the next kyoku');
+			assert.strictEqual(container.querySelector('img[src*="ron.png"]'), null, 'stale ron serif should not remain in the next kyoku');
+		} finally {
+			vi.useRealTimers();
 		}
 	});
 });
