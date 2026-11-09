@@ -121,8 +121,9 @@ class StateManager {
 	}
 
 	public canRon(house: House, tid: TileId): boolean {
-		// フリテン
-		// TODO: ポンされるなどして自分の河にない場合の考慮
+		if (this.$state.furitenFlags?.[house]) return false;
+		if (this.$state.riichiFuritenFlags?.[house]) return false;
+		// フリテン（自河現物）
 		if (this.hoTileTypes[house].includes($type(tid))) return false;
 
 		const huros = this.$state.huros[house].map(convertHuroForCalcYaku);
@@ -167,6 +168,9 @@ class StateManager {
 		this.$state.handTiles[this.$state.turn].push(tile);
 		this.$state.drawnTile = tile;
 		this.$state.rinshanFlags[this.$state.turn] = isRinshan;
+		if (this.$state.furitenFlags != null) {
+			this.$state.furitenFlags[this.$state.turn] = false;
+		}
 		return tile;
 	}
 
@@ -261,6 +265,18 @@ export type MasterState = {
 		w: boolean;
 		n: boolean;
 	}
+	furitenFlags: {
+		e: boolean;
+		s: boolean;
+		w: boolean;
+		n: boolean;
+	};
+	riichiFuritenFlags: {
+		e: boolean;
+		s: boolean;
+		w: boolean;
+		n: boolean;
+	};
 	points: {
 		e: number;
 		s: number;
@@ -493,6 +509,18 @@ export class MasterGameEngine {
 				n: false,
 			},
 			rinshanFlags: {
+				e: false,
+				s: false,
+				w: false,
+				n: false,
+			},
+			furitenFlags: {
+				e: false,
+				s: false,
+				w: false,
+				n: false,
+			},
+			riichiFuritenFlags: {
 				e: false,
 				s: false,
 				w: false,
@@ -925,6 +953,23 @@ export class MasterGameEngine {
 		tx.$state.askings.cii = null;
 		tx.$state.askings.kan = null;
 		tx.$state.askings.ron = null;
+
+		if (ron != null) {
+			if (tx.$state.furitenFlags == null) {
+				tx.$state.furitenFlags = { e: false, s: false, w: false, n: false };
+			}
+			if (tx.$state.riichiFuritenFlags == null) {
+				tx.$state.riichiFuritenFlags = { e: false, s: false, w: false, n: false };
+			}
+			for (const house of ron.callers) {
+				if (!answers.ron.includes(house)) {
+					tx.$state.furitenFlags[house] = true;
+					if (tx.$state.riichis[house]) {
+						tx.$state.riichiFuritenFlags[house] = true;
+					}
+				}
+			}
+		}
 
 		if (ron != null && answers.ron.length > 0) {
 			const callers = answers.ron;

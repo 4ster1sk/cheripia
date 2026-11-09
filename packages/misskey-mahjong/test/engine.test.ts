@@ -1174,3 +1174,79 @@ describe('Master game engine renchan and round advancement', () => {
 		expect(isTobiPoints({ e: 30000, s: 25000, w: 20000, n: 15000 })).toBe(false);
 	});
 });
+
+describe('Master game engine furiten', () => {
+	// e: m123 p345 s678 p78 s22 の p9 待ち (ロンすればピンフ)
+	const E_TENPAI: TileId[] = [1, 5, 9, 45, 49, 53, 93, 97, 101, 61, 65, 77, 78];
+
+	function createMissState(riichi: boolean): MasterState {
+		return MasterGameEngine.createInitialState({
+			handTiles: {
+				e: [...E_TENPAI],
+				s: [14, 18, 22, 26, 34, 50, 54, 66, 110, 114, 126, 130, 71],
+				w: [70, 15, 19, 23, 27, 35, 39, 43, 51, 55, 67, 111, 115],
+				n: [16, 20, 24, 28, 36, 40, 47, 52, 56, 68, 112, 116, 128],
+			},
+			hoTiles: { e: [], s: [69], w: [], n: [] },
+			askings: {
+				ron: { callee: 's', callers: ['e'] },
+				pon: null,
+				cii: null,
+				kan: null,
+			},
+			riichis: { e: riichi, s: false, w: false, n: false },
+			tiles: [33, 36, 134, 37, 34],
+			kingTiles: [125],
+			turn: null,
+			nextTurnAfterAsking: 'w',
+		});
+	}
+
+	it('marks doujun furiten on a missed ron and blocks ron in the same turn', () => {
+		const engine = new MasterGameEngine(createMissState(false));
+		const res = engine.commit_resolveCallingInterruption({ pon: false, cii: false, kan: false, ron: [] });
+		expect(res.type).toBe('tsumo');
+		expect(engine.$state.furitenFlags.e).toBe(true);
+		expect(engine.$state.riichiFuritenFlags.e).toBe(false);
+
+		// 同巡: w の p9 打牌に e はロンできない
+		const res2 = engine.commit_dahai('w', 70);
+		expect(res2.asking).toBe(false);
+		expect(engine.$state.askings.ron).toBeNull();
+	});
+
+	it('clears doujun furiten on own tsumo', () => {
+		const engine = new MasterGameEngine(createMissState(false));
+		engine.commit_resolveCallingInterruption({ pon: false, cii: false, kan: false, ron: [] });
+		engine.commit_dahai('w', 70); // 同巡はロン不可
+		expect(engine.$state.askings.ron).toBeNull();
+
+		engine.commit_dahai('n', 112); // n 打牌 → e ツモで同巡解消
+		expect(engine.$state.turn).toBe('e');
+		expect(engine.$state.furitenFlags.e).toBe(false);
+
+		engine.commit_dahai('e', engine.$state.drawnTile!); // ツモ切り
+		const res = engine.commit_dahai('s', 71); // s の p9 に e がロンできる
+		expect(res.asking).toBe(true);
+		if (res.asking) {
+			expect(res.canRonHouses).toContain('e');
+		}
+	});
+
+	it('keeps riichi furiten after own tsumo', () => {
+		const engine = new MasterGameEngine(createMissState(true));
+		engine.commit_resolveCallingInterruption({ pon: false, cii: false, kan: false, ron: [] });
+		expect(engine.$state.furitenFlags.e).toBe(true);
+		expect(engine.$state.riichiFuritenFlags.e).toBe(true);
+
+		engine.commit_dahai('w', 115);
+		engine.commit_dahai('n', 112); // e ツモ
+		expect(engine.$state.furitenFlags.e).toBe(false);
+		expect(engine.$state.riichiFuritenFlags.e).toBe(true);
+
+		engine.commit_dahai('e', engine.$state.drawnTile!);
+		const res = engine.commit_dahai('s', 71);
+		expect(res.asking).toBe(false); // リーチ後見逃しのためロン不可
+		expect(engine.$state.askings.ron).toBeNull();
+	});
+});

@@ -258,6 +258,65 @@ describe('Player game engine drawn tile', () => {
 	});
 });
 
+describe('Player game engine furiten', () => {
+	function createRonState(): PlayerState {
+		const state = createState();
+		state.turn = 's';
+		state.tilesCount = 69;
+		// e は p9 待ち (ピンフ)
+		state.handTiles.e = [1, 5, 9, 45, 49, 53, 93, 97, 101, 61, 65, 77, 78];
+		state.handTiles.s = [70, 14, 18];
+		state.handTiles.w = [71, 15, 19];
+		state.handTiles.n = [72, 16, 20];
+		return state;
+	}
+
+	it('does not show ron for own river tiles', () => {
+		const state = createRonState();
+		state.hoTiles.e = [69]; // 自河に p9 現物
+		const engine = new PlayerGameEngine(1, state);
+		engine.commit_dahai('s', 70);
+		assert.strictEqual(engine.canRon, null);
+	});
+
+	it('tracks a missed ron until own tsumo', () => {
+		const state = createRonState();
+		const engine = new PlayerGameEngine(1, state);
+		engine.commit_dahai('s', 70);
+		assert.deepStrictEqual(engine.canRon, { callee: 's' });
+		engine.commit_nop();
+
+		state.turn = 'w';
+		engine.commit_dahai('w', 71);
+		assert.strictEqual(engine.canRon, null);
+
+		engine.commit_tsumo('e', 33);
+		engine.commit_dahai('e', 33); // ツモ切り
+		state.turn = 'n';
+		engine.commit_dahai('n', 72);
+		assert.deepStrictEqual(engine.canRon, { callee: 'n' });
+	});
+
+	it('keeps riichi furiten until next kyoku', () => {
+		const state = createRonState();
+		state.riichis.e = true;
+		const engine = new PlayerGameEngine(1, state);
+		engine.commit_dahai('s', 70);
+		assert.deepStrictEqual(engine.canRon, { callee: 's' });
+		engine.commit_nop();
+
+		engine.commit_tsumo('e', 33);
+		engine.commit_dahai('e', 33);
+		state.turn = 'w';
+		engine.commit_dahai('w', 71);
+		assert.strictEqual(engine.canRon, null);
+
+		engine.commit_nextKyoku(createRonState());
+		engine.commit_dahai('s', 70);
+		assert.deepStrictEqual(engine.canRon, { callee: 's' });
+	});
+});
+
 describe('Player game engine kakan', () => {
 	it('detects kakan from a pon and returns the exact hand tile', () => {
 		const state = createState();

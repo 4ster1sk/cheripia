@@ -119,6 +119,8 @@ export class PlayerGameEngine {
 
 	private myUserNumber: 1 | 2 | 3 | 4;
 	private state: PlayerState;
+	private furiten = false;
+	private riichiFuriten = false;
 
 	constructor(myUserNumber: PlayerGameEngine['myUserNumber'], state: PlayerState) {
 		this.myUserNumber = myUserNumber;
@@ -228,6 +230,8 @@ export class PlayerGameEngine {
 
 	public commit_nextKyoku(state: PlayerState) {
 		this.state = state;
+		this.furiten = false;
+		this.riichiFuriten = false;
 	}
 
 	public commit_ryuukyoku(pointDeltas: Record<House, number>) {
@@ -251,6 +255,7 @@ export class PlayerGameEngine {
 		if (house === this.myHouse) {
 			this.myHandTiles.push(tid);
 			this.state.drawnTile = tid;
+			this.furiten = false;
 		} else {
 			this.state.handTiles[house].push(0);
 			this.state.drawnTile = null;
@@ -307,7 +312,10 @@ export class PlayerGameEngine {
 				ippatsu: this.state.ippatsus[this.myHouse],
 				hotei: this.state.tilesCount === 0,
 			});
-			const canRon = isAgarikeiWithHuros(this.myHandTileTypes.concat([ronTile]), huros) && ronYakus.yakuNames.length > 0;
+			const canRon = isAgarikeiWithHuros(this.myHandTileTypes.concat([ronTile]), huros) && ronYakus.yakuNames.length > 0
+				&& !this.furiten
+				&& !this.riichiFuriten
+				&& !this.state.hoTiles[this.myHouse].some(id => $type(id) === ronTile);
 			const canPon = !this.isMeRiichi && this.myHandTileTypes.filter(t => t === $type(tid)).length === 2;
 			const canKan = !this.isMeRiichi && this.myHandTileTypes.filter(t => t === $type(tid)).length === 3;
 			const canCii = !this.isMeRiichi && house === Common.prevHouse(this.myHouse) &&
@@ -517,6 +525,12 @@ export class PlayerGameEngine {
 	 * @param callee 牌を捨てた人
 	 */
 	public commit_pon(caller: House, callee: House, tiles: readonly [TileId, TileId, TileId]) {
+		if (caller !== this.myHouse && this.state.canRon != null) {
+			this.furiten = true;
+			if (this.state.riichis[this.myHouse]) {
+				this.riichiFuriten = true;
+			}
+		}
 		this.clearCalls();
 		this.clearFirstTurnAndIppatsus();
 
@@ -540,6 +554,12 @@ export class PlayerGameEngine {
 	 * @param callee 牌を捨てた人
 	 */
 	public commit_kan(caller: House, callee: House, tiles: readonly [TileId, TileId, TileId, TileId], rinsyan: TileId, doraIndicateTiles?: TileId[]) {
+		if (caller !== this.myHouse && this.state.canRon != null) {
+			this.furiten = true;
+			if (this.state.riichis[this.myHouse]) {
+				this.riichiFuriten = true;
+			}
+		}
 		this.clearCalls();
 		this.clearFirstTurnAndIppatsus();
 
@@ -555,6 +575,7 @@ export class PlayerGameEngine {
 		}
 		if (caller === this.myHouse) {
 			this.myHandTiles.push(rinsyan);
+			this.furiten = false;
 		}
 		this.state.tilesCount--;
 		this.state.huros[caller].push({ type: 'minkan', tiles: tiles, from: callee });
@@ -582,6 +603,7 @@ export class PlayerGameEngine {
 				if (tile != null) this.myHandTiles.splice(this.myHandTiles.indexOf(tile), 1);
 			}
 			this.myHandTiles.push(rinsyan);
+			this.furiten = false;
 		} else {
 			this.state.handTiles[house].pop();
 			this.state.handTiles[house].push(0);
@@ -612,6 +634,7 @@ export class PlayerGameEngine {
 				if (index !== -1) this.myHandTiles.splice(index, 1);
 			}
 			this.myHandTiles.push(rinsyan);
+			this.furiten = false;
 		} else {
 			this.state.handTiles[house].splice(0, 4);
 			this.state.handTiles[house].push(0);
@@ -636,6 +659,12 @@ export class PlayerGameEngine {
 	 * @param callee 牌を捨てた人
 	 */
 	public commit_cii(caller: House, callee: House, tiles: readonly [TileId, TileId, TileId]) {
+		if (caller !== this.myHouse && this.state.canRon != null) {
+			this.furiten = true;
+			if (this.state.riichis[this.myHouse]) {
+				this.riichiFuriten = true;
+			}
+		}
 		this.clearCalls();
 		this.clearFirstTurnAndIppatsus();
 
@@ -658,6 +687,12 @@ export class PlayerGameEngine {
 	}
 
 	public commit_nop() {
+		if (this.state.canRon != null) {
+			this.furiten = true;
+			if (this.state.riichis[this.myHouse]) {
+				this.riichiFuriten = true;
+			}
+		}
 		this.state.canRon = null;
 		this.state.canPon = null;
 		this.state.canKan = null;
