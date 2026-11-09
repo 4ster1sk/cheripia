@@ -63,6 +63,94 @@ type NextKyokuConfirmation = {
 	user4: boolean;
 };
 
+/**
+ * 次局進行の冪等ガード用に、進行待ち開始時点の局を識別する。
+ */
+type NextKyokuKey = {
+	round: Mmj.MasterState['round'];
+	kyoku: number;
+	turnCount: number;
+};
+
+type NextKyokuWaiting = {
+	confirmation: NextKyokuConfirmation;
+	kyokuResult: { agariHouse: Mmj.House | null; tenpaiHouses: Mmj.House[] };
+	expected: NextKyokuKey;
+};
+
+function isSameNextKyokuKey(a: NextKyokuKey, b: NextKyokuKey): boolean {
+	return a.round === b.round && a.kyoku === b.kyoku && a.turnCount === b.turnCount;
+}
+
+function isMahjongHouse(value: unknown): value is Mmj.House {
+	return value === 'e' || value === 's' || value === 'w' || value === 'n';
+}
+
+function isMahjongRound(value: unknown): value is Mmj.MasterState['round'] {
+	return value === 'e' || value === 's' || value === 'w' || value === 'n';
+}
+
+/**
+ * 次局待機キー（`mahjong:gameNextKyokuConfirmation`）から確認フラグを読む。
+ * 新形式（待機レコード）・旧形式（確認フラグのみ）の双方を受け付ける。
+ */
+function parseNextKyokuConfirmation(raw: string): NextKyokuConfirmation | null {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(raw);
+	} catch {
+		return null;
+	}
+	if (parsed == null || typeof parsed !== 'object') return null;
+	const record = parsed as Record<string, unknown>;
+	const candidate = (record.confirmation ?? parsed) as Record<string, unknown>;
+	if (
+		typeof candidate.user1 !== 'boolean' ||
+		typeof candidate.user2 !== 'boolean' ||
+		typeof candidate.user3 !== 'boolean' ||
+		typeof candidate.user4 !== 'boolean'
+	) return null;
+	return candidate as unknown as NextKyokuConfirmation;
+}
+
+/**
+ * 新形式の待機レコードを読む。旧形式・破損値は null。
+ */
+function parseNextKyokuWaiting(raw: string): NextKyokuWaiting | null {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(raw);
+	} catch {
+		return null;
+	}
+	if (parsed == null || typeof parsed !== 'object') return null;
+	const record = parsed as Record<string, unknown>;
+	if (record.confirmation == null || typeof record.confirmation !== 'object') return null;
+	const confirmation = parseNextKyokuConfirmation(raw);
+	if (confirmation == null) return null;
+	const kyokuResult = record.kyokuResult as { agariHouse?: unknown; tenpaiHouses?: unknown } | null | undefined;
+	const expected = record.expected as { round?: unknown; kyoku?: unknown; turnCount?: unknown } | null | undefined;
+	if (kyokuResult == null || typeof kyokuResult !== 'object') return null;
+	if (!Array.isArray(kyokuResult.tenpaiHouses)) return null;
+	if (!kyokuResult.tenpaiHouses.every(isMahjongHouse)) return null;
+	if (kyokuResult.agariHouse != null && !isMahjongHouse(kyokuResult.agariHouse)) return null;
+	if (expected == null || typeof expected !== 'object') return null;
+	if (!isMahjongRound(expected.round)) return null;
+	if (!Number.isInteger(expected.kyoku) || !Number.isInteger(expected.turnCount)) return null;
+	return {
+		confirmation,
+		kyokuResult: {
+			agariHouse: (kyokuResult.agariHouse ?? null) as Mmj.House | null,
+			tenpaiHouses: kyokuResult.tenpaiHouses as Mmj.House[],
+		},
+		expected: {
+			round: expected.round as Mmj.MasterState['round'],
+			kyoku: expected.kyoku as number,
+			turnCount: expected.turnCount as number,
+		},
+	};
+}
+
 function getSlotOfUserId(room: MahjongRoom, userId: MiUser['id']): 1 | 2 | 3 | 4 | null {
 	if (userId === room.user1Id) return 1;
 	if (userId === room.user2Id) return 2;
@@ -588,46 +676,122 @@ export class MahjongService implements OnApplicationShutdown {
 		// NOTE: ロック保持中に呼ぶこと。次局への進行はタイマー発火時に roomId のみから再取得して別ロックで行う。
 		this.clearTurnTimers(room.id);
 
-		const confirmation: NextKyokuConfirmation = {
-			user1: room.user1Ai,
-			user2: room.user2Ai,
-			user3: room.user3Ai,
-			user4: room.user4Ai,
+		const key = `mahjong:gameNextKyokuConfirmation:${room.id}`;
+		const expected: NextKyokuKey = {
+			round: mj.$state.round,
+			kyoku: mj.$state.kyoku,
+			turnCount: mj.$state.turnCount,
 		};
-		await this.redisClient.set(`mahjong:gameNextKyokuConfirmation:${room.id}`, JSON.stringify(confirmation));
+		// 同一局の待機が既に進行中なら二重開始しない（多重 endKyoku の抑止）
+		const existingRaw = await this.redisClient.get(key);
+		if (existingRaw != null) {
+			const existing = parseNextKyokuWaiting(existingRaw);
+			if (existing != null && isSameNextKyokuKey(existing.expected, expected)) return;
+		}
+
+		const waiting: NextKyokuWaiting = {
+			confirmation: {
+				user1: room.user1Ai,
+				user2: room.user2Ai,
+				user3: room.user3Ai,
+				user4: room.user4Ai,
+			},
+			kyokuResult,
+			expected,
+		};
+		await this.redisClient.set(key, JSON.stringify(waiting));
 		const waitingStartedAt = Date.now();
 		const roomId = room.id;
 		const interval = setInterval(async () => {
-			const confirmationRaw = await this.redisClient.get(`mahjong:gameNextKyokuConfirmation:${roomId}`);
-			if (confirmationRaw == null) {
-				clearInterval(interval);
-				this.removeTimer(this.otherTimers, roomId, interval);
-				return;
-			}
-			const current = JSON.parse(confirmationRaw) as NextKyokuConfirmation;
-			const allConfirmed = current.user1 && current.user2 && current.user3 && current.user4;
-			if (allConfirmed || (Date.now() - waitingStartedAt > Mmj.NEXT_KYOKU_CONFIRMATION_TIMEOUT_MS)) {
-				clearInterval(interval);
-				this.removeTimer(this.otherTimers, roomId, interval);
-				await this.redisClient.del(`mahjong:gameNextKyokuConfirmation:${roomId}`);
-				try {
-					await this.withRoomLock(roomId, async () => {
-						const fresh = await this.getRoom(roomId);
-						if (fresh == null || fresh.gameState == null) return;
-						const freshMj = new Mmj.MasterGameEngine(fresh.gameState);
-						await this.nextKyokuLocked(fresh, freshMj, kyokuResult);
-					});
-				} catch (err) {
-					console.error('mahjong: failed to nextKyoku', err);
+			// Redis 取得失敗時は interval を維持して次 tick で再試行する
+			try {
+				const confirmationRaw = await this.redisClient.get(key);
+				if (confirmationRaw == null) {
+					clearInterval(interval);
+					this.removeTimer(this.otherTimers, roomId, interval);
+					return;
 				}
+				const current = parseNextKyokuConfirmation(confirmationRaw);
+				if (current == null) {
+					// 破損値: interval を止めたうえで、クロージャの kyokuResult/expected で回復を試みる
+					clearInterval(interval);
+					this.removeTimer(this.otherTimers, roomId, interval);
+					try {
+						await this.withRoomLock(roomId, async () => {
+							const latestRaw = await this.redisClient.get(key);
+							if (latestRaw == null) return;
+							// 復旧・上書きされていたらそちらに委ねる
+							if (parseNextKyokuConfirmation(latestRaw) != null) return;
+							const fresh = await this.getRoom(roomId);
+							if (fresh == null || fresh.gameState == null) {
+								await this.redisClient.del(key);
+								return;
+							}
+							const freshMj = new Mmj.MasterGameEngine(fresh.gameState);
+							await this.nextKyokuLocked(fresh, freshMj, kyokuResult, expected);
+							await this.redisClient.del(key);
+						});
+					} catch (err) {
+						console.error('mahjong: failed to recover nextKyoku waiting', err);
+					}
+					return;
+				}
+				// キーが別局の待機に置き換わっていたら、この interval は旧世代として自消する
+				const currentWaiting = parseNextKyokuWaiting(confirmationRaw);
+				if (currentWaiting != null && !isSameNextKyokuKey(currentWaiting.expected, expected)) {
+					clearInterval(interval);
+					this.removeTimer(this.otherTimers, roomId, interval);
+					return;
+				}
+				const allConfirmed = current.user1 && current.user2 && current.user3 && current.user4;
+				if (allConfirmed || (Date.now() - waitingStartedAt > Mmj.NEXT_KYOKU_CONFIRMATION_TIMEOUT_MS)) {
+					let done = false;
+					try {
+						done = await this.withRoomLock(roomId, async () => {
+							// 先に確認完了側が進行済みなら何もしない（単一進行の保証）
+							const latestRaw = await this.redisClient.get(key);
+							if (latestRaw == null) return true;
+							const latestWaiting = parseNextKyokuWaiting(latestRaw);
+							if (latestWaiting != null && !isSameNextKyokuKey(latestWaiting.expected, expected)) return true;
+							const fresh = await this.getRoom(roomId);
+							// 空室なら進行不能のためキーを掃除する
+							if (fresh == null || fresh.gameState == null) {
+								await this.redisClient.del(key);
+								return true;
+							}
+							const freshMj = new Mmj.MasterGameEngine(fresh.gameState);
+							// 進行成功後にキーを削除する（del 直後の失敗で進行もキーも失う永久停止を避ける）
+							await this.nextKyokuLocked(fresh, freshMj, kyokuResult, expected);
+							await this.redisClient.del(key);
+							return true;
+						});
+					} catch (err) {
+						console.error('mahjong: failed to nextKyoku', err);
+					}
+					// 失敗時は interval を維持して次 tick で再試行する
+					if (done) {
+						clearInterval(interval);
+						this.removeTimer(this.otherTimers, roomId, interval);
+					}
+				}
+			} catch (err) {
+				console.error('mahjong: failed to poll nextKyoku confirmation', err);
 			}
 		}, 500);
 		this.addTimer(this.otherTimers, room.id, interval);
 	}
 
 	@bindThis
-	private async nextKyokuLocked(room: MahjongRoom, mj: Mmj.MasterGameEngine, kyokuResult: { agariHouse: Mmj.House | null; tenpaiHouses: Mmj.House[] }): Promise<void> {
+	private async nextKyokuLocked(room: MahjongRoom, mj: Mmj.MasterGameEngine, kyokuResult: { agariHouse: Mmj.House | null; tenpaiHouses: Mmj.House[] }, expected: NextKyokuKey): Promise<void> {
 		// NOTE: withRoomLock の内側で呼ぶこと（room/mj はロック内で再取得した fresh なもの）。
+		// 冪等ガード: 既に次局へ進行済み（または対局終了済み）なら何もしない
+		if (room.isEnded) return;
+		const current: NextKyokuKey = {
+			round: mj.$state.round,
+			kyoku: mj.$state.kyoku,
+			turnCount: mj.$state.turnCount,
+		};
+		if (!isSameNextKyokuKey(current, expected)) return;
 		// トビ終了: いずれかの持ち点が0以下なら次局に進まず対局終了する
 		if (Mmj.isTobiPoints(mj.$state.points)) {
 			await this.endGame(room);
@@ -649,6 +813,7 @@ export class MahjongService implements OnApplicationShutdown {
 	@bindThis
 	private async endGame(room: MahjongRoom): Promise<void> {
 		this.clearAllTimers(room.id);
+		await this.redisClient.del(`mahjong:gameNextKyokuConfirmation:${room.id}`);
 		room.isEnded = true;
 		room.endedAt = new Date().toISOString();
 		await this.saveRoom(room);
@@ -889,15 +1054,46 @@ export class MahjongService implements OnApplicationShutdown {
 		const room = await this.getRoom(roomId);
 		if (room == null) return;
 		if (room.gameState == null) return;
+		if (room.isEnded) return;
 
 		const slot = getSlotOfUserId(room, user.id);
 		if (slot == null) return;
 
-		const confirmationRaw = await this.redisClient.get(`mahjong:gameNextKyokuConfirmation:${room.id}`);
+		const key = `mahjong:gameNextKyokuConfirmation:${room.id}`;
+		const confirmationRaw = await this.redisClient.get(key);
 		if (confirmationRaw == null) return;
-		const confirmation = JSON.parse(confirmationRaw) as NextKyokuConfirmation;
+		const confirmation = parseNextKyokuConfirmation(confirmationRaw);
+		if (confirmation == null) return;
+		// 同一ユーザーの連打は同じ true 代入になるため冪等
 		confirmation[`user${slot}` as keyof NextKyokuConfirmation] = true;
-		await this.redisClient.set(`mahjong:gameNextKyokuConfirmation:${room.id}`, JSON.stringify(confirmation));
+		const mj = new Mmj.MasterGameEngine(room.gameState);
+		const current: NextKyokuKey = {
+			round: mj.$state.round,
+			kyoku: mj.$state.kyoku,
+			turnCount: mj.$state.turnCount,
+		};
+		let waiting = parseNextKyokuWaiting(confirmationRaw);
+		if (waiting == null) {
+			// 旧形式キー: 待機レコードへ移行する（再起動後に監視 interval が無くても進行できるようにする）。
+			// kyokuResult はキーから復元できないため、連荘判定なしの中立値で緊急回復する（点数は和了時に確定済み）。
+			waiting = {
+				confirmation,
+				kyokuResult: { agariHouse: null, tenpaiHouses: [] },
+				expected: current,
+			};
+		}
+		if (!(confirmation.user1 && confirmation.user2 && confirmation.user3 && confirmation.user4)) {
+			await this.redisClient.set(key, JSON.stringify({ ...waiting, confirmation }));
+			return;
+		}
+		// 別局の待機に置き換わっていたら触らない（旧世代キーの誤消費防止）
+		if (!isSameNextKyokuKey(current, waiting.expected)) return;
+		// 確認完了点を高速進行させる。フラグを先に保存してから進行し、
+		// 進行成功後にキーを削除する（失敗時はキーが残るため再確認でリトライできる）。
+		// ポーリング側はキー消失を見て自消し、仮に発火しても期待局不一致ガードで多重進行しない。
+		await this.redisClient.set(key, JSON.stringify({ ...waiting, confirmation }));
+		await this.nextKyokuLocked(room, mj, waiting.kyokuResult, waiting.expected);
+		await this.redisClient.del(key);
 	}
 
 	@bindThis
