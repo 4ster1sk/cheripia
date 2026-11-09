@@ -217,8 +217,8 @@ describe('room.game kakan', () => {
 		assert.strictEqual(sentActions(connection.send, 'kakan').length, 0);
 	});
 
-	test('still supports ankan selection', async () => {
-		const { container, findAllByRole, connection } = renderRoomGame(createPlayerState({
+	test('sends ankan immediately when only one tile type can be ankan-ed', async () => {
+		const { findAllByRole, connection } = renderRoomGame(createPlayerState({
 			turn: 'e',
 			handTiles: {
 				e: [1, 2, 3, 4, 5, 9, 13, 21, 25, 29, 33, 37, 41],
@@ -233,6 +233,27 @@ describe('room.game kakan', () => {
 		assert.ok(ankanButton, 'ankan button should be visible');
 		await fireEvent.click(ankanButton);
 
+		assert.deepStrictEqual(sentActions(connection.send, 'ankan'), [['ankan', { tile: 1 }]]);
+		assert.strictEqual(sentActions(connection.send, 'dahai').length, 0);
+	});
+
+	test('lets the player pick the tile when more than one can be ankan-ed', async () => {
+		const { container, findAllByRole, connection } = renderRoomGame(createPlayerState({
+			turn: 'e',
+			handTiles: {
+				e: [1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 21, 25, 29],
+				s: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+				w: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+				n: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			},
+		}));
+
+		const buttons = await findAllByRole('button');
+		const ankanButton = buttons.find(b => b.textContent?.includes('暗槓'));
+		assert.ok(ankanButton, 'ankan button should be visible');
+		await fireEvent.click(ankanButton);
+		assert.strictEqual(sentActions(connection.send, 'ankan').length, 0);
+
 		await clickHandTile(container, 'm1');
 		assert.deepStrictEqual(sentActions(connection.send, 'ankan'), [['ankan', { tile: 1 }]]);
 	});
@@ -241,7 +262,7 @@ describe('room.game kakan', () => {
 		const { container, findAllByRole, connection } = renderRoomGame(createPlayerState({
 			turn: 'e',
 			handTiles: {
-				e: [1, 2, 3, 4, 5, 9, 13, 21, 25, 29, 33, 37, 41],
+				e: [1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 21, 25, 29],
 				s: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 				w: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 				n: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -312,7 +333,7 @@ describe('room.game kakan', () => {
 				s: [], w: [], n: [],
 			},
 			handTiles: {
-				e: [1, 2, 3, 4, 20, 72, 5, 9, 13, 21, 25, 29, 33],
+				e: [1, 2, 3, 4, 5, 6, 7, 8, 20, 72, 9, 13, 21],
 				s: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 				w: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 				n: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],

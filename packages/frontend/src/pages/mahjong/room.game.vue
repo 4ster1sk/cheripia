@@ -786,7 +786,22 @@ function ankan() {
 	const tiles = mj.value.getAnkanableTiles();
 	if (tiles.length === 0) return;
 
+	// 暗槓できる牌種が1つしかない場合は、牌を選ばせずそのまま暗槓する
+	const types = new Set(tiles.map(id => mj$type(id)));
+	if (types.size === 1) {
+		sendAnkan(tiles[0]);
+		return;
+	}
+
 	tileSelection.value = { action: 'ankan', tiles };
+}
+
+function sendAnkan(tile: Mmj.TileId) {
+	tileSelection.value = null;
+	iTsumoed.value = false;
+	props.connection!.send('ankan', {
+		tile: tile,
+	});
 }
 
 function kakan() {
