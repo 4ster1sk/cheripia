@@ -89,7 +89,7 @@ function createPlayerState(preset: Partial<Mmj.PlayerState> = {}): Mmj.PlayerSta
 	};
 }
 
-function renderRoomGame(state: Mmj.PlayerState) {
+function renderRoomGame(state: Mmj.PlayerState, isEnded = false) {
 	const connection = createConnection();
 	const user = (id: string) => ({ id, username: id, name: null });
 	const result = render(RoomGame, {
@@ -97,7 +97,7 @@ function renderRoomGame(state: Mmj.PlayerState) {
 			room: {
 				id: 'room',
 				isStarted: true,
-				isEnded: false,
+				isEnded,
 				user1Id: 'u1',
 				user2Id: 'u2',
 				user3Id: 'u3',
@@ -641,6 +641,19 @@ describe('room.game tsumo', () => {
 		const dahai = sentActions(connection.send, 'dahai');
 		assert.strictEqual(dahai.length, 1, 'normal dahai should be sent after restore');
 		assert.strictEqual(dahai[0][1].riichi, false, 'selection should be discarded, not a riichi discard');
+	});
+});
+
+describe('room.game ended result', () => {
+	test('sorts ended rows by points in descending order', async () => {
+		const { container } = renderRoomGame(createPlayerState({
+			points: { e: 20000, s: 35000, w: 25000, n: 30000 },
+		}), true);
+		await nextTick();
+
+		const points = Array.from(container.querySelectorAll('[class*="kyokuResultEndPoints"]'))
+			.map(el => el.textContent?.trim());
+		assert.deepStrictEqual(points, ['35000点', '30000点', '25000点', '20000点']);
 	});
 });
 

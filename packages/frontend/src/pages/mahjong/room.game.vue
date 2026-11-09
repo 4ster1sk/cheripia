@@ -8,7 +8,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 	<div v-if="room.isEnded" :class="$style.kyokuResult">
 		<div :class="$style.kyokuResultCard">
 			<div :class="$style.kyokuResultTitle">対局終了</div>
-			<div v-for="house in houses" :key="house" :class="[$style.kyokuResultRow, $style.kyokuResultRowCompact]">
+			<div v-for="house in endedHouses" :key="house" :class="[$style.kyokuResultRow, $style.kyokuResultRowCompact]">
 				<div :class="$style.kyokuResultHouseRow">
 					<span :class="$style.kyokuResultHouse">{{ houseLabel(house) }}</span>
 					<template v-if="houseToUser(house) != null">
@@ -435,6 +435,7 @@ const room = ref<Misskey.entities.MahjongRoomDetailed>(deepClone(props.room));
 const myUserNumber = computed(() => room.value.user1Id === $i.id ? 1 : room.value.user2Id === $i.id ? 2 : room.value.user3Id === $i.id ? 3 : 4);
 const mj = shallowRef(new Mmj.PlayerGameEngine(myUserNumber.value, room.value.gameState as unknown as Mmj.PlayerState));
 const houses: Mmj.House[] = ['e', 's', 'w', 'n'];
+const endedHouses = computed<Mmj.House[]>(() => [...houses].sort((a, b) => mj.value.points[b] - mj.value.points[a]));
 
 const isMyTurn = computed(() => {
 	return mj.value.turn === mj.value.myHouse;
