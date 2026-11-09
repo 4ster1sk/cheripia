@@ -1357,8 +1357,6 @@ export class MasterGameEngine {
 
 			tx.$state.turn = kanCaller;
 			const rinsyan = tx.rinshanTsumo();
-			// 大明槓は鳴いた扱いとし、ツモ牌としては保持しない
-			tx.$state.drawnTile = null;
 
 			tx.$commit();
 

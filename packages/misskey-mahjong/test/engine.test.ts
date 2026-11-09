@@ -711,7 +711,7 @@ describe('Master game engine drawn tile', () => {
 		expect(engine.$state.drawnTile).toBe(125);
 	});
 
-	it('clears the drawn tile on pon, cii and daiminkan', () => {
+	it('clears the drawn tile on pon and cii', () => {
 		const ponEngine = new MasterGameEngine(createCallState(
 			{ pon: { callee: 'e', callers: ['s'] } },
 			[18, 19, 57, 58, 59, 61, 62, 63, 65, 66, 67, 69, 71],
@@ -725,13 +725,25 @@ describe('Master game engine drawn tile', () => {
 		));
 		expect(ciiEngine.commit_resolveCallingInterruption({ pon: false, cii: '_x_', kan: false, ron: [] }).type).toBe('ciied');
 		expect(ciiEngine.$state.drawnTile).toBeNull();
+	});
 
+	it('sets the drawn tile to the rinshan tile on daiminkan', () => {
 		const kanEngine = new MasterGameEngine(createCallState(
 			{ kan: { callee: 'e', callers: ['s'] } },
 			[18, 19, 20, 57, 58, 59, 61, 62, 63, 65, 66, 67, 69],
 		));
-		expect(kanEngine.commit_resolveCallingInterruption({ pon: false, cii: false, kan: true, ron: [] }).type).toBe('kanned');
-		expect(kanEngine.$state.drawnTile).toBeNull();
+		const res = kanEngine.commit_resolveCallingInterruption({ pon: false, cii: false, kan: true, ron: [] });
+		expect(res.type).toBe('kanned');
+		if (res.type !== 'kanned') throw new Error('unexpected result');
+		// 王牌 [125]・activatedDorasCount=2 のため嶺上牌は 125
+		expect(res.rinsyan).toBe(125);
+		expect(kanEngine.$state.drawnTile).toBe(res.rinsyan);
+		expect(kanEngine.$state.handTiles.s).toContain(res.rinsyan);
+		// 自家 (s は user2) 視点でも嶺上牌がツモ牌として見える
+		expect(kanEngine.createPlayerState(2).drawnTile).toBe(res.rinsyan);
+		// 他家視点では見えない
+		expect(kanEngine.createPlayerState(1).drawnTile).toBeNull();
+		expect(kanEngine.createPlayerState(3).drawnTile).toBeNull();
 	});
 
 	it('reveals the drawn tile only to the player whose turn it is', () => {

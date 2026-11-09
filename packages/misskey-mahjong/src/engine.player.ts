@@ -612,7 +612,7 @@ export class PlayerGameEngine {
 		if (doraIndicateTiles != null) this.state.doraIndicateTiles = [...doraIndicateTiles];
 
 		this.state.turn = caller;
-		this.state.drawnTile = null;
+		this.state.drawnTile = caller === this.myHouse ? rinsyan : null;
 	}
 
 	public commit_kakan(house: House, tiles: readonly TileId[], rinsyan: TileId, doraIndicateTiles?: TileId[]) {

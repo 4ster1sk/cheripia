@@ -160,7 +160,7 @@ describe('Player game engine drawn tile', () => {
 		assert.strictEqual(engine.drawnTile, 18);
 	});
 
-	it('clears the drawn tile on dahai, pon, cii and kan', () => {
+	it('clears the drawn tile on dahai, pon and cii', () => {
 		const state = createState();
 		state.turn = 'e';
 		state.handTiles.e = [17, 18, 19];
@@ -181,20 +181,18 @@ describe('Player game engine drawn tile', () => {
 		state.hoTiles.s = [21];
 		engine.commit_cii('e', 's', [21, 22, 23]);
 		assert.strictEqual(engine.drawnTile, null);
-
-		state.turn = 'e';
-		state.drawnTile = 17;
-		state.hoTiles.s = [21];
-		engine.commit_kan('e', 's', [21, 22, 23, 24], 33);
-		assert.strictEqual(engine.drawnTile, null);
 	});
 
-	it('sets the rinshan tile on ankan and kakan', () => {
+	it('sets the rinshan tile on daiminkan, ankan and kakan', () => {
 		const state = createState();
 		state.turn = 'e';
 		state.handTiles.e = [1, 2, 3, 4];
 		state.huros.e = [{ type: 'pon', tiles: [17, 18, 19], from: 's' }];
 		const engine = new PlayerGameEngine(1, state);
+
+		state.hoTiles.s = [21];
+		engine.commit_kan('e', 's', [21, 22, 23, 24], 32);
+		assert.strictEqual(engine.drawnTile, 32);
 
 		engine.commit_ankan('e', [1, 2, 3, 4], 33);
 		assert.strictEqual(engine.drawnTile, 33);
@@ -212,6 +210,11 @@ describe('Player game engine drawn tile', () => {
 		const engine = new PlayerGameEngine(1, state);
 
 		engine.commit_ankan('s', [1, 2, 3, 4], 33);
+		assert.strictEqual(engine.drawnTile, null);
+
+		state.turn = 's';
+		state.hoTiles.e = [21];
+		engine.commit_kan('s', 'e', [21, 22, 23, 24], 32);
 		assert.strictEqual(engine.drawnTile, null);
 	});
 
