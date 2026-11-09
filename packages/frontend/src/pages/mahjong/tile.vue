@@ -70,8 +70,9 @@ const isDora = computed(() => !props.faceDown && props.tile != null && props.dor
 	height: 53%;
 	object-fit: contain;
 }
-/*
 .isDora {
+	overflow: hidden;
+	border-radius: 6px;
 	&:after {
 		content: "";
 		display: block;
@@ -81,9 +82,10 @@ const isDora = computed(() => !props.faceDown && props.tile != null && props.dor
 		height: 8px;
 		rotate: -45deg;
 		translate: -30px;
-		background: #ffffffee;
+		background: #ffd700ee;
+		box-shadow: 0 0 12px 2px #ffcc00aa;
 		animation: shine 2s infinite;
 		pointer-events: none;
 	}
-}*/
+}
 </style>
