@@ -114,9 +114,13 @@ onBeforeUnmount(cancelAnimation);
 
 .points {
 	font-weight: bold;
+	min-width: 8ch;
+	text-align: right;
 }
 
 .delta {
+	min-width: 6ch;
+	text-align: right;
 	font-size: 85%;
 	font-weight: bold;
 	animation: deltaPop 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
