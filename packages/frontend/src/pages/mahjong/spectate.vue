@@ -14,6 +14,10 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<span :class="$style.badge">{{ i18n.ts._mahjong.spectating }}</span>
 				<span>{{ i18n.ts._mahjong.mahjong }}</span>
 			</div>
+			<div :class="$style.status">
+				<span>{{ roundLabel }}</span>
+				<span>{{ i18n.tsx.remainingN({ n: state.tilesCount }) }}</span>
+			</div>
 			<div :class="$style.dora">
 				<span :class="$style.doraLabel">{{ i18n.ts._mahjong.dora }}</span>
 				<XTile v-for="(tile, i) in doraIndicateTiles" :key="i" :tile="tileInstance(tile)" variation="1" :doras="[]"/>
@@ -43,7 +47,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				</div>
 
 				<div v-if="state.hoTiles[house].length > 0" :class="[$style.tiles, $style.river]">
-					<XTile v-for="(tile, i) in state.hoTiles[house]" :key="i" :tile="tileInstance(tile)" variation="1" :doras="doras"/>
+					<XTile v-for="(tile, i) in state.hoTiles[house]" :key="i" :tile="tileInstance(tile)" variation="1" :doras="doras" :class="{ [$style.callTarget]: i === state.hoTiles[house].length - 1 }"/>
 				</div>
 
 				<div v-if="waitTiles[house].length > 0" :class="$style.waitTiles">
@@ -144,6 +148,12 @@ function houseToUser(house: Mmj.House): Misskey.entities.UserLite | null {
 function houseLabel(house: Mmj.House): string {
 	return house === 'e' ? i18n.ts._mahjong.east : house === 's' ? i18n.ts._mahjong.south : house === 'w' ? i18n.ts._mahjong.west : i18n.ts._mahjong.north;
 }
+
+const roundLabel = computed(() => {
+	const s = state.value;
+	if (s == null) return '';
+	return `${houseLabel(s.round)}${i18n.tsx._mahjong.kyoku({ n: s.kyoku })}`;
+});
 
 function sortedHand(house: Mmj.House): Mmj.TileId[] {
 	const s = state.value;
@@ -257,6 +267,13 @@ definePage(computed(() => ({
 	font-weight: bold;
 }
 
+.status {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-weight: bold;
+}
+
 .badge {
 	padding: 2px 10px;
 	border-radius: 999px;
@@ -344,6 +361,12 @@ definePage(computed(() => ({
 .river {
 	border-top: 1px dashed var(--MI_THEME-divider);
 	padding-top: 8px;
+}
+
+.callTarget {
+	outline: 2px solid #ffd54f;
+	outline-offset: 2px;
+	border-radius: 4px;
 }
 
 .waitTiles {
