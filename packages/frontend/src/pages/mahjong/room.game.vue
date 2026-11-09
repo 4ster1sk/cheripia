@@ -1782,11 +1782,12 @@ onUnmounted(() => {
 }
 
 .hoTilesContainerOfToimen {
+	// 開始端(視覚右端)を中央-108pxに固定。108px = 3セル×36px(36px = 72px + 2 * -18px: .v horizontal margin in tile.vue)。
 	position: absolute;
 	bottom: calc(50% + 125px);
-	left: 0;
-	right: 0;
-	margin: auto;
+	left: auto;
+	right: calc(50% - 108px);
+	margin: 0;
 	width: min-content;
 }
 .hoTilesOfToimen {
@@ -1837,11 +1838,12 @@ onUnmounted(() => {
 }
 
 .hoTilesContainerOfMe {
+	// 開始端(左端)を中央-108pxに固定。108px = 3セル×36px(36px = 72px + 2 * -18px: .v horizontal margin in tile.vue)。
 	position: absolute;
 	top: calc(50% + 125px);
-	left: 0;
-	right: 0;
-	margin: auto;
+	left: calc(50% - 108px);
+	right: auto;
+	margin: 0;
 	width: min-content;
 }
 .hoTilesOfMe {
