@@ -515,7 +515,7 @@ export class MahjongService implements OnApplicationShutdown {
 	}
 
 	@bindThis
-	private async answer(room: MahjongRoom, mj: Mmj.MasterGameEngine, answers: CallingAnswers): Promise<void> {
+	private async answerLocked(room: MahjongRoom, mj: Mmj.MasterGameEngine, answers: CallingAnswers): Promise<void> {
 		const kakanRonTile = mj.getState().kakanRon?.tile ?? null;
 		const wasKakanRon = kakanRonTile != null;
 		const res = mj.commit_resolveCallingInterruption({
@@ -585,6 +585,7 @@ export class MahjongService implements OnApplicationShutdown {
 
 	@bindThis
 	private async endKyoku(room: MahjongRoom, mj: Mmj.MasterGameEngine, kyokuResult: { agariHouse: Mmj.House | null; tenpaiHouses: Mmj.House[] }): Promise<void> {
+		// NOTE: ロック保持中に呼ぶこと。次局への進行はタイマー発火時に roomId のみから再取得して別ロックで行う。
 		this.clearTurnTimers(room.id);
 
 		const confirmation: NextKyokuConfirmation = {
@@ -595,21 +596,27 @@ export class MahjongService implements OnApplicationShutdown {
 		};
 		await this.redisClient.set(`mahjong:gameNextKyokuConfirmation:${room.id}`, JSON.stringify(confirmation));
 		const waitingStartedAt = Date.now();
+		const roomId = room.id;
 		const interval = setInterval(async () => {
-			const confirmationRaw = await this.redisClient.get(`mahjong:gameNextKyokuConfirmation:${room.id}`);
+			const confirmationRaw = await this.redisClient.get(`mahjong:gameNextKyokuConfirmation:${roomId}`);
 			if (confirmationRaw == null) {
 				clearInterval(interval);
-				this.removeTimer(this.otherTimers, room.id, interval);
+				this.removeTimer(this.otherTimers, roomId, interval);
 				return;
 			}
 			const current = JSON.parse(confirmationRaw) as NextKyokuConfirmation;
 			const allConfirmed = current.user1 && current.user2 && current.user3 && current.user4;
 			if (allConfirmed || (Date.now() - waitingStartedAt > Mmj.NEXT_KYOKU_CONFIRMATION_TIMEOUT_MS)) {
 				clearInterval(interval);
-				this.removeTimer(this.otherTimers, room.id, interval);
-				await this.redisClient.del(`mahjong:gameNextKyokuConfirmation:${room.id}`);
+				this.removeTimer(this.otherTimers, roomId, interval);
+				await this.redisClient.del(`mahjong:gameNextKyokuConfirmation:${roomId}`);
 				try {
-					await this.nextKyoku(room, mj, kyokuResult);
+					await this.withRoomLock(roomId, async () => {
+						const fresh = await this.getRoom(roomId);
+						if (fresh == null || fresh.gameState == null) return;
+						const freshMj = new Mmj.MasterGameEngine(fresh.gameState);
+						await this.nextKyokuLocked(fresh, freshMj, kyokuResult);
+					});
 				} catch (err) {
 					console.error('mahjong: failed to nextKyoku', err);
 				}
@@ -619,7 +626,8 @@ export class MahjongService implements OnApplicationShutdown {
 	}
 
 	@bindThis
-	private async nextKyoku(room: MahjongRoom, mj: Mmj.MasterGameEngine, kyokuResult: { agariHouse: Mmj.House | null; tenpaiHouses: Mmj.House[] }): Promise<void> {
+	private async nextKyokuLocked(room: MahjongRoom, mj: Mmj.MasterGameEngine, kyokuResult: { agariHouse: Mmj.House | null; tenpaiHouses: Mmj.House[] }): Promise<void> {
+		// NOTE: withRoomLock の内側で呼ぶこと（room/mj はロック内で再取得した fresh なもの）。
 		// トビ終了: いずれかの持ち点が0以下なら次局に進まず対局終了する
 		if (Mmj.isTobiPoints(mj.$state.points)) {
 			await this.endGame(room);
@@ -648,7 +656,8 @@ export class MahjongService implements OnApplicationShutdown {
 	}
 
 	@bindThis
-	private async dahai(room: MahjongRoom, mj: Mmj.MasterGameEngine, house: Mmj.House, tile: Mmj.TileId, riichi = false): Promise<void> {
+	private async dahaiLocked(room: MahjongRoom, mj: Mmj.MasterGameEngine, house: Mmj.House, tile: Mmj.TileId, riichi = false): Promise<void> {
+		// NOTE: withRoomLock の内側で呼ぶこと（room/mj はロック内で再取得した fresh なもの）。
 		const res = mj.commit_dahai(house, tile, riichi);
 		room.gameState = mj.getState();
 		await this.clearTurnWaitingTimer(room.id);
@@ -715,37 +724,47 @@ export class MahjongService implements OnApplicationShutdown {
 
 			await this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(answers));
 			const waitingStartedAt = Date.now();
+			const roomId = room.id;
+			const askingCanPonHouses = [...canPonHouses];
+			const askingCanKanHouses = [...canKanHouses];
+			const askingCanCiiHouse = res.canCiiHouse;
+			const askingCanRonHouses = [...res.canRonHouses];
 			const interval = setInterval(async () => {
-				const current = await this.redisClient.get(`mahjong:gameCallingAsking:${room.id}`);
+				const current = await this.redisClient.get(`mahjong:gameCallingAsking:${roomId}`);
 				if (current == null) {
 					clearInterval(interval);
-					this.removeTimer(this.otherTimers, room.id, interval);
+					this.removeTimer(this.otherTimers, roomId, interval);
 					return;
 				}
 				const currentAnswers = JSON.parse(current) as CallingAnswers;
 				normalizeCallingAnswers(currentAnswers);
 				const allAnswered = !(
-					(canPonHouses.some(h => currentAnswers.pon[h] == null)) ||
-					(res.canCiiHouse != null && currentAnswers.cii == null) ||
-					(canKanHouses.some(h => currentAnswers.kan[h] == null)) ||
-					(res.canRonHouses.includes('e') && currentAnswers.ron.e == null) ||
-					(res.canRonHouses.includes('s') && currentAnswers.ron.s == null) ||
-					(res.canRonHouses.includes('w') && currentAnswers.ron.w == null) ||
-					(res.canRonHouses.includes('n') && currentAnswers.ron.n == null)
+					(askingCanPonHouses.some(h => currentAnswers.pon[h] == null)) ||
+					(askingCanCiiHouse != null && currentAnswers.cii == null) ||
+					(askingCanKanHouses.some(h => currentAnswers.kan[h] == null)) ||
+					(askingCanRonHouses.includes('e') && currentAnswers.ron.e == null) ||
+					(askingCanRonHouses.includes('s') && currentAnswers.ron.s == null) ||
+					(askingCanRonHouses.includes('w') && currentAnswers.ron.w == null) ||
+					(askingCanRonHouses.includes('n') && currentAnswers.ron.n == null)
 				);
 				if (allAnswered || (Date.now() - waitingStartedAt > Mmj.CALL_AND_RON_ASKING_TIMEOUT_MS)) {
 					clearInterval(interval);
-					this.removeTimer(this.otherTimers, room.id, interval);
-					await this.redisClient.del(`mahjong:gameCallingAsking:${room.id}`);
+					this.removeTimer(this.otherTimers, roomId, interval);
+					await this.redisClient.del(`mahjong:gameCallingAsking:${roomId}`);
 					// タイムアウト時は未回答の caller 全員を辞退扱いにする
-					for (const h of canPonHouses) {
+					for (const h of askingCanPonHouses) {
 						if (currentAnswers.pon[h] == null) currentAnswers.pon[h] = false;
 					}
-					for (const h of canKanHouses) {
+					for (const h of askingCanKanHouses) {
 						if (currentAnswers.kan[h] == null) currentAnswers.kan[h] = false;
 					}
 					try {
-						await this.answer(room, mj, currentAnswers);
+						await this.withRoomLock(roomId, async () => {
+							const fresh = await this.getRoom(roomId);
+							if (fresh == null || fresh.gameState == null) return;
+							const freshMj = new Mmj.MasterGameEngine(fresh.gameState);
+							await this.answerLocked(fresh, freshMj, currentAnswers);
+						});
 					} catch (err) {
 						console.error('mahjong: failed to resolve asking', err);
 					}
@@ -762,7 +781,8 @@ export class MahjongService implements OnApplicationShutdown {
 	}
 
 	@bindThis
-	private async tsumoHoraByHouse(room: MahjongRoom, mj: Mmj.MasterGameEngine, house: Mmj.House): Promise<void> {
+	private async tsumoHoraByHouseLocked(room: MahjongRoom, mj: Mmj.MasterGameEngine, house: Mmj.House): Promise<void> {
+		// NOTE: withRoomLock の内側で呼ぶこと（room/mj はロック内で再取得した fresh なもの）。
 		const res = mj.commit_tsumoHora(house);
 		room.gameState = mj.getState();
 		await this.clearTurnWaitingTimer(room.id);
@@ -774,24 +794,39 @@ export class MahjongService implements OnApplicationShutdown {
 
 	@bindThis
 	private async waitForTurn(room: MahjongRoom, house: Mmj.House, mj: Mmj.MasterGameEngine): Promise<void> {
+		// NOTE: withRoomLock の内側（または startGame/nextKyokuLocked 等のロック内経路）から呼ぶこと。
+		// タイマーには room/mj のスナップショットを持ち込まず、roomId のみを捕捉して発火時にロック内で再取得する。
 		const aiHouses = this.getAiHouses(room, mj);
+		const roomId = room.id;
 
 		if (aiHouses.includes(house)) {
 			if (Mmj.isAgarikei(mj.handTileTypes[house])) {
 				const timer = setTimeout(() => {
-					void this.tsumoHoraByHouse(room, mj, house).catch(async (err) => {
-						console.error('mahjong: AI failed to tsumoHora, discarding instead', err);
-						const handTiles = mj.handTiles[house];
-						await this.dahai(room, mj, house, handTiles.at(-1)!).catch(e => console.error('mahjong: AI failed to dahai', e));
-					});
+					void this.withRoomLock(roomId, async () => {
+						const fresh = await this.getRoom(roomId);
+						if (fresh == null || fresh.gameState == null || fresh.isEnded) return;
+						const freshMj = new Mmj.MasterGameEngine(fresh.gameState);
+						try {
+							await this.tsumoHoraByHouseLocked(fresh, freshMj, house);
+						} catch (err) {
+							console.error('mahjong: AI failed to tsumoHora, discarding instead', err);
+							const handTiles = freshMj.handTiles[house];
+							await this.dahaiLocked(fresh, freshMj, house, handTiles.at(-1)!).catch(e => console.error('mahjong: AI failed to dahai', e));
+						}
+					}).catch(e => console.error('mahjong: AI failed to dahai', e));
 				}, 500);
 				this.addTimer(this.turnTimers, room.id, timer);
 				return;
 			}
 
 			const timer = setTimeout(() => {
-				const handTiles = mj.handTiles[house];
-				void this.dahai(room, mj, house, handTiles.at(-1)!).catch(err => console.error('mahjong: AI failed to dahai', err));
+				void this.withRoomLock(roomId, async () => {
+					const fresh = await this.getRoom(roomId);
+					if (fresh == null || fresh.gameState == null || fresh.isEnded) return;
+					const freshMj = new Mmj.MasterGameEngine(fresh.gameState);
+					const handTiles = freshMj.handTiles[house];
+					await this.dahaiLocked(fresh, freshMj, house, handTiles.at(-1)!);
+				}).catch(err => console.error('mahjong: AI failed to dahai', err));
 			}, 500);
 			this.addTimer(this.turnTimers, room.id, timer);
 			return;
@@ -801,8 +836,13 @@ export class MahjongService implements OnApplicationShutdown {
 			// リーチ時はアガリ牌でない限りツモ切り
 			if (!Mmj.isAgarikei(mj.handTileTypes[house])) {
 				const timer = setTimeout(() => {
-					const handTiles = mj.handTiles[house];
-					void this.dahai(room, mj, house, handTiles.at(-1)!).catch(err => console.error('mahjong: failed to dahai after riichi', err));
+					void this.withRoomLock(roomId, async () => {
+						const fresh = await this.getRoom(roomId);
+						if (fresh == null || fresh.gameState == null || fresh.isEnded) return;
+						const freshMj = new Mmj.MasterGameEngine(fresh.gameState);
+						const handTiles = freshMj.handTiles[house];
+						await this.dahaiLocked(fresh, freshMj, house, handTiles.at(-1)!);
+					}).catch(err => console.error('mahjong: failed to dahai after riichi', err));
 				}, 500);
 				this.addTimer(this.turnTimers, room.id, timer);
 				return;
@@ -814,19 +854,24 @@ export class MahjongService implements OnApplicationShutdown {
 		const waitingStartedAt = Date.now();
 		const timeoutMs = room.timeLimitForEachTurn * 1000;
 		const interval = setInterval(async () => {
-			const waiting = await this.redisClient.sismember(`mahjong:gameTurnWaiting:${room.id}`, id);
+			const waiting = await this.redisClient.sismember(`mahjong:gameTurnWaiting:${roomId}`, id);
 			if (waiting === 0) {
 				clearInterval(interval);
-				this.removeTimer(this.turnTimers, room.id, interval);
+				this.removeTimer(this.turnTimers, roomId, interval);
 				return;
 			}
 			if (Date.now() - waitingStartedAt > timeoutMs) {
-				await this.redisClient.srem(`mahjong:gameTurnWaiting:${room.id}`, id);
+				await this.redisClient.srem(`mahjong:gameTurnWaiting:${roomId}`, id);
 				clearInterval(interval);
-				this.removeTimer(this.turnTimers, room.id, interval);
-				const handTiles = mj.handTiles[house];
+				this.removeTimer(this.turnTimers, roomId, interval);
 				try {
-					await this.dahai(room, mj, house, handTiles.at(-1)!);
+					await this.withRoomLock(roomId, async () => {
+						const fresh = await this.getRoom(roomId);
+						if (fresh == null || fresh.gameState == null || fresh.isEnded) return;
+						const freshMj = new Mmj.MasterGameEngine(fresh.gameState);
+						const handTiles = freshMj.handTiles[house];
+						await this.dahaiLocked(fresh, freshMj, house, handTiles.at(-1)!);
+					});
 				} catch (err) {
 					console.error('mahjong: failed to dahai on timeout', err);
 				}
@@ -857,59 +902,64 @@ export class MahjongService implements OnApplicationShutdown {
 
 	@bindThis
 	public async commit_dahai(roomId: MahjongRoom['id'], user: MiUser, tile: Mmj.TileId, riichi = false): Promise<void> {
-		const room = await this.getRoom(roomId);
-		if (room == null) return;
-		if (room.gameState == null) return;
-		if (room.isEnded) return;
+		return await this.withRoomLock(roomId, async () => {
+			const room = await this.getRoom(roomId);
+			if (room == null) return;
+			if (room.gameState == null) return;
+			if (room.isEnded) return;
 
-		const mj = new Mmj.MasterGameEngine(room.gameState);
-		const myHouse = getHouseOfUserId(room, mj, user.id);
+			const mj = new Mmj.MasterGameEngine(room.gameState);
+			const myHouse = getHouseOfUserId(room, mj, user.id);
 
-		try {
-			await this.dahai(room, mj, myHouse, tile, riichi);
-		} catch (err) {
-			console.error('mahjong: failed to dahai', err);
-		}
+			try {
+				await this.dahaiLocked(room, mj, myHouse, tile, riichi);
+			} catch (err) {
+				console.error('mahjong: failed to dahai', err);
+			}
+		});
 	}
 
 	@bindThis
 	public async commit_ankan(roomId: MahjongRoom['id'], user: MiUser, tile: Mmj.TileId): Promise<void> {
-		const room = await this.getRoom(roomId);
-		if (room == null) return;
-		if (room.gameState == null) return;
-		if (room.isEnded) return;
+		return await this.withRoomLock(roomId, async () => {
+			const room = await this.getRoom(roomId);
+			if (room == null) return;
+			if (room.gameState == null) return;
+			if (room.isEnded) return;
 
-		const mj = new Mmj.MasterGameEngine(room.gameState);
-		const myHouse = getHouseOfUserId(room, mj, user.id);
+			const mj = new Mmj.MasterGameEngine(room.gameState);
+			const myHouse = getHouseOfUserId(room, mj, user.id);
 
-		try {
-			const res = mj.commit_ankan(myHouse, tile);
-			room.gameState = mj.getState();
-			await this.clearTurnWaitingTimer(room.id);
-			await this.saveRoom(room);
-			this.globalEventService.publishMahjongRoomStream(room.id, 'ankanned', { house: myHouse, tiles: res.tiles, rinsyan: res.rinsyan, doraIndicateTiles: mj.doraIndicateTiles });
-			this.waitForTurn(room, myHouse, mj);
-		} catch (err) {
-			console.error('mahjong: failed to ankan', err);
-		}
+			try {
+				const res = mj.commit_ankan(myHouse, tile);
+				room.gameState = mj.getState();
+				await this.clearTurnWaitingTimer(room.id);
+				await this.saveRoom(room);
+				this.globalEventService.publishMahjongRoomStream(room.id, 'ankanned', { house: myHouse, tiles: res.tiles, rinsyan: res.rinsyan, doraIndicateTiles: mj.doraIndicateTiles });
+				this.waitForTurn(room, myHouse, mj);
+			} catch (err) {
+				console.error('mahjong: failed to ankan', err);
+			}
+		});
 	}
 
 	@bindThis
 	public async commit_kakan(roomId: MahjongRoom['id'], user: MiUser, tile: Mmj.TileId): Promise<void> {
-		const room = await this.getRoom(roomId);
-		if (room == null) return;
-		if (room.gameState == null) return;
-		if (room.isEnded) return;
+		return await this.withRoomLock(roomId, async () => {
+			const room = await this.getRoom(roomId);
+			if (room == null) return;
+			if (room.gameState == null) return;
+			if (room.isEnded) return;
 
-		const mj = new Mmj.MasterGameEngine(room.gameState);
-		const myHouse = getHouseOfUserId(room, mj, user.id);
+			const mj = new Mmj.MasterGameEngine(room.gameState);
+			const myHouse = getHouseOfUserId(room, mj, user.id);
 
-		try {
-			const res = mj.commit_kakan(myHouse, tile);
-			room.gameState = mj.getState();
-			await this.clearTurnWaitingTimer(room.id);
-			await this.saveRoom(room);
-			if ('asking' in res && res.asking) {
+			try {
+				const res = mj.commit_kakan(myHouse, tile);
+				room.gameState = mj.getState();
+				await this.clearTurnWaitingTimer(room.id);
+				await this.saveRoom(room);
+				if ('asking' in res && res.asking) {
 				const answers: CallingAnswers = {
 					pon: { e: null, s: null, w: null, n: null },
 					cii: null,
@@ -931,12 +981,13 @@ export class MahjongService implements OnApplicationShutdown {
 
 				await this.redisClient.set(`mahjong:gameCallingAsking:${room.id}`, JSON.stringify(answers));
 				const waitingStartedAt = Date.now();
+				const roomIdForAsking = room.id;
 				const canRonHouses = [...res.canRonHouses];
 				const interval = setInterval(async () => {
-					const current = await this.redisClient.get(`mahjong:gameCallingAsking:${room.id}`);
+					const current = await this.redisClient.get(`mahjong:gameCallingAsking:${roomIdForAsking}`);
 					if (current == null) {
 						clearInterval(interval);
-						this.removeTimer(this.otherTimers, room.id, interval);
+						this.removeTimer(this.otherTimers, roomIdForAsking, interval);
 						return;
 					}
 					const currentAnswers = JSON.parse(current) as CallingAnswers;
@@ -944,13 +995,18 @@ export class MahjongService implements OnApplicationShutdown {
 					const allAnswered = !(canRonHouses.some(h => currentAnswers.ron[h] == null));
 					if (allAnswered || (Date.now() - waitingStartedAt > Mmj.CALL_AND_RON_ASKING_TIMEOUT_MS)) {
 						clearInterval(interval);
-						this.removeTimer(this.otherTimers, room.id, interval);
-						await this.redisClient.del(`mahjong:gameCallingAsking:${room.id}`);
+						this.removeTimer(this.otherTimers, roomIdForAsking, interval);
+						await this.redisClient.del(`mahjong:gameCallingAsking:${roomIdForAsking}`);
 						for (const h of canRonHouses) {
 							if (currentAnswers.ron[h] == null) currentAnswers.ron[h] = false;
 						}
 						try {
-							await this.answer(room, mj, currentAnswers);
+							await this.withRoomLock(roomIdForAsking, async () => {
+								const fresh = await this.getRoom(roomIdForAsking);
+								if (fresh == null || fresh.gameState == null) return;
+								const freshMj = new Mmj.MasterGameEngine(fresh.gameState);
+								await this.answerLocked(fresh, freshMj, currentAnswers);
+							});
 						} catch (err) {
 							console.error('mahjong: failed to resolve kakan asking', err);
 						}
@@ -964,26 +1020,29 @@ export class MahjongService implements OnApplicationShutdown {
 			const completed = res as { rinsyan: number; tiles: readonly [number, number, number, number]; from: Mmj.House };
 			this.globalEventService.publishMahjongRoomStream(room.id, 'kakanned', { house: myHouse, tiles: completed.tiles, rinsyan: completed.rinsyan, from: completed.from, doraIndicateTiles: mj.doraIndicateTiles });
 			this.waitForTurn(room, myHouse, mj);
-		} catch (err) {
-			console.error('mahjong: failed to kakan', err);
-		}
+			} catch (err) {
+				console.error('mahjong: failed to kakan', err);
+			}
+		});
 	}
 
 	@bindThis
 	public async commit_tsumoHora(roomId: MahjongRoom['id'], user: MiUser): Promise<void> {
-		const room = await this.getRoom(roomId);
-		if (room == null) return;
-		if (room.gameState == null) return;
-		if (room.isEnded) return;
+		return await this.withRoomLock(roomId, async () => {
+			const room = await this.getRoom(roomId);
+			if (room == null) return;
+			if (room.gameState == null) return;
+			if (room.isEnded) return;
 
-		const mj = new Mmj.MasterGameEngine(room.gameState);
-		const myHouse = getHouseOfUserId(room, mj, user.id);
+			const mj = new Mmj.MasterGameEngine(room.gameState);
+			const myHouse = getHouseOfUserId(room, mj, user.id);
 
-		try {
-			await this.tsumoHoraByHouse(room, mj, myHouse);
-		} catch (err) {
-			console.error('mahjong: failed to tsumoHora', err);
-		}
+			try {
+				await this.tsumoHoraByHouseLocked(room, mj, myHouse);
+			} catch (err) {
+				console.error('mahjong: failed to tsumoHora', err);
+			}
+		});
 	}
 
 	@bindThis
