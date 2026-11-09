@@ -1293,11 +1293,18 @@ onUnmounted(() => {
 }
 
 .taku {
+	// 16:9 の舞台。横幅 = min(100%, (viewport高さ - 170px) * 16/9) で縦にはみ出さない。
+	// 170px の内訳: .root の上下 padding 60px + .statusBar 約52px + 余裕。
+	// max-width 960px は高さ 540px (= 960 * 9/16) に収めるための上限。旧 max-width: 600px / min-height: 600px は置き換え。
+	// min-height 520px は河3段分(視覚約100px)+中央100px+手牌レーン約60px = 半分260px を確保する下限。
+	// 幅由来の高さが下限未満の場合は aspect-ratio より min-height が優先され、重なりを防ぐ代わりに縦スクロールになる。
 	position: relative;
 	width: 100%;
-	height: 100%;
-	max-width: 600px;
-	min-height: 600px;
+	width: min(100%, calc((100vh - 170px) * 16 / 9));
+	width: min(100%, calc((100dvh - 170px) * 16 / 9));
+	max-width: 960px;
+	min-height: 520px;
+	aspect-ratio: 16 / 9;
 	margin: auto;
 	box-sizing: border-box;
 }
@@ -1500,6 +1507,10 @@ onUnmounted(() => {
 	flex-direction: column;
 	align-items: center;
 	gap: 2px;
+	max-width: 140px;
+	max-height: 100%;
+	overflow: hidden;
+	// 150px パネル内に収める。待ち牌の折返しは .waitTilesList の flex-wrap で対応。
 }
 
 .waitTiles {
@@ -1523,6 +1534,9 @@ onUnmounted(() => {
 	flex-wrap: wrap;
 	justify-content: center;
 	max-width: 140px;
+	// 1行3枚(1枚の実効幅約36px)で折り返し、2行分(約96px)まで表示し、超過分はスクロールで全待ちを確認できる。
+	max-height: 96px;
+	overflow-y: auto;
 }
 
 .statusBar {
@@ -1642,9 +1656,12 @@ onUnmounted(() => {
 }
 
 .handTilesOfToimen {
+	// 頂部中央レーン。左右隅の名札・左上の対面副露と重ならないよう中央寄せ。
 	position: absolute;
-	top: 48px;
-	right: 40px;
+	top: 4px;
+	left: 0;
+	right: 0;
+	text-align: center;
 }
 .handTileImgOfToimen {
 	display: inline-block;
@@ -1653,48 +1670,108 @@ onUnmounted(() => {
 }
 
 .handTilesOfKamitya {
+	// 左端中央。副露レーン(left 40px〜)・河(中央寄り)と x が重ならない。
+	// 舞台下限520px時は上限400px。13枚の縦積み約312px(1枚約48px・重なり-26px)を下回らずクリップしない。
 	position: absolute;
-	top: 80px;
-	left: 0;
+	top: 0;
+	bottom: 0;
+	left: 4px;
+	margin: auto;
+	height: min-content;
+	max-height: calc(100% - 120px);
+	overflow: hidden;
 }
 
 .handTilesOfSimotya {
+	// 右端中央。左と対称(13枚約312px < 下限時400px)。
 	position: absolute;
-	bottom: 80px;
-	right: 0;
+	top: 0;
+	bottom: 0;
+	right: 4px;
+	margin: auto;
+	height: min-content;
+	max-height: calc(100% - 120px);
+	overflow: hidden;
 }
 
 .handTilesOfMe {
+	// 底部全幅レーン。高さは手牌1列(約50px)+hover浮き10px≒64px。自家河・副露の下端基準。
 	position: absolute;
-	bottom: 0;
-	left: 0px;
+	bottom: 4px;
+	left: 0;
+	right: 0;
+	text-align: center;
 }
 
 .huroTilesOfMe {
+	// 右下専用レーン。bottom 76px = 手牌レーン約64px + 隙間12px より上。
+	// x は自家河(中央±約86px)より右。flex-wrap で複数副露を折り返す(display の大枠は維持)。
+	// 2行分(1行約53px+gap 4px = 約112px)まで表示し、超過分はクリップして河・手牌・操作ボタンへの干渉を防ぐ。
 	position: absolute;
-	bottom: 56px;
+	bottom: 76px;
 	right: 8px;
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 4px;
+	max-width: min(320px, 28%);
+	max-height: 112px;
+	overflow: hidden;
 }
 
 .huroTilesOfToimen {
+	// 左上専用。top 52px = 対面手牌(頂部約50px)+隙間 より下。x は対面河(中央±約86px)より左。
+	// 自家側と対称に2行分まで表示し、超過分はクリップする。
 	position: absolute;
-	top: 48px;
+	top: 52px;
 	left: 8px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	max-width: min(320px, 28%);
+	max-height: 112px;
+	overflow: hidden;
 }
 
 .huroTilesOfKamitya {
+	// 左側の専用縦レーン。手牌(左端約36px幅)の内側 = left 40px。
+	// 幅は河の視覚外端基準: 河外端 = 中央 - (105px * 0.8) - (204px * 0.8) = 中央 - 約247px。
+	// レーン右端(40px + 幅)を河外端の4px外に収める → 幅 ≦ 50% - 291px、上限140px(ポン約110px・カン約144px)。
+	// 高さ192pxは上下の横副露レーン(上端〜164px・下端〜164px)と干渉しない中央帯。4面超はクリップで containment する。
 	position: absolute;
-	top: 80px;
 	left: 40px;
+	top: 0;
+	bottom: 0;
+	margin: auto;
+	height: min-content;
+	max-height: 192px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	max-width: min(140px, calc(50% - 291px));
+	overflow: hidden;
 }
 
 .huroTilesOfSimotya {
+	// 右側の専用縦レーン。左と対称(河外端 = 中央 + 約247px → 幅 ≦ 50% - 291px)。
 	position: absolute;
-	top: 80px;
-	right: 0;
+	right: 40px;
+	top: 0;
+	bottom: 0;
+	margin: auto;
+	height: min-content;
+	max-height: 192px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	max-width: min(140px, calc(50% - 291px));
+	overflow: hidden;
 }
 
 .hoTilesContainer {
+	// scale 0.8 は変更しない。子要素の配置オフセットも視覚上は 0.8 倍される。
+	// 南北河: オフセット125px → 視覚100px。中央パネル半分75px × 0.9 = 視覚約67.5px。視覚の隙間は約32px。
+	// 牌サイズ・回転は変更しない。
 	position: absolute;
 	top: 0;
 	bottom: 0;
@@ -1721,8 +1798,10 @@ onUnmounted(() => {
 }
 
 .hoTilesContainerOfKamitya {
+	// 横オフセット105px → 視覚84px。河視覚内端84px - パネル視覚67.5px = 隙間約16px。
+	// 河視覚外端 = 84 + 204 * 0.8 ≒ 中央-247px。副露縦レーン(40px〜)との隙間を確保する。
 	position: absolute;
-	right: calc(50% + 125px);
+	right: calc(50% + 105px);
 	top: calc(50% - 125px);
 	bottom: auto;
 	margin: auto;
@@ -1739,8 +1818,9 @@ onUnmounted(() => {
 }
 
 .hoTilesContainerOfSimotya {
+	// 上家側と対称。横オフセット105px → 視覚84px、河視覚外端は中央+約247px。
 	position: absolute;
-	left: calc(50% + 125px);
+	left: calc(50% + 105px);
 	top: calc(50% - 125px);
 	bottom: auto;
 	margin: auto;
@@ -1816,25 +1896,25 @@ onUnmounted(() => {
 	font-weight: bold;
 }
 .playerOfToimen {
+	// 右上隅。頂部中央の対面手牌・左上の対面副露と重ならない。
 	top: 8px;
-	left: 0;
-	right: 0;
-	margin: auto;
+	right: 8px;
 }
 .playerOfKamitya {
+	// 左上隅。下の対面副露(top 52px〜)と縦に並び重ならない。
 	top: 8px;
 	left: 8px;
-	bottom: auto;
 	margin: 0;
 }
 .playerOfSimotya {
-	top: 8px;
+	// 右下隅。上の自家副露(bottom 76px〜)と縦に並び重ならない。
+	bottom: 8px;
 	right: 8px;
-	bottom: auto;
 	margin: 0;
 }
 .playerOfMe {
-	bottom: 64px;
+	// 左下隅。底部中央の自家手牌(中央寄せ)・右下の自家副露と重ならない。
+	bottom: 8px;
 	left: 8px;
 	margin: 0;
 }
@@ -2014,6 +2094,25 @@ onUnmounted(() => {
 	margin-top: 8px;
 }
 
+@media (max-width: 840px) {
+	// 中幅舞台では手牌と隅名札を連動縮小する。
+	// 自家手牌500px × 0.85 = 約425px + 両隅名札240px + 隙間で約700px級舞台に収める。
+	// 対面手牌416px × 0.8 = 約333px + 両隅名札240pxで約590px級舞台に収める。
+	.player {
+		max-width: 120px;
+	}
+
+	.handTilesOfMe {
+		scale: 0.85;
+		transform-origin: bottom center;
+	}
+
+	.handTilesOfToimen {
+		scale: 0.8;
+		transform-origin: top center;
+	}
+}
+
 @media (max-width: 520px) {
 	.root {
 		padding: 8px;
@@ -2021,6 +2120,13 @@ onUnmounted(() => {
 		min-height: 100dvh;
 		box-sizing: border-box;
 		overflow-x: hidden;
+	}
+
+	.taku {
+		// .root padding 16px + .statusBar 約52px = 約68px → 70px差し引きに切替。フォールバック付き。
+		width: 100%;
+		width: min(100%, calc((100vh - 70px) * 16 / 9));
+		width: min(100%, calc((100dvh - 70px) * 16 / 9));
 	}
 
 	.ciiChoicePanel {
@@ -2038,13 +2144,33 @@ onUnmounted(() => {
 
 	.handTilesOfMe {
 		scale: 0.72;
-		transform-origin: bottom left;
+		transform-origin: bottom center;
+		// 底部全幅レーン中央寄せのため、縮小の基点を中央にする。
 	}
 
 	.handTilesOfToimen {
-		right: 8px;
+		// 全幅中央寄せのまま縮小し、基点も中央に揃える。左右隅名札のいずれにも寄らない。
+		left: 0;
+		right: 0;
+		text-align: center;
 		scale: 0.55;
-		transform-origin: top right;
+		transform-origin: top center;
+	}
+
+	.centerPanel {
+		// 120px化で視覚半分54px。左右河オフセット80px → 視覚64pxとの隙間を約10px確保する。
+		width: 120px;
+		height: 120px;
+	}
+
+	.waitTiles {
+		max-width: 110px;
+	}
+
+	.waitTilesList {
+		max-width: 104px;
+		// パネル120px - 残局数約18px - ラベル約12px - gap約4px = 約86px → 84pxまで表示し超過分はスクロール。
+		max-height: 84px;
 	}
 
 	.hoTilesContainerOfKamitya {
@@ -2053,6 +2179,17 @@ onUnmounted(() => {
 
 	.hoTilesContainerOfSimotya {
 		left: calc(50% + 80px);
+	}
+
+	.huroTilesOfKamitya {
+		left: 36px;
+		max-width: 100px;
+		// 狭幅時は河と近接しうるが、overflow: hidden で河側への干渉を防ぐ。
+	}
+
+	.huroTilesOfSimotya {
+		right: 36px;
+		max-width: 100px;
 	}
 
 	.huroTilesOfMe {
