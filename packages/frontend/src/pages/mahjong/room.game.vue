@@ -356,7 +356,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 							<XAnimatedPoints :class="$style.kyokuResultAnimatedPoints" :value="mj.points[house]" :delta="getPointDelta(house)"/>
 						</div>
 						<div v-for="yaku in res.yakus" :class="$style.kyokuResultYaku">
-							<span>{{ (i18n.ts._mahjong._yakus as Record<string, string>)[yaku.name] }} {{ yaku.fan }}{{ i18n.ts._mahjong.fan }}</span>
+							<span v-if="yaku.fan == null">{{ (i18n.ts._mahjong._yakus as Record<string, string>)[yaku.name] }} {{ (i18n.ts._mahjong._fanNames as Record<string, string>).yakuman }}</span>
+							<span v-else>{{ (i18n.ts._mahjong._yakus as Record<string, string>)[yaku.name] }} {{ yaku.fan }}{{ i18n.ts._mahjong.fan }}</span>
 						</div>
 						<div :class="$style.kyokuResultYaku">{{ i18n.ts._mahjong.dora }} {{ res.doraCount }}{{ i18n.ts._mahjong.fan }}</div>
 					</div>
