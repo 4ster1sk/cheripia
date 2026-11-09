@@ -179,7 +179,7 @@ describe('Player game engine drawn tile', () => {
 		state.turn = 'e';
 		state.drawnTile = 17;
 		state.hoTiles.s = [21];
-		engine.commit_cii('e', 's', [21, 22, 23]);
+		engine.commit_cii('e', 's', [17, 21, 25]);
 		assert.strictEqual(engine.drawnTile, null);
 	});
 

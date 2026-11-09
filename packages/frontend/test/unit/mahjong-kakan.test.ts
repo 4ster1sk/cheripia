@@ -274,7 +274,7 @@ describe('room.game kakan', () => {
 
 	test('still sends a riichi discard with the riichi flag', async () => {
 		const state = createPlayerState({
-			drawnTile: 57,
+			drawnTile: 58,
 			handTiles: {
 				e: [1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 53, 57],
 				s: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],

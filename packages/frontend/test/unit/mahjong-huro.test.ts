@@ -78,7 +78,7 @@ describe('XHuro', () => {
 	test('pon from kamicha lays the claimed tile sideways on the left', () => {
 		const { container } = renderHuro({
 			type: 'pon',
-			tiles: [1, 5, 9],
+			tiles: [1, 2, 3],
 			from: 'e',
 		}, 's');
 
@@ -93,7 +93,7 @@ describe('XHuro', () => {
 	test('pon from toimen lays the claimed tile sideways in the middle', () => {
 		const { container } = renderHuro({
 			type: 'pon',
-			tiles: [1, 5, 9],
+			tiles: [1, 2, 3],
 			from: 'n',
 		}, 's');
 
@@ -105,7 +105,7 @@ describe('XHuro', () => {
 	test('pon from shimocha lays the claimed tile sideways on the right', () => {
 		const { container } = renderHuro({
 			type: 'pon',
-			tiles: [1, 5, 9],
+			tiles: [1, 2, 3],
 			from: 'w',
 		}, 's');
 
@@ -117,7 +117,7 @@ describe('XHuro', () => {
 	test('shows the outer tiles of own ankan and hides the middle tiles', () => {
 		const { container } = renderHuro({
 			type: 'ankan',
-			tiles: [1, 5, 9, 13],
+			tiles: [1, 2, 3, 4],
 		});
 
 		assert.strictEqual(backgroundImgs(container).length, 4);
@@ -126,7 +126,7 @@ describe('XHuro', () => {
 		assert.strictEqual(faces.length, 2);
 		assert.deepStrictEqual(faces.map(img => img.getAttribute('src')), [
 			'/client-assets/mahjong/tiles/m1.png',
-			'/client-assets/mahjong/tiles/m4.png',
+			'/client-assets/mahjong/tiles/m1.png',
 		]);
 	});
 
@@ -143,7 +143,7 @@ describe('XHuro', () => {
 	test('shows daiminkan with a single sideways tile', () => {
 		const { container } = renderHuro({
 			type: 'minkan',
-			tiles: [1, 5, 9, 13],
+			tiles: [1, 2, 3, 4],
 			from: 'e',
 		}, 's');
 
@@ -156,7 +156,7 @@ describe('XHuro', () => {
 	test('shows kakan with the pon display plus an upright added tile', () => {
 		const { container } = renderHuro({
 			type: 'minkan',
-			tiles: [13, 1, 5, 9],
+			tiles: [4, 1, 2, 3],
 			from: 'e',
 			kakan: true,
 		}, 's');
@@ -166,7 +166,7 @@ describe('XHuro', () => {
 		assert.strictEqual(uprightBackgrounds(container).length, 3);
 		assert.strictEqual(faceImgs(container).length, 4);
 		// 追加牌 (tiles[0]) は右端に立てて置く
-		assert.strictEqual(faceImgs(container)[3].getAttribute('src'), '/client-assets/mahjong/tiles/m4.png');
+		assert.strictEqual(faceImgs(container)[3].getAttribute('src'), '/client-assets/mahjong/tiles/m1.png');
 	});
 
 	test('shows cii with the claimed tile sideways', () => {
