@@ -46,6 +46,9 @@ const isDora = computed(() => !props.faceDown && props.tile != null && props.dor
 }
 .h {
 	margin: -14px -19px -5px;
+	.fg {
+		rotate: 90deg;
+	}
 }
 .v {
 	margin: -14px -18px -11px;
