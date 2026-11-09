@@ -67,6 +67,7 @@ export const YAKUMAN_NAMES = [
 	'churen-9',
 	'tenho',
 	'chiho',
+	'kazoeyakuman',
 ] as const;
 
 type NormalYakuName = typeof NORMAL_YAKU_NAMES[number];
@@ -919,6 +920,7 @@ export const YAKUMAN_DEFINITIONS: YakumanDefinition[] = [
 	{
 		name: 'daisushi',
 		isYakuman: true,
+		isDoubleYakuman: true,
 		calc: (state: EnvForCalcYaku, fourMentsuOneJyantou: FourMentsuOneJyantou | null) => {
 			if (fourMentsuOneJyantou == null) return false;
 
@@ -1095,6 +1097,13 @@ export const YAKUMAN_DEFINITIONS: YakumanDefinition[] = [
 			return (state.firstTurn ?? false) && state.tsumoTile != null && state.seatWind !== 'e';
 		},
 	},
+	{
+		// 数え役満は通常役の合計13翻以上で成立するため、calc では直接判定せず
+		// calcYakusWithDetail の末尾で翻数を見て付与する (単純化)。
+		name: 'kazoeyakuman',
+		isYakuman: true,
+		calc: () => false,
+	},
 ];
 
 /**
@@ -1203,7 +1212,16 @@ export function calcYakusWithDetail(state: EnvForCalcYaku): YakuSet {
 	}).filter(yakus => yakus.length > 0);
 
 	if (yakumanPatterns.length > 0) {
-		return new YakumanSet(yakumanPatterns[0]);
+		let maxYakumans = yakumanPatterns[0];
+		let maxValue = maxYakumans.reduce((value, yaku) => value + (yaku.isDoubleYakuman ? 2 : 1), 0);
+		for (const yakus of yakumanPatterns) {
+			const value = yakus.reduce((v, yaku) => v + (yaku.isDoubleYakuman ? 2 : 1), 0);
+			if (value > maxValue) {
+				maxValue = value;
+				maxYakumans = yakus;
+			}
+		}
+		return new YakumanSet(maxYakumans);
 	}
 
 	const yakuPatterns = waitPatterns.map(
@@ -1231,6 +1249,10 @@ export function calcYakusWithDetail(state: EnvForCalcYaku): YakuSet {
 			maxFan = fan;
 			maxYakus = yakus;
 		}
+	}
+
+	if (maxFan >= 13) {
+		return new YakumanSet([YAKUMAN_DATA_MAP.get('kazoeyakuman')!]);
 	}
 
 	return new NormalYakuSet(isMenzen, maxYakus);

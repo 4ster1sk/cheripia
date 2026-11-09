@@ -4,7 +4,8 @@
  */
 
 import * as assert from 'node:assert';
-import { calcYakus, isNagashimanganHo } from '../src/common.yaku.js';
+import { calcYakus, calcYakusWithDetail, isNagashimanganHo } from '../src/common.yaku.js';
+import { calcPoint, calcTsumoHoraPointDeltas } from '../src/common.js';
 
 describe('Yaku', () => {
 	describe('Riichi', () => {
@@ -1200,6 +1201,101 @@ describe('Yaku', () => {
 			assert.deepStrictEqual(isNagashimanganHo(['m1', 'm9'], [{ type: 'pon', tile: 'e' }]), false);
 			// 捨て牌なしは不成立
 			assert.deepStrictEqual(isNagashimanganHo([], []), false);
+		});
+	});
+
+	describe('kazoeyakuman', () => {
+		it('grants kazoeyakuman for 13+ han without yakuman', () => {
+			// tsumo(1) + double-riichi(2) + ippatsu(1) + pinfu(1) + chinitsu(6) + ryanpeko(3) = 14翻
+			const detail = calcYakusWithDetail({
+				seatWind: 'e',
+				handTiles: ['m1', 'm2', 'm3', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm4', 'm5', 'm6', 'm7', 'm7'],
+				huros: [],
+				tsumoTile: 'm7',
+				doubleRiichi: true,
+				ippatsu: true,
+			});
+			assert.deepStrictEqual(detail.yakuNames, ['kazoeyakuman']);
+			assert.strictEqual(detail.isYakuman, true);
+			assert.strictEqual(detail.value, 1);
+		});
+
+		it('grants kazoeyakuman for exactly 13 han', () => {
+			// tsumo(1) + double-riichi(2) + pinfu(1) + chinitsu(6) + ryanpeko(3) = 13翻
+			const detail = calcYakusWithDetail({
+				seatWind: 'e',
+				handTiles: ['m1', 'm2', 'm3', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm4', 'm5', 'm6', 'm7', 'm7'],
+				huros: [],
+				tsumoTile: 'm7',
+				doubleRiichi: true,
+			});
+			assert.deepStrictEqual(detail.yakuNames, ['kazoeyakuman']);
+			assert.strictEqual(detail.isYakuman, true);
+			assert.strictEqual(detail.value, 1);
+		});
+
+		it('keeps 12 han as normal yaku (no kazoeyakuman)', () => {
+			// tsumo(1) + riichi(1) + pinfu(1) + chinitsu(6) + ryanpeko(3) = 12翻
+			const detail = calcYakusWithDetail({
+				seatWind: 'e',
+				handTiles: ['m1', 'm2', 'm3', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm4', 'm5', 'm6', 'm7', 'm7'],
+				huros: [],
+				tsumoTile: 'm7',
+				riichi: true,
+			});
+			assert.strictEqual(detail.isYakuman, false);
+			if (!detail.isYakuman) {
+				assert.strictEqual(detail.fan, 12);
+			}
+			assert.strictEqual(detail.yakuNames.includes('kazoeyakuman'), false);
+			assert.deepStrictEqual(detail.yakuNames, ['tsumo', 'riichi', 'pinfu', 'chinitsu', 'ryampeko']);
+		});
+
+		it('scores the same as before (8000 base point equivalent)', () => {
+			assert.strictEqual(calcPoint({ isYakuman: true, value: 1 }, false), calcPoint({ isYakuman: false, fan: 14, fu: 20 }, false));
+			assert.strictEqual(calcPoint({ isYakuman: true, value: 1 }, false), 32000);
+			assert.deepStrictEqual(
+				calcTsumoHoraPointDeltas('s', { isYakuman: true, value: 1 }),
+				calcTsumoHoraPointDeltas('s', { isYakuman: false, fan: 14, fu: 20 }),
+			);
+		});
+	});
+
+	describe('yakuman max value selection', () => {
+		it('selects the highest-value decomposition (suanko-tanki + ryuiso)', () => {
+			// s222 s333 s444 は s234 x3 とも読める。前者は四暗刻単騎+緑一色(3倍満)、後者は緑一色のみ(1倍満)。
+			const detail = calcYakusWithDetail({
+				seatWind: 'e',
+				handTiles: ['s2', 's2', 's2', 's3', 's3', 's3', 's4', 's4', 's4', 's6', 's6', 's6', 'hatsu', 'hatsu'],
+				huros: [],
+				tsumoTile: 'hatsu',
+			});
+			assert.deepStrictEqual(detail.yakuNames, ['suanko-tanki', 'ryuiso']);
+			assert.strictEqual(detail.value, 3);
+		});
+	});
+
+	describe('daisushi double yakuman', () => {
+		it('counts daisushi as double yakuman', () => {
+			const detail = calcYakusWithDetail({
+				seatWind: 'e',
+				handTiles: ['m1', 'm1', 'n', 'n', 'n', 'w', 'w', 'w', 's', 's', 's'],
+				huros: [{ type: 'pon', tile: 'e' }],
+				tsumoTile: 's',
+			});
+			assert.deepStrictEqual(detail.yakuNames, ['daisushi']);
+			assert.strictEqual(detail.value, 2);
+		});
+
+		it('keeps daisangen as single yakuman', () => {
+			const detail = calcYakusWithDetail({
+				seatWind: 'e',
+				handTiles: ['haku', 'haku', 'haku', 'hatsu', 'hatsu', 'hatsu', 'chun', 'chun', 'chun', 'p2', 'p3', 'p4', 's2', 's2'],
+				huros: [],
+				tsumoTile: 's2',
+			});
+			assert.deepStrictEqual(detail.yakuNames, ['daisangen']);
+			assert.strictEqual(detail.value, 1);
 		});
 	});
 });
