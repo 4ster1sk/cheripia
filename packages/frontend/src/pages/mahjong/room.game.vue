@@ -94,12 +94,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</div>
 		</div>
 
-		<div :class="$style.toimenHandLine">
-			<div :class="$style.handTilesOfToimen">
-				<div v-for="tile in mj.handTiles[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]" style="display: inline-block;">
-					<img :src="`/client-assets/mahjong/tile-back.png`" :class="$style.handTileImgOfToimen"/>
-				</div>
+		<div :class="$style.handTilesOfToimen">
+			<div v-for="tile in mj.handTiles[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]" style="display: inline-block;">
+				<img :src="`/client-assets/mahjong/tile-back.png`" :class="$style.handTileImgOfToimen"/>
 			</div>
+		</div>
+
+		<div :class="$style.toimenMeldLine">
 			<XHuro v-for="huro in mj.huros[Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))]" :class="$style.toimenHuroItem" :huro="huro" :caller="Mmj.prevHouse(Mmj.prevHouse(mj.myHouse))" :doras="mj.doras"/>
 		</div>
 
@@ -109,10 +110,11 @@ SPDX-License-Identifier: AGPL-3.0-only
 					<img :src="`/client-assets/mahjong/tile-side.png`" :class="$style.sideTileImg"/>
 				</div>
 			</div>
-			<div :class="$style.sideMeldWrap">
-				<div :class="$style.huroTilesOfKamitya">
-					<XHuro v-for="huro in mj.huros[Mmj.prevHouse(mj.myHouse)]" :class="$style.sideHuroItem" :huro="huro" :caller="Mmj.prevHouse(mj.myHouse)" :doras="mj.doras"/>
-				</div>
+		</div>
+
+		<div :class="$style.kamityaMeldLine">
+			<div :class="$style.huroTilesOfKamitya">
+				<XHuro v-for="huro in mj.huros[Mmj.prevHouse(mj.myHouse)]" :class="$style.sideHuroItem" :huro="huro" :caller="Mmj.prevHouse(mj.myHouse)" :doras="mj.doras"/>
 			</div>
 		</div>
 
@@ -122,10 +124,11 @@ SPDX-License-Identifier: AGPL-3.0-only
 					<img :src="`/client-assets/mahjong/tile-side.png`" :class="[$style.sideTileImg, $style.sideTileImgFlip]"/>
 				</div>
 			</div>
-			<div :class="$style.sideMeldWrap">
-				<div :class="$style.huroTilesOfSimotya">
-					<XHuro v-for="huro in mj.huros[Mmj.nextHouse(mj.myHouse)]" :class="$style.sideHuroItem" :huro="huro" :caller="Mmj.nextHouse(mj.myHouse)" :doras="mj.doras"/>
-				</div>
+		</div>
+
+		<div :class="$style.simotyaMeldLine">
+			<div :class="$style.huroTilesOfSimotya">
+				<XHuro v-for="huro in mj.huros[Mmj.nextHouse(mj.myHouse)]" :class="$style.sideHuroItem" :huro="huro" :caller="Mmj.nextHouse(mj.myHouse)" :doras="mj.doras"/>
 			</div>
 		</div>
 
@@ -207,8 +210,9 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</div>
 		</div>
 
-		<div :class="$style.myHandLine">
-			<XHandTiles :class="$style.handTilesOfMe" :tiles="mj.myHandTiles" :doras="mj.doras" :selectableTiles="selectableTiles" :separateLast="isMyTurn && mj.drawnTile != null" @choose="chooseTile"/>
+		<XHandTiles :class="$style.handTilesOfMe" :tiles="mj.myHandTiles" :doras="mj.doras" :selectableTiles="selectableTiles" :separateLast="isMyTurn && mj.drawnTile != null" @choose="chooseTile"/>
+
+		<div :class="$style.myMeldLine">
 			<XHuro v-for="huro in mj.huros[mj.myHouse]" :class="$style.myHuroItem" :huro="huro" :caller="mj.myHouse" :doras="mj.doras"/>
 		</div>
 
@@ -1455,11 +1459,13 @@ onUnmounted(() => {
 	bottom: 0;
 	display: grid;
 	place-items: center;
-	// 設計幅では 150px。舞台縮小時は幅比 (15.6%) を保って縮小する。
-	width: min(150px, 15.6cqw);
-	height: min(150px, 15.6cqw);
+	// 大きさは捨て牌1行分に合わせた真四角: 一辺 = 河6牌の牌本体スパン
+	// (6 × 本体ピッチ28.8 = 172.8。河の scale 0.8 を掛けた視覚寸法、設計px)。
+	// ルート幅スパン (201.6) では対面の河4段が手札に収まらないため、
+	// 牌本体のスパンで採る。
+	width: min(172.8px, 18cqw);
+	height: min(172.8px, 18cqw);
 	margin: auto;
-	scale: 0.9;
 	background: #333;
 	border: solid 1px #888;
 	border-radius: 10px;
@@ -1679,20 +1685,17 @@ onUnmounted(() => {
 	background: #ff0;
 }
 
-.toimenHandLine {
-	// 対面の手札と副露を同じ行に並べる帯 (自家の .myHandLine と同じ配置を
-	// 対面にも適用するユーザー指示)。対面の左手側 = 舞台右側に手札を固定し、
-	// 副露はその右手側 = 舞台左へ続く (row-reverse)。右端 272px は対面手牌
-	// 13枚 (約416px) の中央寄せ時の右端位置で、対面の左寄せアンカー。
-	// 左端は上家の名札 (最大170px) + 隙間8px の内側 (178px) まで。
-	// 帯幅 510px に対し手札+副露の合計は最大でも約440px (副露4組時) で、
-	// 折り返しは発生しない。align-items: flex-start で上辺を揃える。
+.toimenMeldLine {
+	// 対面の副露は手札とは別要素に分離した (ユーザー指示: 同じ帯の中で
+	// 手札の増減に連れて副露が一瞬ずれるのを避ける)。手札の行と同じ高さで、
+	// 対面から見た右手側 = 舞台左端 (上家の名札の内側 178px) に固定し、
+	// 副露は左から順に並ぶ。手札 (裏向き) の枚数が変わっても動かない。
+	// 副露4組でも最大約440px で、手札の最小左端 (1枚時 約656px) に届かない。
 	position: absolute;
 	top: min(6px, 0.63cqw);
 	left: min(178px, 18.54cqw);
 	right: min(272px, 28.33cqw);
 	display: flex;
-	flex-direction: row-reverse;
 	flex-wrap: wrap;
 	align-items: flex-start;
 	gap: 4px;
@@ -1710,9 +1713,13 @@ onUnmounted(() => {
 }
 
 .handTilesOfToimen {
-	// 配置は .toimenHandLine 側。手札自体は折り返さない。
+	// 対面の手札 (裏向き) は単独の要素。対面の左手側 = 舞台右側に固定する
+	// 左寄せアンカー: 右端 272px は13枚時の中央寄せ位置で、枚数が減ると
+	// 左端が右へ後退する。副露 (.toimenMeldLine) とは分離している。
+	position: absolute;
+	top: min(6px, 0.63cqw);
+	right: min(272px, 28.33cqw);
 	white-space: nowrap;
-	flex-shrink: 0;
 }
 .handTileImgOfToimen {
 	display: inline-block;
@@ -1722,12 +1729,10 @@ onUnmounted(() => {
 }
 
 .kamityaHandLine {
-	// 上家の手札と副露を同じ列に並べる帯 (自家・対面と同じ配置の適用)。
+	// 上家の手札列だけの帯 (副露は .kamityaMeldLine に分離した)。
 	// 列の中心は舞台中央から 25cqw (x=240px) で、帯はその中心の幅126px。
 	// 縦方向は左寄せ: 上家の左手側 = 上端を13枚時の位置 (上端から114px) に
-	// 固定し、手札列の下に副露レーン (.sideMeldWrap) が続く。
-	// 鳴くと手札列が3枚 (約72px) 縮み副露1組 (約101px) が増えるため、
-	// 副露はレーン内で中央側へ折り返される場合がある (折り返しは了承済み)。
+	// 固定し、枚数が減ると下端が上へ後退する。
 	position: absolute;
 	top: min(114px, 11.88cqw);
 	left: min(177px, 18.44cqw);
@@ -1739,15 +1744,14 @@ onUnmounted(() => {
 }
 
 .simotyaHandLine {
-	// 下家側も同じ列配置。左と対称で、下家の左手側 = 下端を13枚時の位置
-	// (下端から114px) に固定し、手札列の上に副露レーンが続く
-	// (column-reverse で手札が下、副露が上)。
+	// 下家側も手札列だけの帯。左と対称で、下家の左手側 = 下端を13枚時の
+	// 位置 (下端から114px) に固定する。
 	position: absolute;
 	bottom: min(114px, 11.88cqw);
 	right: min(177px, 18.44cqw);
 	width: min(126px, 13.13cqw);
 	display: flex;
-	flex-direction: column-reverse;
+	flex-direction: column;
 	align-items: center;
 	gap: 4px;
 }
@@ -1763,36 +1767,50 @@ onUnmounted(() => {
 	flex-shrink: 0;
 }
 
-.sideMeldWrap {
-	// 左右の副露レーンの置き場。レーン自体は回転して視覚寸法が入れ替わるため、
-	// 視覚寸法どおりの箱 (幅126px × 高さ370px) を帯の中に確保し、
+.kamityaMeldLine {
+	// 上家の副露レーンの置き場。手札とは別要素に分離し、手札列と反対側の
+	// 下端に固定する (手札の増減で動かない)。レーン自体は回転して視覚寸法が
+	// 入れ替わるため、視覚寸法どおりの箱 (幅126px × 高さ370px) を確保し、
 	// レーンはその中心に重ねる。副露がない時も箱は確保されるが透明で、
 	// 河や操作要素の邪魔にはならない (それらは DOM 後方で上に描かれる)。
-	position: relative;
+	position: absolute;
+	bottom: min(8px, 0.83cqw);
+	left: min(177px, 18.44cqw);
 	width: min(126px, 13.13cqw);
 	height: min(370px, 38.54cqw);
-	flex-shrink: 0;
+}
+
+.simotyaMeldLine {
+	// 下家側は上端に固定する (左と対称)。
+	position: absolute;
+	top: min(8px, 0.83cqw);
+	right: min(177px, 18.44cqw);
+	width: min(126px, 13.13cqw);
+	height: min(370px, 38.54cqw);
 }
 
 .sideHuroItem {
 	flex-shrink: 0;
 }
 
-.myHandLine {
-	// 自家の手札と副露を同じ行に並べる帯 (ユーザー指示)。手札の右に副露が続き、
-	// 行に入りきらない副露は上の行へ折り返す (折り返し可はユーザー了承済み)。
-	// 左端は手札の左寄せ位置 252px、右端は下家の名札 (最大170px) + 隙間8px の内側
-	// (右から178px) まで。帯の幅は 960-252-178 = 530px で、手札 (最大14枚で
-	// 約498px) と副露は「鳴くと手札が3枚 (約105px) 縮み、副露1組 (約101px) が
-	// 増える」ため合計がほぼ一定に収まる。槓 (1組約126px) を含むと溢れる場合は
-	// その副露が上の行に折り返される。
-	// align-items: flex-end で手札と副露の下辺を揃える。
+.myMeldLine {
+	// 自家の副露は手札とは別要素に分離した (ユーザー指示: 同じ帯の中では
+	// 打牌・ツモのたびに手札の幅が変わり、副露が一瞬左右にずれていた)。
+	// 手札の行と同じ下辺で、右端 (下家の名札の内側 178px) に固定し、
+	// 副露は右から順に並ぶ。行に入りきらない分は wrap-reverse で上の行へ
+	// 折り返す (折り返し可はユーザー了承済み)。手札が減るほど副露側へ
+	// 広がり、手札 (左固定) と副露 (右固定) は中央で出会う。
+	// align-items: flex-end で副露の下辺を手札と揃える。
+	// 下段の重なり回避: 副露レーンの下辺は手牌1枚分 (高さ50px + 隙間4px)
+	// だけ上に逃がし、手札 (下辺5px・高さ約50px) と下段同士が重ならない。
+	// 手札の左端固定 (252px) は維持する。
 	position: absolute;
-	bottom: min(5px, 0.52cqw);
+	bottom: calc(min(5px, 0.52cqw) + min(50px, 5.21cqw) + min(4px, 0.42cqw));
 	left: min(252px, 26.29cqw);
 	right: min(178px, 18.54cqw);
 	display: flex;
-	flex-wrap: wrap;
+	flex-wrap: wrap-reverse;
+	justify-content: flex-end;
 	align-items: flex-end;
 	gap: 4px;
 }
@@ -1805,21 +1823,23 @@ onUnmounted(() => {
 }
 
 .handTilesOfMe {
-	// 配置は .myHandLine 側 (左端 252px = 13枚時の中央寄せ位置に固定する左寄せ)。
-	// 鳴いて牌が減っても帯の左端は動かず、手札は右側から縮む (ツモ時は右へ伸びる)。
-	// 従来の中央寄せでは枚数が変わるたびに左端が左右へずれていた。
-	// nowrap で手札自体の折り返しを禁止し、副露だけが折り返す。
+	// 自家の手札は単独の要素 (副露は .myMeldLine に分離)。
+	// 左端 252px = 13枚時の中央寄せ位置に固定する左寄せ: 鳴いて牌が減っても
+	// 左端は動かず、手札は右側から縮む (ツモ時は右へ伸びる)。
+	// nowrap で手札自体の折り返しを禁止する。
+	position: absolute;
+	bottom: min(5px, 0.52cqw);
+	left: min(252px, 26.29cqw);
 	text-align: left;
 	white-space: nowrap;
-	flex-shrink: 0;
 }
 
 .huroTilesOfKamitya {
-	// 左側の副露レーン。.sideMeldWrap の中心に重ね、レーンごと河と同じ
+	// 左側の副露レーン。.kamityaMeldLine の中心に重ね、レーンごと河と同じ
 	// 90deg 回転させて副露牌が上家の向きになるようにする。回転後の視覚寸法は
 	// 幅126px × 高さ370px で、手札列と同じ列 (中心 x=240px) に収まる。
 	// ローカル座標では flex 行の主軸 (+x) が舞台の下方向に対応する:
-	// justify-content: flex-start で副露はレーン上端 = 手札列の下端側から
+	// justify-content: flex-end で副露はレーン下端 = 舞台の下端側から
 	// 順に積まれ、入りきらない分は wrap-reverse で中央側の列へ折り返す。
 	// align-items / align-content: center で牌の列を帯の中心に揃える。
 	position: absolute;
@@ -1832,7 +1852,7 @@ onUnmounted(() => {
 	display: flex;
 	flex-direction: row;
 	flex-wrap: wrap-reverse;
-	justify-content: flex-start;
+	justify-content: flex-end;
 	align-items: center;
 	align-content: center;
 	gap: 4px;
@@ -1840,8 +1860,8 @@ onUnmounted(() => {
 
 .huroTilesOfSimotya {
 	// 右側の副露レーン。左と対称で -90deg 回転 (下家の向き)。
-	// ローカル +x は舞台の上方向に対応し、justify-content: flex-start で
-	// 副露はレーン下端 = 手札列の上端側から順に積まれる。折り返しは
+	// ローカル +x は舞台の上方向に対応し、justify-content: flex-end で
+	// 副露はレーン上端 = 舞台の上端側から順に積まれる。折り返しは
 	// wrap で中央側の列へ出る。
 	position: absolute;
 	left: 50%;
@@ -1853,7 +1873,7 @@ onUnmounted(() => {
 	display: flex;
 	flex-direction: row;
 	flex-wrap: wrap;
-	justify-content: flex-start;
+	justify-content: flex-end;
 	align-items: center;
 	align-content: center;
 	gap: 4px;
@@ -1861,7 +1881,11 @@ onUnmounted(() => {
 
 .hoTilesContainer {
 	// scale 0.8 は変更しない。子要素の配置オフセットも視覚上は 0.8 倍される。
-	// 四家の河ともオフセット125px → 視覚100px で統一。中央パネル半分75px × 0.9 = 視覚約67.5px。視覚の隙間は四方とも約32px。
+	// 中央パネルが河1行分の真四角 (一辺172.8、半分86.4) になったため、
+	// 河の横方向オフセットは 120px → 視覚96px に統一する
+	// (パネル端との間隔は牌本体で約7px)。
+	// ただし対面の縦オフセットは 82px の退避を維持し、上家・下家の
+	// 縦アンカーは 125px を維持する (手札との間隔確保のため)。
 	// 牌サイズ・回転は変更しない。
 	position: absolute;
 	top: 0;
@@ -1875,13 +1899,9 @@ onUnmounted(() => {
 .hoTilesContainerOfToimen {
 	// 開始端(視覚右端)を中央-108pxに固定。108px = 3セル×36px(36px = 72px + 2 * -18px: .v horizontal margin in tile.vue)。
 	// オフセットは設計値を上限に cqw 連動させ、舞台縮小時も中央パネル・手牌との比率を保つ (108px = 11.25cqw)。
-	// 縦オフセットは対面のみ 82px (視覚65.6px): 他家は 125px = 13.02cqw に統一しているが、
+	// 縦オフセットは対面のみ 82px (視覚65.6px) の退避を維持する:
 	// 対面の手札レーンは舞台上端 (top 6px) に接していて後ろへ動かせないため、
-	// 「対面の手札を牌の大きさ分後ろへ」という指示を、河を中央へ牌1つ分 (河の行ピッチ
-	// 視覚約36.8px ≒ オフセット 43px) 寄せることで相対配置として実現する。
-	// これで手札と河の視覚的間隔が牌1つ分広がる (3段目: 約12px → 約46px、4段目でも重ならない)。
-	// 河の内端と中央パネル (視覚端67.5px) の隙間は約32px → 約2px (1段目の牌が
-	// パネル上端のスコア表示に被らない範囲で最も寄せた位置)。
+	// 河を中央へ寄せることで手札との間隔を確保する (3段目: 約46px、4段目でも重ならない)。
 	position: absolute;
 	bottom: calc(50% + min(82px, 8.54cqw));
 	left: auto;
@@ -1896,12 +1916,12 @@ onUnmounted(() => {
 }
 
 .hoTilesContainerOfKamitya {
-	// 横オフセットは四家統一の125px → 視覚100px。河視覚内端100px - パネル視覚67.5px = 隙間約32px (南北と同一)。
-	// 河視覚外端 = 100 + 204 * 0.8 ≒ 中央-263px。ただし1局の捨て牌は最大でも4段程度 (外端約209px) で、
-	// 中央から25cqwに置いた左右手牌列 (内端224px) には届かない。
-	// オフセット・グリッド幅は設計値を上限に cqw 連動 (125px = 13.02cqw、204px = 21.25cqw)。
+	// 縦アンカーは 125px を維持する (河全体の視覚移動を避けるため)。
+	// 横オフセットは120px → 視覚96px。パネル左端 (半分86.4) から牌本体で約7px。
+	// 河視覚外端 = 96 + 204 * 0.8 ≒ 中央-259px。
+	// オフセット・グリッド幅は設計値を上限に cqw 連動 (120px = 12.5cqw、204px = 21.25cqw、125px = 13.02cqw)。
 	position: absolute;
-	right: calc(50% + min(125px, 13.02cqw));
+	right: calc(50% + min(120px, 12.5cqw));
 	top: calc(50% - min(125px, 13.02cqw));
 	bottom: auto;
 	margin: auto;
@@ -1918,9 +1938,10 @@ onUnmounted(() => {
 }
 
 .hoTilesContainerOfSimotya {
-	// 上家側と対称。横オフセットは四家統一の125px → 視覚100px、河視覚外端は中央+約263px。
+	// 上家側と対称。横オフセットは120px → 視覚96px、河視覚外端は中央+約259px。
+	// 縦アンカーは 125px を維持する。
 	position: absolute;
-	left: calc(50% + min(125px, 13.02cqw));
+	left: calc(50% + min(120px, 12.5cqw));
 	top: calc(50% - min(125px, 13.02cqw));
 	bottom: auto;
 	margin: auto;
@@ -1941,8 +1962,9 @@ onUnmounted(() => {
 
 .hoTilesContainerOfMe {
 	// 開始端(左端)を中央-108pxに固定。108px = 3セル×36px(36px = 72px + 2 * -18px: .v horizontal margin in tile.vue)。
+	// 縦オフセット120px → 視覚96px: パネル下端 (半分86.4) から牌本体で約7px。
 	position: absolute;
-	top: calc(50% + min(125px, 13.02cqw));
+	top: calc(50% + min(120px, 12.5cqw));
 	left: calc(50% - min(108px, 11.25cqw));
 	right: auto;
 	margin: 0;
