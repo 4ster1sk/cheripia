@@ -1801,11 +1801,8 @@ onUnmounted(() => {
 	// 折り返す (折り返し可はユーザー了承済み)。手札が減るほど副露側へ
 	// 広がり、手札 (左固定) と副露 (右固定) は中央で出会う。
 	// align-items: flex-end で副露の下辺を手札と揃える。
-	// 下段の重なり回避: 副露レーンの下辺は手牌1枚分 (高さ50px + 隙間4px)
-	// だけ上に逃がし、手札 (下辺5px・高さ約50px) と下段同士が重ならない。
-	// 手札の左端固定 (252px) は維持する。
 	position: absolute;
-	bottom: calc(min(5px, 0.52cqw) + min(50px, 5.21cqw) + min(4px, 0.42cqw));
+	bottom: min(5px, 0.52cqw);
 	left: min(252px, 26.29cqw);
 	right: min(178px, 18.54cqw);
 	display: flex;
@@ -1882,10 +1879,8 @@ onUnmounted(() => {
 .hoTilesContainer {
 	// scale 0.8 は変更しない。子要素の配置オフセットも視覚上は 0.8 倍される。
 	// 中央パネルが河1行分の真四角 (一辺172.8、半分86.4) になったため、
-	// 河の横方向オフセットは 120px → 視覚96px に統一する
+	// 河のオフセットは四家とも 120px → 視覚96px に統一する
 	// (パネル端との間隔は牌本体で約7px)。
-	// ただし対面の縦オフセットは 82px の退避を維持し、上家・下家の
-	// 縦アンカーは 125px を維持する (手札との間隔確保のため)。
 	// 牌サイズ・回転は変更しない。
 	position: absolute;
 	top: 0;
@@ -1899,11 +1894,13 @@ onUnmounted(() => {
 .hoTilesContainerOfToimen {
 	// 開始端(視覚右端)を中央-108pxに固定。108px = 3セル×36px(36px = 72px + 2 * -18px: .v horizontal margin in tile.vue)。
 	// オフセットは設計値を上限に cqw 連動させ、舞台縮小時も中央パネル・手牌との比率を保つ (108px = 11.25cqw)。
-	// 縦オフセットは対面のみ 82px (視覚65.6px) の退避を維持する:
-	// 対面の手札レーンは舞台上端 (top 6px) に接していて後ろへ動かせないため、
-	// 河を中央へ寄せることで手札との間隔を確保する (3段目: 約46px、4段目でも重ならない)。
+	// 縦オフセットは四家統一の 120px → 視覚96px (パネル上端 = 半分86.4 から
+	// 牌本体で約7px)。3段目までは手札 (裏向き、下端54px) と約19px空く。
+	// 4段目 (19枚以上) では牌本体が手札下端に約10px届くが、これは
+	// パネル一辺172.8 + 河4段 + 手札で舞台の縦270px (半分) をほぼ使い切る
+	// ためで、この大きさのパネルでは不可避。
 	position: absolute;
-	bottom: calc(50% + min(82px, 8.54cqw));
+	bottom: calc(50% + min(120px, 12.5cqw));
 	left: auto;
 	right: calc(50% - min(108px, 11.25cqw));
 	margin: 0;
@@ -1916,13 +1913,14 @@ onUnmounted(() => {
 }
 
 .hoTilesContainerOfKamitya {
-	// 縦アンカーは 125px を維持する (河全体の視覚移動を避けるため)。
-	// 横オフセットは120px → 視覚96px。パネル左端 (半分86.4) から牌本体で約7px。
+	// 縦アンカーは河グリッド (204px) の中心を舞台中央に合わせる (50% - 102px、
+	// 視覚 ±81.6px)。以前は 125px で、河全体が視覚18.4px上にずれていた。
+	// 横オフセットは四家統一の120px → 視覚96px。パネル左端 (半分86.4) から牌本体で約7px。
 	// 河視覚外端 = 96 + 204 * 0.8 ≒ 中央-259px。
-	// オフセット・グリッド幅は設計値を上限に cqw 連動 (120px = 12.5cqw、204px = 21.25cqw、125px = 13.02cqw)。
+	// オフセット・グリッド幅は設計値を上限に cqw 連動 (120px = 12.5cqw、204px = 21.25cqw)。
 	position: absolute;
 	right: calc(50% + min(120px, 12.5cqw));
-	top: calc(50% - min(125px, 13.02cqw));
+	top: calc(50% - min(102px, 10.63cqw));
 	bottom: auto;
 	margin: auto;
 	height: min-content;
@@ -1938,11 +1936,10 @@ onUnmounted(() => {
 }
 
 .hoTilesContainerOfSimotya {
-	// 上家側と対称。横オフセットは120px → 視覚96px、河視覚外端は中央+約259px。
-	// 縦アンカーは 125px を維持する。
+	// 上家側と対称。横オフセットは四家統一の120px → 視覚96px、河視覚外端は中央+約259px。
 	position: absolute;
 	left: calc(50% + min(120px, 12.5cqw));
-	top: calc(50% - min(125px, 13.02cqw));
+	top: calc(50% - min(102px, 10.63cqw));
 	bottom: auto;
 	margin: auto;
 	height: min-content;
