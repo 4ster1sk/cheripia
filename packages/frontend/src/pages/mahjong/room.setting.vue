@@ -34,7 +34,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 						<MkButton v-if="isOwner && !room.isStarted && !room.isEnded && seatAi(index)" small danger @click="removeCpu(index)">削除</MkButton>
 					</div>
 				</div>
-				<div style="margin-top: 8px; font-size: 90%; opacity: 0.8;">
+				<div v-if="!isOwner || room.isStarted || room.isEnded" style="margin-top: 8px; font-size: 90%; opacity: 0.8;">
 					持ち時間: {{ room.timeLimitForEachTurn }}秒
 				</div>
 				<div v-if="isOwner && !room.isStarted && !room.isEnded" style="margin-top: 8px;">

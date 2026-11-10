@@ -12,6 +12,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 		:faceDown="item.faceDown"
 		:variation="item.sideways ? '3' : '1'"
 		:doras="doras"
+		:class="{ [$style.sideways]: item.sideways }"
 	/>
 </div>
 </template>
@@ -111,5 +112,27 @@ const displayTiles = computed<DisplayTile[]>(() => {
 
 <style lang="scss" module>
 .root {
+	// 副露の牌は河と同じ見かけの大きさにする。河は .hoTilesContainer の
+	// scale 0.8 で縮小されるが、副露レーンはその外にあるため、倍率を指定しないと
+	// 副露の牌だけ 25% 大きく見えていた。tile.vue の寸法はこの倍率で連動する。
+	--mj-tile-ratio: 0.8;
+}
+.sideways {
+	// 横向き牌 (putted-tile-3) は縦牌より底辺が浮く (705px舞台で実測7px)。
+	// 内訳: アセット内の牌本体の底辺位置 (223/256 vs 239/256) と、
+	// tile.vue の .h/.v の下マージン差 (-0.52cqw vs -1.15cqw) の合算。
+	// 副露内でのみ translate で補正して底辺を揃える (河のリーチ牌には影響させない)。
+	translate: 0 min(calc(10px * var(--mj-tile-ratio, 1)), calc(1.04cqw * var(--mj-tile-ratio, 1)));
+}
+.root .sideways {
+	// 横向き牌の本体は縦牌より幅広い (アセット実測: 本体幅 176/256 vs 128/256、
+	// 設計72px箱では 49.5px vs 36px)。tile.vue の .h の横マージン (-19px) のままだと
+	// 隣とのピッチが 35px になり、本体同士が約7.8pxずつ重なって隣の牌の顔面を食う
+	// (実測: 顔面の食われが最大約200px²、縦牌同士はピッチ36px = 本体幅で重なり0)。
+	// 副露内では横マージンを -11.25px にしてピッチを 42.75px にし、
+	// 縦牌同士と同じく「本体が接するだけ」の関係にする。
+	// 特異度 (0,2,0) で tile.vue の .h (0,1,0) より優先させる。
+	margin-left: max(calc(-11.25px * var(--mj-tile-ratio, 1)), calc(-1.17cqw * var(--mj-tile-ratio, 1)));
+	margin-right: max(calc(-11.25px * var(--mj-tile-ratio, 1)), calc(-1.17cqw * var(--mj-tile-ratio, 1)));
 }
 </style>

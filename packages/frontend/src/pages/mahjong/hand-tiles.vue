@@ -20,7 +20,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 	</div>
 	<div
 		v-if="separateLast"
-		style="display: inline-block; margin-left: 5px;"
+		style="display: inline-block; margin-left: min(5px, 0.52cqw);"
 		:class="[$style.tile, { [$style.tileNonSelectable]: selectableTiles != null && !selectableTiles.includes(mj$type(tiles[tiles.length - 1])), [$style.tileDora]: doras.includes(mj$type(tiles[tiles.length - 1])) }]"
 		@click="chooseTile(tiles[tiles.length - 1], $event)"
 	>
@@ -67,19 +67,23 @@ function chooseTile(tile: Mmj.TileId, event: MouseEvent) {
 
 <style lang="scss" module>
 @keyframes shine {
-	0% { translate: -20%; }
-	100% { translate: -70%; }
+	0% { translate: -320% 0; }
+	60% { translate: 460% 0; }
+	100% { translate: 460% 0; }
 }
 
 .root {
-
+	// 折り返し禁止。舞台 (room.game.vue の .taku) が狭いときは牌側が cqw で縮む。
+	white-space: nowrap;
 }
 
 .tile {
 	display: inline-block;
 	vertical-align: bottom;
 	position: relative;
-	width: 35px;
+	// 14枚 = 舞台幅の約51%。設計幅 (960px) では従来どおり 35px。
+	// 両隅の名札 (各17.7%) と合わせても舞台幅に収まり、重なりも折り返しも起きない。
+	width: min(35px, 3.65cqw);
 	aspect-ratio: 0.7;
 	cursor: pointer;
 }
@@ -102,16 +106,21 @@ function chooseTile(tile: Mmj.TileId, event: MouseEvent) {
 
 .tileDora > .tileInner {
 	&:after {
+		// tile.vue の .isDora と同じ設計に揃える。旧実装は top 30px・幅 200px・
+		// 高さ 8px・-45deg の固定pxで、35px幅の手札牌では帯がはみ出して
+		// 白い斜めバーのように見えた (背景も金ではなく白 #ffffffee だった)。
+		// 帯は牌サイズ比例 (幅32%・高さ68%・top 16%) の金色グラデーションにし、
+		// 横切った後は残りの周期 (40%) は画面外で待機させる。
 		content: "";
 		display: block;
 		position: absolute;
-		top: 30px;
-		width: 200px;
-		height: 8px;
-		rotate: -45deg;
-		translate: -30px;
-		background: #ffffffee;
-		animation: shine 2s infinite;
+		top: 16%;
+		left: 0;
+		width: 32%;
+		height: 68%;
+		rotate: -24deg;
+		background: linear-gradient(90deg, transparent, #ffe970e6 45%, #fff6c4 50%, #ffe970e6 55%, transparent);
+		animation: shine 2.8s ease-in-out infinite;
 		pointer-events: none;
 	}
 }
