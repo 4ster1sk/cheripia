@@ -44,8 +44,8 @@ const isDora = computed(() => !props.faceDown && props.tile != null && props.dor
 	// 設計 72px = 舞台幅 (room.game.vue の .taku) の 7.5%。舞台外 (ドラ表示等) では
 	// cqw が viewport 基準にフォールバックし、72px 上限で従来どおり表示される。
 	// 負マージンも同じ比率で連動させ、実効セル寸法の比率を保つ。
-	// --mj-tile-ratio は寸法全体の倍率 (既定1)。副露内では huro.vue が 0.8 を指定し、
-	// 河 (scale 0.8 のコンテナ内) と見かけの大きさを揃える。
+	// --mj-tile-ratio は寸法全体の倍率 (既定1)。副露内では huro.vue が、
+	// 河内では .hoTilesContainer (room.game.vue) が 0.8 を指定する。
 	width: min(calc(72px * var(--mj-tile-ratio, 1)), calc(7.5cqw * var(--mj-tile-ratio, 1)));
 	height: min(calc(72px * var(--mj-tile-ratio, 1)), calc(7.5cqw * var(--mj-tile-ratio, 1)));
 	margin: max(calc(-17px * var(--mj-tile-ratio, 1)), calc(-1.77cqw * var(--mj-tile-ratio, 1)));

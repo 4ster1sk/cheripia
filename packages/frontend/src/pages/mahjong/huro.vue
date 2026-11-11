@@ -112,9 +112,10 @@ const displayTiles = computed<DisplayTile[]>(() => {
 
 <style lang="scss" module>
 .root {
-	// 副露の牌は河と同じ見かけの大きさにする。河は .hoTilesContainer の
-	// scale 0.8 で縮小されるが、副露レーンはその外にあるため、倍率を指定しないと
-	// 副露の牌だけ 25% 大きく見えていた。tile.vue の寸法はこの倍率で連動する。
+	// 副露の牌は河と同じ見かけの大きさにする。河は .hoTilesContainer が
+	// --mj-tile-ratio: 0.8 を指定して縮小するが、副露レーンはその外にあるため、
+	// ここでも倍率を指定しないと副露の牌だけ 25% 大きく見える。
+	// tile.vue の寸法はこの倍率で連動する。
 	--mj-tile-ratio: 0.8;
 }
 .sideways {

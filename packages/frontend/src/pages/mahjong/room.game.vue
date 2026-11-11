@@ -1460,7 +1460,7 @@ onUnmounted(() => {
 	display: grid;
 	place-items: center;
 	// 大きさは捨て牌1行分に合わせた真四角: 一辺 = 河6牌の牌本体スパン
-	// (6 × 本体ピッチ28.8 = 172.8。河の scale 0.8 を掛けた視覚寸法、設計px)。
+	// (6 × 本体ピッチ28.8 = 172.8。河の牌寸法 ×0.8 での視覚寸法、設計px)。
 	// ルート幅スパン (201.6) では対面の河4段が手札に収まらないため、
 	// 牌本体のスパンで採る。
 	width: min(172.8px, 18cqw);
@@ -1877,32 +1877,36 @@ onUnmounted(() => {
 }
 
 .hoTilesContainer {
-	// scale 0.8 は変更しない。子要素の配置オフセットも視覚上は 0.8 倍される。
-	// 中央パネルが河1行分の真四角 (一辺172.8、半分86.4) になったため、
-	// 河のオフセットは四家とも 120px → 視覚96px に統一する
-	// (パネル端との間隔は牌本体で約7px)。
-	// 牌サイズ・回転は変更しない。
+	// 河全体の 0.8 倍は、transform の scale ではなく牌寸法の倍率
+	// (--mj-tile-ratio) で行う。scale を使うとレイヤーが低解像度で
+	// ラスター化され、河の牌がぼやけて描かれる (実測: 鮮明さの指標で
+	// 約1/2)。倍率方式では牌の画像が直接縮小描画され、ぼやけない。
+	// 子要素の配置オフセットは視覚値そのもの (旧 scale 前提の設計値ではない)。
+	// パネル端 (半分約87.8) と牌本体の間隔は四家とも約7.9px に統一する:
+	// 本体のアセット内位置が家ごとに違う (putted-tile の本体マージン
+	// 自家48・対面16・左右40 [/256]) ため、オフセットは家ごとに調整する。
 	position: absolute;
 	top: 0;
 	bottom: 0;
 	left: 0;
 	right: 0;
-	transform-origin: center;
-	scale: 0.8;
+	--mj-tile-ratio: 0.8;
 }
 
 .hoTilesContainerOfToimen {
-	// 開始端(視覚右端)を中央-108pxに固定。108px = 3セル×36px(36px = 72px + 2 * -18px: .v horizontal margin in tile.vue)。
-	// オフセットは設計値を上限に cqw 連動させ、舞台縮小時も中央パネル・手牌との比率を保つ (108px = 11.25cqw)。
-	// 縦オフセットは四家統一の 120px → 視覚96px (パネル上端 = 半分86.4 から
-	// 牌本体で約7px)。3段目までは手札 (裏向き、下端54px) と約19px空く。
-	// 4段目 (19枚以上) では牌本体が手札下端に約10px届くが、これは
-	// パネル一辺172.8 + 河4段 + 手札で舞台の縦270px (半分) をほぼ使い切る
-	// ためで、この大きさのパネルでは不可避。
+	// 開始端(視覚右端)を中央-86.4pxに固定 (自家と対称)。
+	// 縦オフセットは 103.2px (他家より 7.2px 外側): 対面の牌はアセット内で
+	// 本体がパネル側の端に寄っている (putted-tile-2 の本体マージン
+	// 16/256、自家は 48/256) ため、ルート端の距離を他家と揃えると本体だけ
+	// パネルに約7px 近づいて見える。本体とパネル端の間隔を四家とも
+	// 約7.9px に揃えるため、この分だけ外側に置く。
+	// 3段目までは手札 (裏向き、下端54px) と間隔が空く。4段目 (19枚以上)
+	// では牌本体が手札下端に届くが、パネル一辺172.8 + 河4段 + 手札で
+	// 舞台の縦270px (半分) をほぼ使い切るため、この大きさでは不可避。
 	position: absolute;
-	bottom: calc(50% + min(120px, 12.5cqw));
+	bottom: calc(50% + min(103.2px, 10.75cqw));
 	left: auto;
-	right: calc(50% - min(108px, 11.25cqw));
+	right: calc(50% - min(86.4px, 9cqw));
 	margin: 0;
 	width: min-content;
 }
@@ -1913,14 +1917,15 @@ onUnmounted(() => {
 }
 
 .hoTilesContainerOfKamitya {
-	// 縦アンカーは河グリッド (204px) の中心を舞台中央に合わせる (50% - 102px、
-	// 視覚 ±81.6px)。以前は 125px で、河全体が視覚18.4px上にずれていた。
-	// 横オフセットは四家統一の120px → 視覚96px。パネル左端 (半分86.4) から牌本体で約7px。
-	// 河視覚外端 = 96 + 204 * 0.8 ≒ 中央-259px。
-	// オフセット・グリッド幅は設計値を上限に cqw 連動 (120px = 12.5cqw、204px = 21.25cqw)。
+	// 縦アンカーは河グリッド (163.2px) の中心を舞台中央に合わせる
+	// (50% - 81.6px)。以前は河全体が上にずれていた。
+	// 横オフセットは 97.8px: 本体とパネル左端 (半分約87.8) の間隔を
+	// 四家統一の約7.9px にする (左右の牌の本体マージンは 40/256)。
+	// 河外端 = 97.8 + 163.2 = 中央-261px。
+	// オフセット・グリッド幅は設計値を上限に cqw 連動する。
 	position: absolute;
-	right: calc(50% + min(120px, 12.5cqw));
-	top: calc(50% - min(102px, 10.63cqw));
+	right: calc(50% + min(97.8px, 10.19cqw));
+	top: calc(50% - min(81.6px, 8.5cqw));
 	bottom: auto;
 	margin: auto;
 	height: min-content;
@@ -1931,15 +1936,15 @@ onUnmounted(() => {
 	grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
 	grid-template-rows: 1fr 1fr 1fr 1fr 1fr 1fr;
 	aspect-ratio: 1;
-	// 6 cols * 34px (34px = 72px + 2 * -19px: .h horizontal margin in tile.vue)
-	width: min(204px, 21.25cqw);
+	// 6 cols * 27.2px (27.2px = (72px + 2 * -19px) * 0.8: .h horizontal margin in tile.vue)
+	width: min(163.2px, 17cqw);
 }
 
 .hoTilesContainerOfSimotya {
-	// 上家側と対称。横オフセットは四家統一の120px → 視覚96px、河視覚外端は中央+約259px。
+	// 上家側と対称。横オフセット 97.8px、河外端は中央+261px。
 	position: absolute;
-	left: calc(50% + min(120px, 12.5cqw));
-	top: calc(50% - min(102px, 10.63cqw));
+	left: calc(50% + min(97.8px, 10.19cqw));
+	top: calc(50% - min(81.6px, 8.5cqw));
 	bottom: auto;
 	margin: auto;
 	height: min-content;
@@ -1950,19 +1955,20 @@ onUnmounted(() => {
 	grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
 	grid-template-rows: 1fr 1fr 1fr 1fr 1fr 1fr;
 	aspect-ratio: 1;
-	// 6 cols * 34px (34px = 72px + 2 * -19px: .h horizontal margin in tile.vue)
-	width: min(204px, 21.25cqw);
+	// 6 cols * 27.2px (27.2px = (72px + 2 * -19px) * 0.8: .h horizontal margin in tile.vue)
+	width: min(163.2px, 17cqw);
 	// 開始隅は回転の向きで決まる: rotate -90deg では先頭牌が「中央寄り・下」の隅に来る。
 	// これは上家 (先頭牌が中央寄り・上) と回転対称で、各家の河が前家の側から流れ始める配置。
 	// 以前あった direction: rtl は開始隅を上にして回転対称を崩すため付けない。
 }
 
 .hoTilesContainerOfMe {
-	// 開始端(左端)を中央-108pxに固定。108px = 3セル×36px(36px = 72px + 2 * -18px: .v horizontal margin in tile.vue)。
-	// 縦オフセット120px → 視覚96px: パネル下端 (半分86.4) から牌本体で約7px。
+	// 開始端(左端)を中央-86.4pxに固定。86.4px = 3セル×28.8px
+	// (28.8px = (72px + 2 * -18px) * 0.8: .v horizontal margin in tile.vue)。
+	// 縦オフセット96px: パネル下端 (半分約87.8) から牌本体で約7.9px。
 	position: absolute;
-	top: calc(50% + min(120px, 12.5cqw));
-	left: calc(50% - min(108px, 11.25cqw));
+	top: calc(50% + min(96px, 10cqw));
+	left: calc(50% - min(86.4px, 9cqw));
 	right: auto;
 	margin: 0;
 	width: min-content;
