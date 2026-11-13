@@ -4,11 +4,11 @@
  */
 
 import { Inject, Injectable } from '@nestjs/common';
-import { MoreThan } from 'typeorm';
 import { Endpoint } from '@/server/api/endpoint-base.js';
 import type { BubbleGameRecordsRepository } from '@/models/_.js';
 import { DI } from '@/di-symbols.js';
 import { UserEntityService } from '@/core/entities/UserEntityService.js';
+import { ApiError } from '@/server/api/error.js';
 
 export const meta = {
 	tags: ['bubble-game'],
@@ -16,6 +16,11 @@ export const meta = {
 	cacheSec: 60,
 
 	errors: {
+		signinRequired: {
+			message: 'Signin required.',
+			code: 'SIGNIN_REQUIRED',
+			id: 'e2e92334-9e26-41ab-a7b4-1af2c554b1cb',
+		},
 	},
 
 	res: {
@@ -47,6 +52,7 @@ export const paramDef = {
 	type: 'object',
 	properties: {
 		gameMode: { type: 'string' },
+		scope: { type: 'string', enum: ['all', 'following'], default: 'all' },
 	},
 	required: ['gameMode'],
 } as const;
@@ -59,20 +65,36 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 
 		private userEntityService: UserEntityService,
 	) {
-		super(meta, paramDef, async (ps) => {
-			const records = await this.bubbleGameRecordsRepository.find({
-				where: {
-					gameMode: ps.gameMode,
-					seededAt: MoreThan(new Date(Date.now() - 1000 * 60 * 60 * 24 * 7)),
-				},
-				order: {
-					score: 'DESC',
-				},
-				take: 10,
-				relations: { user: true },
-			});
+		super(meta, paramDef, async (ps, me) => {
+			if (ps.scope === 'following' && me == null) {
+				throw new ApiError(meta.errors.signinRequired);
+			}
 
-			const users = await this.userEntityService.packMany(records.map(r => r.user!), null);
+			const query = this.bubbleGameRecordsRepository.createQueryBuilder('record')
+				.where('record.gameMode = :gameMode', { gameMode: ps.gameMode })
+				.andWhere('record.seededAt > :since', {
+					since: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7),
+				})
+				.innerJoinAndSelect('record.user', 'user')
+				.orderBy('record.score', 'DESC')
+				.take(10);
+
+			if (ps.scope === 'following' && me != null) {
+				query.setParameter('meId', me.id);
+				query.andWhere(qb => {
+					const sub = qb.subQuery()
+						.select('1')
+						.from('following', 'following')
+						.where('following.followerId = :meId')
+						.andWhere('following.followeeId = record.userId')
+						.getQuery();
+					return `(record.userId = :meId OR EXISTS ${sub})`;
+				});
+			}
+
+			const records = await query.getMany();
+
+			const users = await this.userEntityService.packMany(records.map(r => r.user!), me);
 
 			return records.map(r => ({
 				id: r.id,

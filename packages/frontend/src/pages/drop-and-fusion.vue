@@ -39,6 +39,14 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<div class="_woodenFrame">
 					<div class="_woodenFrameInner">
 						<div class="_gaps_s" style="padding: 16px;">
+							<MkTab
+								v-if="$i"
+								v-model="rankingScope"
+								:tabs="[
+									{ key: 'all', label: i18n.ts.all },
+									{ key: 'following', label: i18n.ts.youFollowing },
+								]"
+							/>
 							<div><b>{{ i18n.tsx.lastNDays({ n: 7 }) }} {{ i18n.ts.ranking }}</b> ({{ gameMode.toUpperCase() }})</div>
 							<div v-if="ranking" class="_gaps_s">
 								<div v-for="r in ranking" :key="r.id" :class="$style.rankingRecord">
@@ -46,6 +54,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 									<MkUserName v-if="r.user" :user="r.user" :nowrap="true"/>
 									<b style="margin-left: auto;">{{ r.score.toLocaleString() }} {{ getScoreUnit(gameMode) }}</b>
 								</div>
+								<div v-if="ranking.length === 0">{{ i18n.ts.nothing }}</div>
 							</div>
 							<div v-else>{{ i18n.ts.loading }}</div>
 						</div>
@@ -89,7 +98,9 @@ import { i18n } from '@/i18n.js';
 import { useMkSelect } from '@/composables/use-mkselect.js';
 import MkSelect from '@/components/MkSelect.vue';
 import MkSwitch from '@/components/MkSwitch.vue';
-import { misskeyApiGet } from '@/utility/misskey-api.js';
+import MkTab from '@/components/MkTab.vue';
+import { $i } from '@/i.js';
+import { misskeyApi, misskeyApiGet } from '@/utility/misskey-api.js';
 
 const {
 	model: gameMode,
@@ -106,10 +117,20 @@ const {
 });
 const gameStarted = ref(false);
 const mute = ref(false);
+const rankingScope = ref<'all' | 'following'>('all');
 const ranking = ref<Misskey.entities.BubbleGameRankingResponse | null>(null);
 
-watch(gameMode, async () => {
-	ranking.value = await misskeyApiGet('bubble-game/ranking', { gameMode: gameMode.value });
+watch([gameMode, rankingScope], async ([, scope], _, onCleanup) => {
+	let canceled = false;
+	onCleanup(() => {
+		canceled = true;
+	});
+
+	ranking.value = null;
+	const result = scope === 'following'
+		? await misskeyApi('bubble-game/ranking', { gameMode: gameMode.value, scope })
+		: await misskeyApiGet('bubble-game/ranking', { gameMode: gameMode.value, scope });
+	if (!canceled) ranking.value = result;
 }, { immediate: true });
 
 function getScoreUnit(gameMode: string) {

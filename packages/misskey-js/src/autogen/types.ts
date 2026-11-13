@@ -16698,6 +16698,11 @@ export interface operations {
             content: {
                 'application/json': {
                     gameMode: string;
+                    /**
+                     * @default all
+                     * @enum {string}
+                     */
+                    scope?: 'all' | 'following';
                 };
             };
         };
