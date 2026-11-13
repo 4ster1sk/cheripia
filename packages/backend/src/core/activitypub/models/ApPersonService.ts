@@ -494,6 +494,7 @@ export class ApPersonService implements OnModuleInit {
 						host,
 						userId: channelModerator?.id ?? user.id,
 						actorId: user.id,
+						isSensitive: person.sensitive === true,
 					}));
 					await transactionalEntityManager.update(MiUser, {
 						id: user.id,
@@ -696,13 +697,15 @@ export class ApPersonService implements OnModuleInit {
 			} catch(e) {
 				this.logger.warn(`Failed Resolve ChannelModerator: ${person.id}`);
 			}
+			const isSensitive = person.sensitive === true;
 			if (_channel) {
 				channelId = _channel.id;
-				if (_channel.description !== _description || _channel.name !== displayName || channelModerator?.id !== _channel.userId) {
+				if (_channel.description !== _description || _channel.name !== displayName || channelModerator?.id !== _channel.userId || isSensitive !== _channel.isSensitive) {
 					await this.channelsRepository.update({ actorId: exist.id }, {
 						name: displayName,
 						description: _description,
 						userId: channelModerator?.id ?? undefined,
+						isSensitive,
 					});
 				}
 			} else {
@@ -714,6 +717,7 @@ export class ApPersonService implements OnModuleInit {
 					actorId: exist.id,
 					host: exist.host,
 					description: _description,
+					isSensitive,
 				});
 				channelId = channel.id;
 			}

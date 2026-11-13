@@ -212,6 +212,29 @@ describe('Channel', () => {
 			aliceChInB = await bob.client.request('channels/show', { channelId: aliceChInB.id });
 			assert(aliceChInB.pinnedNoteIds.length === 0, 'リモートのピン留めが解除される');
 		});
+
+		test('センシティブフラグが連合する', async () => {
+			assert(aliceChActorInB.channelId);
+
+			await alice.client.request('channels/update', { channelId: aliceCh.id, isSensitive: true });
+			await sleep();
+
+			await bob.client.request('federation/update-remote-user', { userId: aliceChActorInB.id });
+			await sleep();
+
+			aliceChInB = await bob.client.request('channels/show', { channelId: aliceChInB.id });
+			strictEqual(aliceChInB.isSensitive, true);
+
+			//戻せるかも見る
+			await alice.client.request('channels/update', { channelId: aliceCh.id, isSensitive: false });
+			await sleep();
+
+			await bob.client.request('federation/update-remote-user', { userId: aliceChActorInB.id });
+			await sleep();
+
+			aliceChInB = await bob.client.request('channels/show', { channelId: aliceChInB.id });
+			strictEqual(aliceChInB.isSensitive, false);
+		});
 	});
 
 	describe('Fetch Note', () => {

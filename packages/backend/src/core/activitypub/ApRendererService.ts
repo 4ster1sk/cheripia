@@ -787,6 +787,7 @@ export class ApRendererService {
 			publicKey: this.renderKey(user, keypair, '#main-key'),
 			isCat: user.isCat,
 			attachment: attachment.length ? attachment : undefined,
+			sensitive: channel?.isSensitive ?? undefined,
 			setFederationAvatarShape: user.setFederationAvatarShape ?? undefined,
 			isSquareAvatars: user.isSquareAvatars ?? undefined,
 			_yojoart_clips: `${id}/collections/clips`,
