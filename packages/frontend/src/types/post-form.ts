@@ -16,14 +16,14 @@ export interface PostFormProps {
 		userId: string | null;
 	} | null;
 	mention?: Misskey.entities.User;
-	specified?: Misskey.entities.UserDetailed;
+	specified?: Misskey.entities.UserLite;
 	initialText?: string;
 	initialCw?: string;
 	initialVisibility?: (typeof Misskey.noteVisibilities)[number];
 	initialSearchableBy?: (typeof Misskey.noteSearchbility)[number];
 	initialFiles?: Misskey.entities.DriveFile[];
 	initialLocalOnly?: boolean;
-	initialVisibleUsers?: Misskey.entities.UserDetailed[];
+	initialVisibleUsers?: Misskey.entities.UserLite[];
 	initialNote?: Misskey.entities.Note;
 	instant?: boolean;
 	updateMode?: boolean;

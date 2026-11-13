@@ -1306,6 +1306,14 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 					<div class="_gaps_m">
 						<div class="_gaps_s">
+							<SearchMarker :keywords="['url', 'preview', 'autoplay', 'player', 'embed']">
+								<MkPreferenceContainer k="autoplayEmbededPlayerOfUrlPreview">
+									<MkSwitch v-model="autoplayEmbededPlayerOfUrlPreview">
+										<template #label><SearchLabel>{{ i18n.ts._settings.autoplayEmbededPlayerOfUrlPreview }}</SearchLabel></template>
+									</MkSwitch>
+								</MkPreferenceContainer>
+							</SearchMarker>
+
 							<SearchMarker :keywords="['image', 'photo', 'picture', 'media', 'thumbnail', 'new', 'tab']">
 								<MkPreferenceContainer k="imageNewTab">
 									<MkSwitch v-model="imageNewTab">
@@ -1595,6 +1603,7 @@ const showMediaListByGridInWideArea = prefer.model('showMediaListByGridInWideAre
 const reactionsDisplaySize = prefer.model('reactionsDisplaySize');
 const limitWidthOfReaction = prefer.model('limitWidthOfReaction');
 const squareAvatars = prefer.model('squareAvatars');
+const autoplayEmbededPlayerOfUrlPreview = prefer.model('autoplayEmbededPlayerOfUrlPreview');
 const enableSeasonalScreenEffect = prefer.model('enableSeasonalScreenEffect');
 const showAvatarDecorations = prefer.model('showAvatarDecorations');
 const nsfw = prefer.model('nsfw');

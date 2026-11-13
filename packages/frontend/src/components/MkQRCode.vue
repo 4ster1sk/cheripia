@@ -10,9 +10,10 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<div :class="$style.title">{{ i18n.ts._getQRCode.title }}</div>
 			<div :class="$style.description">{{ i18n.ts._getQRCode.description }}</div>
 			<div
-				ref="qrCodeEl" v-flip
+				v-flip
 				style="cursor: default;"
 				:class="$style.qr"
+				v-html="qrSvg"
 			></div>
 		</div>
 		<div class="_flexList" style="gap: 0.6rem">
@@ -24,8 +25,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, useTemplateRef } from 'vue';
-import QRCodeStyling from 'qr-code-styling';
+import { computed, useTemplateRef } from 'vue';
+import { qrcode } from 'etiket/qr';
 import tinycolor from 'tinycolor2';
 import MkModal from '@/components/MkModal.vue';
 import MkButton from '@/components/MkButton.vue';
@@ -33,6 +34,7 @@ import { i18n } from '@/i18n.js';
 import { copyToClipboard } from '@/utility/copy-to-clipboard.js';
 import { instance } from '@/instance.js';
 import { getStaticImageUrl } from '@/utility/media-proxy.js';
+import { qrOptions } from '@/utility/qr-code.js';
 
 const props = defineProps<{
 	qrCode: string;
@@ -44,43 +46,20 @@ const emit = defineEmits<{
 
 const modal = useTemplateRef('modal');
 
-const qrCodeEl = useTemplateRef('qrCodeEl');
-
 const qrColor = computed(() => tinycolor(instance.themeColor ?? 'rgb(255, 188, 220)'));
 const qrHsl = computed(() => qrColor.value.toHsl());
 
-const qrCodeInstance = new QRCodeStyling({
-	width: 600,
-	height: 600,
+const qrSvg = computed(() => qrcode(props.qrCode, {
+	...qrOptions,
+	size: 600,
 	margin: 42,
-	type: 'canvas',
-	data: props.qrCode,
-	image: instance.iconUrl ? getStaticImageUrl(instance.iconUrl) : '/favicon.ico',
-	qrOptions: {
-		typeNumber: 0,
-		mode: 'Byte',
-		errorCorrectionLevel: 'H',
-	},
-	imageOptions: {
-		hideBackgroundDots: true,
-		imageSize: 0.3,
+	color: tinycolor(`hsl(${qrHsl.value.h}, 100, 18)`).toRgbString(),
+	logo: {
+		imageUrl: instance.iconUrl ? getStaticImageUrl(instance.iconUrl) : '/favicon.ico',
+		size: 0.3,
 		margin: 16,
-		crossOrigin: 'anonymous',
 	},
-	dotsOptions: {
-		type: 'dots',
-		color: tinycolor(`hsl(${qrHsl.value.h}, 100, 18)`).toRgbString(),
-	},
-	cornersDotOptions: {
-		type: 'dot',
-	},
-	cornersSquareOptions: {
-		type: 'extra-rounded',
-	},
-	backgroundOptions: {
-		//color: tinycolor(`hsl(${qrHsl.value.h}, 100, 97)`).toRgbString(),
-	},
-});
+}));
 
 const gotIt = () => {
 	modal.value?.close();
@@ -89,12 +68,6 @@ const gotIt = () => {
 const copyLink = () => {
 	copyToClipboard(props.qrCode, 'link');
 };
-
-onMounted(() => {
-	if (qrCodeEl.value != null) {
-		qrCodeInstance.append(qrCodeEl.value);
-	}
-});
 </script>
 
 <style lang="scss" module>

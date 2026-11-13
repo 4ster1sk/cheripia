@@ -12,12 +12,12 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.15",
-		"@types/node": "26.6.5",
+		"@types/node": "26.6.6",
 		"@types/punycode.js": "npm:@types/punycode@2.1.4",
 		"@types/tinycolor2": "1.4.6",
-		"@typescript-eslint/eslint-plugin": "8.71.2",
-		"@typescript-eslint/parser": "8.71.2",
-		"eslint-plugin-vue": "10.11.1",
+		"@typescript-eslint/eslint-plugin": "8.72.1",
+		"@typescript-eslint/parser": "8.72.1",
+		"eslint-plugin-vue": "10.12.0",
 		"vue-eslint-parser": "10.4.1"
 	},
 	"files": [
@@ -30,7 +30,7 @@
 		"mfm-js": "git+https://github.com/cheripia-dev/mfm.js.git#d6f9e13f93efd2db355c9374efe0a8e66ec7616d",
 		"misskey-js": "workspace:*",
 		"punycode.js": "2.3.1",
-		"shiki": "4.5.0",
+		"shiki": "4.6.0",
 		"tinycolor2": "1.6.0",
 		"vue": "3.5.44"
 	}

@@ -11,22 +11,23 @@ SPDX-License-Identifier: AGPL-3.0-only
 	@contextmenu.stop="() => {}"
 >
 	<template v-if="!self">
-		<span :class="$style.schema">{{ schema }}//</span>
-		<span :class="$style.hostname">{{ hostname }}</span>
-		<span v-if="port != ''">:{{ port }}</span>
+		<span :class="$style.schema">{{ urlForDisplay.schema }}//</span>
+		<span :class="$style.hostname">{{ urlForDisplay.hostname }}</span>
+		<span v-if="urlForDisplay.port != ''">:{{ urlForDisplay.port }}</span>
 	</template>
-	<template v-if="pathname === '/' && self">
-		<span :class="$style.self">{{ hostname }}</span>
+	<template v-if="urlForDisplay.pathname === '/' && self">
+		<span :class="$style.self">{{ urlForDisplay.hostname }}</span>
 	</template>
-	<span v-if="pathname != ''" :class="$style.pathname">{{ self ? pathname.substring(1) : pathname }}</span>
-	<span :class="$style.query">{{ query }}</span>
-	<span :class="$style.hash">{{ hash }}</span>
+	<span v-if="urlForDisplay.pathname != ''" :class="$style.pathname">{{ self ? urlForDisplay.pathname.substring(1) : urlForDisplay.pathname }}</span>
+	<span :class="$style.query">{{ urlForDisplay.query }}</span>
+	<span :class="$style.hash">{{ urlForDisplay.hash }}</span>
 	<i v-if="target === '_blank'" :class="$style.icon" class="ti ti-external-link"></i>
 </component>
 </template>
 
 <script lang="ts" setup>
-import { defineAsyncComponent, ref } from 'vue';
+import { defineAsyncComponent, computed, ref, watch } from 'vue';
+import type { Ref } from 'vue';
 import { url as local } from '@@/js/config.js';
 import { maybeMakeRelative, parseUrlForDisplay } from '@@/js/url.js';
 import type { MkABehavior } from '@/components/global/MkA.vue';
@@ -45,22 +46,37 @@ const props = withDefaults(defineProps<{
 	showUrlPreview: true,
 });
 
-let maybeRelativeUrl = maybeMakeRelative(props.url, local);
-let self = maybeRelativeUrl !== props.url;
-let url = new URL(props.url);
+// clips/play のURLが他サーバー向けにコピーされた場合、ローカルのURLに置き換える
+const rewrittenUrl = computed(() => {
+	const url = new URL(props.url);
+	if (props.host === url.host && (url.pathname.startsWith('/clips/') || url.pathname.startsWith('/play/'))) {
+		const split = url.pathname.split('@');
+		return new URL(local + split[0] + '@' + (split.length >= 2 ? split[1] : props.host));
+	}
+	return null;
+});
+const maybeRelativeUrl = computed(() => {
+	const url = rewrittenUrl.value;
+	return url != null ? maybeMakeRelative(url.toString(), local) : maybeMakeRelative(props.url, local);
+});
+const self = computed(() => rewrittenUrl.value != null || maybeRelativeUrl.value !== props.url);
+const url_string = computed(() => (rewrittenUrl.value ?? new URL(props.url)).toString());
+const urlForDisplay = computed(() => parseUrlForDisplay(url_string.value));
+const attr = computed(() => self.value ? 'to' : 'href');
+const target = computed(() => self.value ? null : '_blank');
 
-if (props.host === url.host && (url.pathname.startsWith('/clips/') || url.pathname.startsWith('/play/'))) {
-	let split = url.pathname.split('@');
-	url = new URL(local + split[0] + '@' + (split.length >= 2 ? split[1] : props.host));
-	maybeRelativeUrl = maybeMakeRelative(url.toString(), local);
-	self = true;
-}
-const url_string = url.toString();
-const { schema, hostname, port, pathname, query, hash } = parseUrlForDisplay(url_string);
 const el = ref();
 
 if (props.showUrlPreview && isEnabledUrlPreview.value) {
+	// URL が変わったら古い URL のプレビューを閉じる
+	let previewShowing: Ref<boolean> | null = null;
+	watch(() => props.url, () => {
+		if (previewShowing != null) previewShowing.value = false;
+		previewShowing = null;
+	});
+
 	useTooltip(el, (showing) => {
+		previewShowing = showing;
 		const { dispose } = os.popup(defineAsyncComponent(() => import('@/components/MkUrlPreviewPopup.vue')), {
 			showing,
 			url: props.url,
@@ -70,9 +86,6 @@ if (props.showUrlPreview && isEnabledUrlPreview.value) {
 		});
 	});
 }
-
-const attr = self ? 'to' : 'href';
-const target = self ? undefined : '_blank';
 </script>
 
 <style lang="scss" module>
