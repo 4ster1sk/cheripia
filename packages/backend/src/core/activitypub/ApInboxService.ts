@@ -766,7 +766,7 @@ export class ApInboxService {
 		} else if (typeof object._misskey_content !== 'undefined') {
 			text = object._misskey_content;
 		} else if (typeof object.content === 'string') {
-			text = this.apMfmService.htmlToMfm(object.content, object.tag);
+			text = this.apMfmService.htmlToMfm(object.content, { tag: object.tag });
 		}
 		const uri = object.id;
 

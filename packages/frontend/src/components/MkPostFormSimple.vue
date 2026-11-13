@@ -141,7 +141,6 @@ import * as mfm from 'mfm-js';
 import * as Misskey from 'misskey-js';
 import insertTextAtCursor from 'insert-text-at-cursor';
 import { toASCII } from 'punycode.js';
-import autosize from 'autosize';
 import { host, url } from '@@/js/config.js';
 import { erase, unique } from '@@/js/array.js';
 import MkUploaderItems from './MkUploaderItems.vue';
@@ -242,7 +241,7 @@ const visibility = ref(props.initialVisibility ?? (
 		: (prefer.s.rememberNoteVisibility ? store.s.visibility : prefer.s.defaultNoteVisibility)
 ));
 const searchableBy = ref(prefer.s.rememberNoteSearchbility ? prefer.s.searchbility : prefer.s.defaultNoteSearchbility);
-const visibleUsers = ref<Misskey.entities.UserDetailed[]>([]);
+const visibleUsers = ref<Misskey.entities.UserLite[]>([]);
 if (props.initialVisibleUsers) {
 	props.initialVisibleUsers.forEach(u => pushVisibleUser(u));
 }
@@ -757,7 +756,7 @@ function showOtherSettings() {
 }
 //#endregion
 
-function pushVisibleUser(user: Misskey.entities.UserDetailed) {
+function pushVisibleUser(user: Misskey.entities.UserLite) {
 	if (!visibleUsers.value.some(u => u.username === user.username && u.host === user.host)) {
 		visibleUsers.value.push(user);
 	}
@@ -773,7 +772,7 @@ function addVisibleUser() {
 	});
 }
 
-function removeVisibleUser(user: Misskey.entities.UserDetailed) {
+function removeVisibleUser(user: Misskey.entities.UserLite) {
 	visibleUsers.value = erase(user, visibleUsers.value);
 }
 
@@ -1607,7 +1606,7 @@ onMounted(() => {
 		});
 	}
 
-	if (textareaEl.value) autosize(textareaEl.value);
+	if (textareaEl.value) textareaEl.value.style.height = 'auto';
 
 	// TODO: detach when unmount
 	if (textareaEl.value) new Autocomplete(textareaEl.value, text);
@@ -2085,8 +2084,9 @@ input.hashtags {
 	min-width: 100%;
 	width: 100%;
 	min-height: 35px;
-	height: 100%;
+	height: auto;
 	resize: none;
+	field-sizing: content;
 }
 
 .textCount {

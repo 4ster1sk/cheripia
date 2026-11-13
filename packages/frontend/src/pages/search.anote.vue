@@ -123,7 +123,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 <script lang="ts" setup>
 import { markRaw, ref, shallowRef, toRef } from 'vue';
-import type { UserDetailed } from 'misskey-js/entities.js';
+import type { UserLite } from 'misskey-js/entities.js';
 import MkRadios from '@/components/MkRadios.vue';
 import MkButton from '@/components/MkButton.vue';
 import MkSwitch from '@/components/MkSwitch.vue';
@@ -180,7 +180,7 @@ const router = useRouter();
 const key = ref(0);
 const searchQuery = ref(toRef(props, 'query').value);
 const paginator = shallowRef<Paginator<'notes/advanced-search'> | null>(null);
-const user = ref<UserDetailed | null>(null);
+const user = ref<UserLite | null>(null);
 const hostInput = ref(toRef(props, 'host').value);
 const rangeStartAt = ref<string | null>(toRef(props, 'rangeStartAt').value);
 const rangeEndAt = ref<string | null>(toRef(props, 'rangeEndAt').value);
@@ -206,7 +206,7 @@ function selectUser() {
 }
 
 function selectSelf() {
-	user.value = $i as UserDetailed | null;
+	user.value = $i;
 	hostInput.value = null;
 	searchOrigin.value = 'local';
 }

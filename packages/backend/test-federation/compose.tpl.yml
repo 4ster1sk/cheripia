@@ -22,10 +22,6 @@ services:
       - type: bind
         source: ../../../built
         target: /cherrypick/built
-        read_only: false
-      - type: bind
-        source: ./.config/dummy.yml
-        target: /cherrypick/.config/default.yml
         read_only: true
       - type: bind
         source: ../assets
@@ -50,10 +46,6 @@ services:
       - type: bind
         source: ../package.json
         target: /cherrypick/packages/backend/package.json
-        read_only: true
-      - type: bind
-        source: ../scripts/compile_config.js
-        target: /cherrypick/packages/backend/scripts/compile_config.js
         read_only: true
       - type: bind
         source: ../../misskey-js/built

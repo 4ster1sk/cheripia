@@ -236,7 +236,7 @@ const visibility = ref(props.initialVisibility ?? (
 		: (prefer.s.rememberNoteVisibility ? store.s.visibility : prefer.s.defaultNoteVisibility)
 ));
 const searchableBy = ref(props.initialSearchableBy ?? (prefer.s.rememberNoteSearchbility ? prefer.s.searchbility : prefer.s.defaultNoteSearchbility));
-const visibleUsers = ref<Misskey.entities.UserDetailed[]>([]);
+const visibleUsers = ref<Misskey.entities.UserLite[]>([]);
 if (props.initialVisibleUsers) {
 	props.initialVisibleUsers.forEach(u => pushVisibleUser(u));
 }
@@ -462,9 +462,7 @@ if (replyTargetNote.value && ['home', 'followers', 'specified'].includes(replyTa
 		}
 
 		if (replyTargetNote.value.userId !== $i.id) {
-			misskeyApi('users/show', { userId: replyTargetNote.value.userId }).then(user => {
-				pushVisibleUser(user);
-			});
+			pushVisibleUser(replyTargetNote.value.user);
 		}
 	}
 }
@@ -782,7 +780,7 @@ function showOtherSettings() {
 }
 //#endregion
 
-function pushVisibleUser(user: Misskey.entities.UserDetailed) {
+function pushVisibleUser(user: Misskey.entities.UserLite) {
 	if (!visibleUsers.value.some(u => u.username === user.username && u.host === user.host)) {
 		visibleUsers.value.push(user);
 	}
@@ -1488,7 +1486,8 @@ function showDraftsDialog(scheduled: boolean) {
 					};
 				});
 			}
-			if (draft.visibleUserIds) {
+			visibleUsers.value = [];
+			if (draft.visibleUserIds != null && draft.visibleUserIds.length > 0) {
 				misskeyApi('users/show', { userIds: draft.visibleUserIds }).then(users => {
 					users.forEach(u => pushVisibleUser(u));
 				});
@@ -1505,15 +1504,6 @@ function showDraftsDialog(scheduled: boolean) {
 				visibility.value = 'public';
 			}
 
-			visibleUsers.value = [];
-			draft.visibleUserIds?.forEach(uid => {
-				if (!visibleUsers.value.some(u => u.id === uid)) {
-					misskeyApi('users/show', { userId: uid }).then(user => {
-						pushVisibleUser(user);
-					});
-				}
-			});
-
 			serverDraftId.value = draft.id;
 		},
 		cancel: () => {
@@ -1525,7 +1515,7 @@ function showDraftsDialog(scheduled: boolean) {
 	});
 }
 
-async function openAccountMenu(ev: MouseEvent) {
+async function openAccountMenu(ev: PointerEvent) {
 	if (props.mock) return;
 
 	const items = await getAccountMenu({
@@ -1541,7 +1531,21 @@ async function openAccountMenu(ev: MouseEvent) {
 		},
 	});
 
-	os.popupMenu(items, (ev.currentTarget ?? ev.target ?? undefined) as HTMLElement | undefined);
+	os.popupMenu([{
+		type: 'button',
+		text: i18n.ts._drafts.listDrafts,
+		icon: 'ti ti-cloud-download',
+		action: () => {
+			showDraftsDialog(false);
+		},
+	}, {
+		type: 'button',
+		text: i18n.ts._drafts.listScheduledNotes,
+		icon: 'ti ti-clock-down',
+		action: () => {
+			showDraftsDialog(true);
+		},
+	}, { type: 'divider' }, ...items], (ev.currentTarget ?? ev.target ?? undefined) as HTMLElement | undefined);
 }
 
 function showPerUploadItemMenu(item: UploaderItem, ev: PointerEvent) {
