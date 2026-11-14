@@ -215,9 +215,6 @@ importers:
         specifier: 7.5.22
         version: 7.5.22
     devDependencies:
-      '@babel/parser':
-        specifier: 7.29.12
-        version: 7.29.12
       '@babel/types':
         specifier: 7.29.7
         version: 7.29.7
