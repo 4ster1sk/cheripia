@@ -64,10 +64,6 @@ services:
         target: /cherrypick/packages/backend/vitest.config.fed.ts
         read_only: true
       - type: bind
-        source: ../scripts/compile_config.js
-        target: /cherrypick/packages/backend/scripts/compile_config.js
-        read_only: true
-      - type: bind
         source: ../../misskey-js/built
         target: /cherrypick/packages/misskey-js/built
         read_only: true

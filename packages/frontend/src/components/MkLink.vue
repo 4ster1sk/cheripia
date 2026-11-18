@@ -16,7 +16,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 </template>
 
 <script lang="ts" setup>
-import { defineAsyncComponent, ref } from 'vue';
+import { computed, defineAsyncComponent, ref, watch } from 'vue';
+import type { Ref } from 'vue';
 import { url as local } from '@@/js/config.js';
 import { maybeMakeRelative } from '@@/js/url.js';
 import type { MkABehavior } from '@/components/global/MkA.vue';
@@ -35,25 +36,38 @@ const props = withDefaults(defineProps<{
 	hideIcon: false,
 });
 
-let maybeRelativeUrl = maybeMakeRelative(props.url, local);
-let self = maybeRelativeUrl !== props.url;
-let requestUrl = new URL(props.url, window.location.href);
-if (props.host === requestUrl.host && (requestUrl.pathname.startsWith('/clips/') || requestUrl.pathname.startsWith('/play/'))) {
-	let split = requestUrl.pathname.split('@');
-	requestUrl = new URL(local + split[0] + '@' + (split.length >= 2 ? split[1] : props.host));
-	maybeRelativeUrl = maybeMakeRelative(requestUrl.toString(), local);
-	self = true;
-}
-const url_string = requestUrl.toString();
-const attr = self ? 'to' : 'href';
-const target = self ? undefined : '_blank';
+// clips/play のURLが他サーバー向けにコピーされた場合、ローカルのURLに置き換える
+const rewrittenUrl = computed(() => {
+	const requestUrl = new URL(props.url, window.location.href);
+	if (props.host === requestUrl.host && (requestUrl.pathname.startsWith('/clips/') || requestUrl.pathname.startsWith('/play/'))) {
+		const split = requestUrl.pathname.split('@');
+		return new URL(local + split[0] + '@' + (split.length >= 2 ? split[1] : props.host));
+	}
+	return null;
+});
+const maybeRelativeUrl = computed(() => {
+	const url = rewrittenUrl.value;
+	return url != null ? maybeMakeRelative(url.toString(), local) : maybeMakeRelative(props.url, local);
+});
+const self = computed(() => rewrittenUrl.value != null || maybeRelativeUrl.value !== props.url);
+const url_string = computed(() => (rewrittenUrl.value ?? new URL(props.url, window.location.href)).toString());
+const attr = computed(() => (self.value ? 'to' : 'href'));
+const target = computed(() => (self.value ? null : '_blank'));
 
 const el = ref<HTMLElement | { $el: HTMLElement }>();
 
 if (isEnabledUrlPreview.value) {
+	// URL が変わったら古い URL のプレビューを閉じる
+	let previewShowing: Ref<boolean> | null = null;
+	watch(() => props.url, () => {
+		if (previewShowing != null) previewShowing.value = false;
+		previewShowing = null;
+	});
+
 	useTooltip(el, (showing) => {
 		const anchorElement = el.value instanceof HTMLElement ? el.value : el.value?.$el;
 		if (anchorElement == null) return;
+		previewShowing = showing;
 		const { dispose } = os.popup(defineAsyncComponent(() => import('@/components/MkUrlPreviewPopup.vue')), {
 			showing,
 			url: props.url,

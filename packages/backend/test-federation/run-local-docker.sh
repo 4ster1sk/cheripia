@@ -44,7 +44,7 @@ if [[ "${CLEAN}" == "1" ]]; then
     shopt -s nullglob
     CONFIG_FILES=(
         "${SCRIPT_DIR}/.config/"*.test.conf
-        "${SCRIPT_DIR}/.config/"*.test.config.json
+        "${SCRIPT_DIR}/.config/"*.test.default.yml
         "${SCRIPT_DIR}/.config/docker.env"
     )
     shopt -u nullglob
