@@ -120,6 +120,7 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 				author: ps.author,
 				description: ps.description,
 				isBasedOn: ps.isBasedOn,
+				driveFile,
 			}, me);
 
 			switch (error) {

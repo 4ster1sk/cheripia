@@ -1178,6 +1178,7 @@ export class DriveService {
 	@bindThis
 	public async reuploadFile(data: {
 		originalUrl: string;
+		originalDriveFile?: MiDriveFile | null;
 		user?: { id: MiUser['id']; host: MiUser['host'] } | null;
 	}): Promise<MiDriveFile> {
 		let retryCount = 0;
@@ -1186,7 +1187,9 @@ export class DriveService {
 		const errors: string[] = [];
 		const originalSourceUrl = data.originalUrl;
 
-		const originalDriveFile = await this.driveFilesRepository.findOneBy({ url: originalSourceUrl });
+		const originalDriveFile = data.originalDriveFile !== undefined
+			? data.originalDriveFile
+			: await this.driveFilesRepository.findOneBy({ url: originalSourceUrl });
 		if (originalDriveFile && originalDriveFile.userHost === null) {
 			//ローカルユーザーがアップロードしたファイルはコピーする
 			try {

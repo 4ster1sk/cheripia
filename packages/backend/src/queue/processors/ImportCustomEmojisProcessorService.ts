@@ -226,6 +226,8 @@ export class ImportCustomEmojisProcessorService {
 				copyPermission: emojiInfo.copyPermission ?? null,
 				isBasedOn: emojiInfo.isBasedOn ?? null,
 				roleIdsThatCanBeUsedThisEmojiAsReaction: [],
+				driveFile,
+				reuseDriveFile: true,
 			});
 		} catch (e) {
 			if (e instanceof Error || typeof e === 'string') {

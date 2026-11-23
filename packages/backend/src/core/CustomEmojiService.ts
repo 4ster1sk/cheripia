@@ -125,9 +125,18 @@ export class CustomEmojiService implements OnApplicationShutdown {
 		description: string | null,
 		isBasedOn: string | null,
 		importFrom?: string | null,
+		driveFile?: MiDriveFile | null,
+		reuseDriveFile?: boolean,
 	}, moderator?: MiUser): Promise<MiEmoji> {
 		// システムユーザーとして再アップロード
-		const result = await this.reuploadFileAndCleanup({ originalUrl: data.originalUrl, name: data.name });
+		// 直前にシステム所有としてアップロードしたファイルは、そのまま利用する
+		const result = data.reuseDriveFile === true && data.driveFile != null && data.driveFile.userId == null && data.driveFile.userHost == null
+			? data.driveFile
+			: await this.reuploadFileAndCleanup({
+				originalUrl: data.originalUrl,
+				originalDriveFile: data.driveFile,
+				name: data.name,
+			});
 		data.originalUrl = result.url;
 		data.publicUrl = result.webpublicUrl ?? result.url;
 		data.fileType = result.webpublicType ?? result.type;
@@ -193,6 +202,7 @@ export class CustomEmojiService implements OnApplicationShutdown {
 			author?: string | null,
 			description?: string | null,
 			isBasedOn?: string | null,
+			driveFile?: MiDriveFile | null,
 		}, moderator?: MiUser): Promise<
 		null
 		| 'NO_SUCH_EMOJI'
@@ -214,7 +224,7 @@ export class CustomEmojiService implements OnApplicationShutdown {
 		// ファイルの更新がある場合
 		if (( data.originalUrl || data.publicUrl || data.fileType ) && emoji.originalUrl !== data.originalUrl) {
 			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-			const result = await this.reuploadFileAndCleanup({ originalUrl: data.originalUrl!, name: data.name });
+			const result = await this.reuploadFileAndCleanup({ originalUrl: data.originalUrl!, originalDriveFile: data.driveFile, name: data.name });
 			data.originalUrl = result.url;
 			data.publicUrl = result.webpublicUrl ?? result.url;
 			data.fileType = result.webpublicType ?? result.type;
@@ -271,17 +281,26 @@ export class CustomEmojiService implements OnApplicationShutdown {
 	@bindThis
 	public async reuploadFileAndCleanup(data: {
 		originalUrl: string;
+		originalDriveFile?: MiDriveFile | null;
 		name?: string;
 	}): Promise<MiDriveFile> {
 		// cheripia: 絵文字再アップロード 元ファイルを削除するべきか要検討
-		const copyDriveFile = await this.driveService.reuploadFile(data);
 		const originalSourceUrl = data.originalUrl;
-		const originalDriveFile = await this.driveFilesRepository.findOneBy({ url: originalSourceUrl });
+		const originalDriveFile = data.originalDriveFile !== undefined
+			? data.originalDriveFile
+			: await this.driveFilesRepository.findOneBy({ url: originalSourceUrl });
+		const copyDriveFile = await this.driveService.reuploadFile({
+			originalUrl: originalSourceUrl,
+			originalDriveFile,
+		});
 
 		const newUrl = copyDriveFile.url;
 		if (originalSourceUrl !== newUrl) {
 			try {
 				if (originalDriveFile && originalDriveFile.id !== copyDriveFile.id) {
+					// 管理画面からの追加/更新では同じ URL を参照するファイルが稀に存在するため、
+					// 削除前の安全確認として意図的に残している。drive_file.url はインデックスがないため
+					// 参照カウントはフルスキャンになるが、import のホットパスは reuse によりこの関数を通らない。
 					const referenceCount = await this.driveFilesRepository.count({
 						where: { url: originalSourceUrl, id: Not(originalDriveFile.id) },
 					});
@@ -360,6 +379,8 @@ export class CustomEmojiService implements OnApplicationShutdown {
 			description: remoteEmoji.description,
 			isBasedOn: basedOn,
 			importFrom: remoteEmoji.host,
+			driveFile,
+			reuseDriveFile: true,
 		}, moderator);
 	}
 	@bindThis

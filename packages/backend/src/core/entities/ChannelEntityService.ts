@@ -247,6 +247,7 @@ export class ChannelEntityService {
 		try {
 			return await this.driveService.reuploadFile({
 				originalUrl: file.url,
+				originalDriveFile: file,
 				user: { id: actorId, host: null },
 			});
 		} catch {

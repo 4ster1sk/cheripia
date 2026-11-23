@@ -113,6 +113,7 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 				author: ps.author ?? null,
 				description: ps.description ?? null,
 				isBasedOn: ps.isBasedOn ?? null,
+				driveFile,
 			}, me);
 
 			return this.emojiEntityService.packDetailed(emoji);
