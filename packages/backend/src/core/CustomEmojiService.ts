@@ -299,19 +299,21 @@ export class CustomEmojiService implements OnApplicationShutdown {
 			try {
 				if (originalDriveFile && originalDriveFile.id !== copyDriveFile.id) {
 					// 管理画面からの追加/更新では同じ URL を参照するファイルが稀に存在するため、
-					// 削除前の安全確認として意図的に残している。drive_file.url はインデックスがないため
-					// 参照カウントはフルスキャンになるが、import のホットパスは reuse によりこの関数を通らない。
-					const referenceCount = await this.driveFilesRepository.count({
-						where: { url: originalSourceUrl, id: Not(originalDriveFile.id) },
+					// 削除前の安全確認を行う。drive_file.url にはインデックスがないため、
+					// 既存の md5 インデックスを併用した existsBy で全表スキャンを回避する。
+					const hasOtherReferences = await this.driveFilesRepository.existsBy({
+						md5: originalDriveFile.md5,
+						url: originalSourceUrl,
+						id: Not(originalDriveFile.id),
 					});
-					if (referenceCount === 0) {
+					if (!hasOtherReferences) {
 						await this.driveService.deleteFile(originalDriveFile);
 						this.logger.info('Deleted original file as it\'s no longer referenced', {
 							fileId: originalDriveFile.id,
 							url: originalSourceUrl,
 						});
 					} else {
-						this.logger.info(`Skipped deleting original file as it has ${referenceCount} references`, {
+						this.logger.info('Skipped deleting original file as it is still referenced', {
 							fileId: originalDriveFile.id,
 							url: originalSourceUrl,
 						});
@@ -354,7 +356,7 @@ export class CustomEmojiService implements OnApplicationShutdown {
 		const isDuplicate = await this.checkDuplicate(remoteEmoji.name);
 		if (isDuplicate) throw new IdentifiableError('141c2c9af-0039-45e8-a99b-bc9027f4e0a9', 'Local emoji already exists.');
 
-		const driveFile = await this.driveService.uploadFromUrl({ url: remoteEmoji.originalUrl, user: null, force: false });
+		const driveFile = await this.driveService.uploadFromUrl({ url: remoteEmoji.originalUrl, user: null, force: true });
 
 		//連合絵文字のisBasedOnがnullでなく空文字列だった場合オリジナルのURLを使う
 		const basedOn = remoteEmoji.isBasedOn === null ?

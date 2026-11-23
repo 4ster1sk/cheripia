@@ -72,10 +72,19 @@ describe('DriveService', () => {
 			const driveFilesRepository = {
 				findOneBy: vi.fn(),
 			};
+			const registerLogger = {
+				info: vi.fn(),
+				warn: vi.fn(),
+				error: vi.fn(),
+			};
 			// コンストラクタの依存は reuploadFile では使わないため、空のオブジェクトで埋める
 			const service = Reflect.construct(DriveService, Array.from({ length: 25 }, () => ({}))) as DriveService;
-			(service as unknown as { driveFilesRepository: typeof driveFilesRepository }).driveFilesRepository = driveFilesRepository;
-			return { service, driveFilesRepository };
+			(service as unknown as {
+				driveFilesRepository: typeof driveFilesRepository;
+				registerLogger: typeof registerLogger;
+			}).driveFilesRepository = driveFilesRepository;
+			(service as unknown as { registerLogger: typeof registerLogger }).registerLogger = registerLogger;
+			return { service, driveFilesRepository, registerLogger };
 		}
 
 		function createDriveFile(overrides: Partial<MiDriveFile> = {}): MiDriveFile {

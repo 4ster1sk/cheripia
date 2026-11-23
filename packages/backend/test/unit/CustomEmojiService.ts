@@ -830,7 +830,7 @@ describe('CustomEmojiService', () => {
 			};
 			const driveFilesRepository = {
 				findOneBy: vi.fn(),
-				count: vi.fn(),
+				existsBy: vi.fn(),
 			};
 			const driveService = {
 				uploadFromUrl: vi.fn(),
@@ -905,6 +905,7 @@ describe('CustomEmojiService', () => {
 				id: 'driveFileId',
 				userId: null,
 				userHost: null,
+				md5: 'd41d8cd98f00b204e9800998ecf8427e',
 				url: 'https://example.com/drive.png',
 				webpublicUrl: null,
 				type: 'image/png',
@@ -958,15 +959,22 @@ describe('CustomEmojiService', () => {
 			const emoji = await service.importEmoji({ id: remoteEmoji.id, licenseReadText: null }, {} as any);
 
 			expect(emoji.originalUrl).toBe(uploadedFile.url);
+			expect(driveService.uploadFromUrl).toHaveBeenCalledWith({
+				url: remoteEmoji.originalUrl,
+				user: null,
+				force: true,
+			});
 			expect(driveService.reuploadFile).not.toHaveBeenCalled();
 			expect(driveFilesRepository.findOneBy).not.toHaveBeenCalled();
+			expect(driveFilesRepository.existsBy).not.toHaveBeenCalled();
 			expect(driveService.deleteFile).not.toHaveBeenCalled();
 		});
 
 		test('add は渡された元ファイルを使って再アップロードし、URL で検索しない', async () => {
-			const { service, emojisRepository, driveFilesRepository, driveService } = createService();
+			const { service, driveFilesRepository, driveService } = createService();
 			const originalFile = createDriveFile({
 				id: 'originalFileId',
+				md5: '0123456789abcdef0123456789abcdef',
 				url: 'https://example.com/original.png',
 				userId: 'userId',
 				userHost: null,
@@ -979,8 +987,7 @@ describe('CustomEmojiService', () => {
 			});
 
 			driveService.reuploadFile.mockResolvedValue(copiedFile);
-			driveFilesRepository.findOneBy.mockResolvedValue(originalFile);
-			driveFilesRepository.count.mockResolvedValue(0);
+			driveFilesRepository.existsBy.mockResolvedValue(false);
 
 			const emoji = await service.add(createAddData({
 				originalUrl: originalFile.url,
@@ -993,15 +1000,44 @@ describe('CustomEmojiService', () => {
 				originalDriveFile: originalFile,
 			}));
 			expect(driveFilesRepository.findOneBy).not.toHaveBeenCalled();
-			expect(driveFilesRepository.count).toHaveBeenCalledTimes(1);
-			expect(driveFilesRepository.count.mock.calls[0][0].where.url).toBe(originalFile.url);
-			expect(driveFilesRepository.count.mock.calls[0][0].where.id.type).toBe('not');
-			expect(driveFilesRepository.count.mock.calls[0][0].where.id.value).toBe(originalFile.id);
+			expect(driveFilesRepository.existsBy).toHaveBeenCalledTimes(1);
+			expect(driveFilesRepository.existsBy.mock.calls[0][0].md5).toBe(originalFile.md5);
+			expect(driveFilesRepository.existsBy.mock.calls[0][0].url).toBe(originalFile.url);
+			expect(driveFilesRepository.existsBy.mock.calls[0][0].id.type).toBe('not');
+			expect(driveFilesRepository.existsBy.mock.calls[0][0].id.value).toBe(originalFile.id);
 			expect(driveService.deleteFile).toHaveBeenCalledWith(originalFile);
 		});
 
+		test('add は同じ md5 と URL を参照する別ファイルがある場合は元ファイルを削除しない', async () => {
+			const { service, driveFilesRepository, driveService } = createService();
+			const originalFile = createDriveFile({
+				id: 'originalFileId',
+				md5: '0123456789abcdef0123456789abcdef',
+				url: 'https://example.com/original.png',
+				userId: 'userId',
+				userHost: null,
+			});
+			const copiedFile = createDriveFile({
+				id: 'copiedFileId',
+				url: 'https://example.com/copied.png',
+				userId: null,
+				userHost: null,
+			});
+
+			driveService.reuploadFile.mockResolvedValue(copiedFile);
+			driveFilesRepository.existsBy.mockResolvedValue(true);
+
+			await service.add(createAddData({
+				originalUrl: originalFile.url,
+				driveFile: originalFile,
+			}));
+
+			expect(driveFilesRepository.existsBy).toHaveBeenCalledTimes(1);
+			expect(driveService.deleteFile).not.toHaveBeenCalled();
+		});
+
 		test('add は reuseDriveFile が true のシステム所有ファイルをそのまま利用する', async () => {
-			const { service, emojisRepository, driveFilesRepository, driveService } = createService();
+			const { service, driveFilesRepository, driveService } = createService();
 			const driveFile = createDriveFile({
 				id: 'systemFileId',
 				url: 'https://example.com/system.png',
@@ -1018,7 +1054,7 @@ describe('CustomEmojiService', () => {
 			expect(emoji.originalUrl).toBe(driveFile.url);
 			expect(driveService.reuploadFile).not.toHaveBeenCalled();
 			expect(driveFilesRepository.findOneBy).not.toHaveBeenCalled();
-			expect(driveFilesRepository.count).not.toHaveBeenCalled();
+			expect(driveFilesRepository.existsBy).not.toHaveBeenCalled();
 			expect(driveService.deleteFile).not.toHaveBeenCalled();
 		});
 
@@ -1038,7 +1074,7 @@ describe('CustomEmojiService', () => {
 			});
 
 			driveService.reuploadFile.mockResolvedValue(copiedFile);
-			driveFilesRepository.count.mockResolvedValue(0);
+			driveFilesRepository.existsBy.mockResolvedValue(false);
 
 			await service.add(createAddData({
 				originalUrl: originalFile.url,
@@ -1073,7 +1109,7 @@ describe('CustomEmojiService', () => {
 				originalUrl: 'https://example.com/missing.png',
 				originalDriveFile: null,
 			});
-			expect(driveFilesRepository.count).not.toHaveBeenCalled();
+			expect(driveFilesRepository.existsBy).not.toHaveBeenCalled();
 			expect(driveService.deleteFile).not.toHaveBeenCalled();
 		});
 
@@ -1092,7 +1128,7 @@ describe('CustomEmojiService', () => {
 				userHost: null,
 			});
 			driveFilesRepository.findOneBy.mockResolvedValue(originalFile);
-			driveFilesRepository.count.mockResolvedValue(0);
+			driveFilesRepository.existsBy.mockResolvedValue(false);
 			driveService.reuploadFile.mockResolvedValue(copiedFile);
 
 			await service.reuploadFileAndCleanup({ originalUrl: originalFile.url });
