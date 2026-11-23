@@ -220,6 +220,19 @@ test.describe('After user setup', () => {
 		await page.keyboard.press('Escape');
 		await page.getByTestId('post-form-text').waitFor({ state: 'hidden' });
 	});
+
+	test('replay account setup wizard', async ({ page }) => {
+		// #37: 初期設定完了後に「初期設定をリプレイ」すると、空のダイアログではなく最初のページから開くこと
+		await page.getByTestId('user-setup-continue').waitFor({ state: 'hidden' });
+		await page.getByTestId('open-post-form').waitFor({ state: 'visible' });
+
+		await page.getByRole('button', { name: /More!$/ }).click();
+		await page.getByRole('button', { name: /Tools$/ }).click();
+		await page.getByRole('menuitem', { name: /Replay initial setting$/ }).click();
+
+		await test.expect(page.getByTestId('user-setup-continue')).toBeVisible();
+		await test.expect(page.getByTestId('user-setup-back')).toHaveCount(0);
+	});
 });
 
 // TODO: 投稿フォームの公開範囲指定のテスト

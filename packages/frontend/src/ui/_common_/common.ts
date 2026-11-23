@@ -10,7 +10,7 @@ import * as os from '@/os.js';
 import { instance } from '@/instance.js';
 import { i18n } from '@/i18n.js';
 import { $i } from '@/i.js';
-import { prefer } from '@/preferences.js';
+import { store } from '@/store.js';
 
 function toolsMenuItems(): MenuItem[] {
 	const items: MenuItem[] = [{
@@ -54,7 +54,7 @@ function toolsMenuItems(): MenuItem[] {
 			text: i18n.ts.replayUserSetupDialog,
 			icon: 'ti ti-list-numbers',
 			action: () => {
-				prefer.commit('accountSetupWizard', 0);
+				store.set('accountSetupWizard', 0);
 				os.popup(defineAsyncComponent(() => import('@/components/MkUserSetupDialog.vue')), {}, {});
 			},
 		});
