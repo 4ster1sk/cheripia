@@ -6,7 +6,7 @@
 process.env.NODE_ENV = 'test';
 
 import * as assert from 'assert';
-import { describe, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import type { Config } from '@/config.js';
 import type { MiChannel, MiDriveFile, MiMeta, MiUser } from '@/models/_.js';
 import { ChannelEntityService } from '@/core/entities/ChannelEntityService.js';
@@ -17,6 +17,7 @@ import { genAidx } from '@/misc/id/aidx.js';
 function createService(
 	configOverrides: Partial<Config> = {},
 	metaOverrides: Partial<MiMeta> = {},
+	driveService: any = {},
 ): ChannelEntityService {
 	const config = {
 		id: 'aidx',
@@ -50,7 +51,7 @@ function createService(
 		{} as any,
 		driveFileEntityService,
 		new IdService(config),
-		{} as any,
+		driveService,
 	);
 }
 
@@ -194,6 +195,39 @@ describe('ChannelEntityService', () => {
 			const service = createService();
 			const packed = await service.pack(channel({ bannerId: null }), null);
 			assert.strictEqual(packed.iconUrl, null);
+		});
+	});
+
+	describe('reuploadFileAsChannelAccount', () => {
+		test('他ユーザー所有のファイルは originalDriveFile を渡してチャンネルアカウント所有で再アップロードする', async () => {
+			const copied = bannerFile({ id: 'copied', userId: 'actorId', url: 'https://example.com/files/copied' });
+			const driveService = {
+				reuploadFile: vi.fn().mockResolvedValue(copied),
+			};
+			const service = createService({}, {}, driveService);
+			const original = bannerFile({ id: 'original', userId: 'otherUserId', url: 'https://example.com/files/original' });
+
+			const result = await service.reuploadFileAsChannelAccount(original, 'actorId');
+
+			expect(result).toBe(copied);
+			expect(driveService.reuploadFile).toHaveBeenCalledWith({
+				originalUrl: original.url,
+				originalDriveFile: original,
+				user: { id: 'actorId', host: null },
+			});
+		});
+
+		test('既にチャンネルアカウント所有のファイルは再アップロードせずそのまま返す', async () => {
+			const driveService = {
+				reuploadFile: vi.fn(),
+			};
+			const service = createService({}, {}, driveService);
+			const owned = bannerFile({ id: 'owned', userId: 'actorId', url: 'https://example.com/files/owned' });
+
+			const result = await service.reuploadFileAsChannelAccount(owned, 'actorId');
+
+			expect(result).toBe(owned);
+			expect(driveService.reuploadFile).not.toHaveBeenCalled();
 		});
 	});
 });

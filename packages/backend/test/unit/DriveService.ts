@@ -158,5 +158,55 @@ describe('DriveService', () => {
 				force: true,
 			});
 		});
+
+		test('originalDriveFile がリモート所有の場合は URL 検索もコピーもせずダウンロードする', async () => {
+			const { service, driveFilesRepository } = createService();
+			const remoteFile = createDriveFile({
+				id: 'remoteFileId',
+				url: 'https://remote.test/file.png',
+				userId: 'remoteUserId',
+				userHost: 'remote.test',
+			});
+			const uploadedFile = createDriveFile({ id: 'uploadedFileId', url: 'https://example.com/uploaded.png' });
+			const copy = vi.spyOn(service, 'copy');
+			const uploadFromUrl = vi.spyOn(service, 'uploadFromUrl').mockResolvedValue(uploadedFile);
+
+			const result = await service.reuploadFile({
+				originalUrl: remoteFile.url,
+				originalDriveFile: remoteFile,
+			});
+
+			expect(result).toBe(uploadedFile);
+			expect(driveFilesRepository.findOneBy).not.toHaveBeenCalled();
+			expect(copy).not.toHaveBeenCalled();
+			expect(uploadFromUrl).toHaveBeenCalledWith({
+				url: remoteFile.url,
+				user: null,
+				force: true,
+			});
+		});
+
+		test('copy が失敗した場合は警告ログを出してダウンロードへフォールバックする', async () => {
+			const { service, driveFilesRepository, registerLogger } = createService();
+			const originalFile = createDriveFile({ id: 'originalFileId', url: 'https://example.com/original.png' });
+			const uploadedFile = createDriveFile({ id: 'uploadedFileId', url: 'https://example.com/uploaded.png' });
+			const copy = vi.spyOn(service, 'copy').mockRejectedValue(new Error('copy failed'));
+			const uploadFromUrl = vi.spyOn(service, 'uploadFromUrl').mockResolvedValue(uploadedFile);
+
+			const result = await service.reuploadFile({
+				originalUrl: originalFile.url,
+				originalDriveFile: originalFile,
+			});
+
+			expect(result).toBe(uploadedFile);
+			expect(driveFilesRepository.findOneBy).not.toHaveBeenCalled();
+			expect(copy).toHaveBeenCalledTimes(1);
+			expect(registerLogger.warn).toHaveBeenCalledTimes(1);
+			expect(uploadFromUrl).toHaveBeenCalledWith({
+				url: originalFile.url,
+				user: null,
+				force: true,
+			});
+		});
 	});
 });

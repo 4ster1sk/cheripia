@@ -362,6 +362,62 @@ describe('custom-emoji-reupload', () => {
 		await assertSystemOwned(emoji.url);
 	});
 
+	test('steal は一般ユーザーが同じ MD5 のファイルを所有していても削除せずシステム所有で新規作成する', async () => {
+		const sharedImage = await createSolidPng();
+		const userUpRes = await uploadFile(otherAdmin, {
+			blob: new Blob([new Uint8Array(sharedImage)], { type: 'image/png' }),
+			name: 'user-shared.png',
+		});
+		assert.strictEqual(userUpRes.status, 200);
+		const userFile = userUpRes.body!;
+
+		const remoteEmojiName = 'test_steal_md5_' + Math.random().toString(36).slice(2, 8);
+		const remoteHost = 'remote.test';
+		const remoteOriginalUrl = `${remoteUrl}/steal-md5.png`;
+		remoteImages.set('steal-md5.png', { type: 'image/png', body: sharedImage });
+
+		await emojisRepository.insert({
+			id: idService.gen(),
+			updatedAt: new Date(),
+			name: remoteEmojiName,
+			host: remoteHost,
+			category: null,
+			originalUrl: remoteOriginalUrl,
+			publicUrl: remoteOriginalUrl,
+			uri: remoteOriginalUrl,
+			type: 'image/png',
+			aliases: [],
+			license: null,
+			localOnly: false,
+			isSensitive: false,
+			usageInfo: null,
+			description: null,
+			author: null,
+			copyPermission: 'allow',
+			isBasedOn: null,
+		});
+
+		const stealRes = await api('admin/emoji/steal', {
+			name: remoteEmojiName,
+			host: remoteHost,
+			licenseReadText: null,
+		}, root);
+		assert.strictEqual(stealRes.status, 200);
+		const emoji = stealRes.body! as unknown as misskey.entities.EmojiDetailed;
+
+		// 絵文字用には一般ユーザーのファイルとは別のシステム所有ファイルが作られる
+		const emojiDriveFile = await assertSystemOwned(emoji.url);
+		assert.notStrictEqual(emojiDriveFile.id, userFile.id);
+		assert.notStrictEqual(emoji.url, userFile.url);
+
+		// 一般ユーザーが元々所有していたファイルは削除されず参照可能なまま残る
+		const remainingUserFile = await driveFilesRepository.findOneBy({ id: userFile.id });
+		assert.ok(remainingUserFile, '一般ユーザーのファイルは削除されない');
+		assert.strictEqual(remainingUserFile.userId, otherAdmin.id);
+		const userFileFetch = await fetch(userFile.url);
+		assert.strictEqual(userFileFetch.status, 200);
+	});
+
 	test('copy はリモート絵文字をメタデータ付きでローカルへ取り込む', async () => {
 		const remoteEmojiName = 'test_copy_' + Math.random().toString(36).slice(2, 8);
 		const remoteHost = 'remote.test';

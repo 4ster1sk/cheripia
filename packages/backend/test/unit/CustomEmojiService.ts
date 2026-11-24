@@ -1088,6 +1088,140 @@ describe('CustomEmojiService', () => {
 			expect(driveService.deleteFile).toHaveBeenCalledWith(originalFile);
 		});
 
+		test('add は reuseDriveFile が true でもリモート所有ファイルは再アップロードする', async () => {
+			const { service, driveFilesRepository, driveService } = createService();
+			const originalFile = createDriveFile({
+				id: 'remoteFileId',
+				url: 'https://remote.test/file.png',
+				userId: null,
+				userHost: 'remote.test',
+			});
+			const copiedFile = createDriveFile({
+				id: 'copiedFileId',
+				url: 'https://example.com/copied.png',
+				userId: null,
+				userHost: null,
+			});
+
+			driveService.reuploadFile.mockResolvedValue(copiedFile);
+			driveFilesRepository.existsBy.mockResolvedValue(false);
+
+			await service.add(createAddData({
+				originalUrl: originalFile.url,
+				driveFile: originalFile,
+				reuseDriveFile: true,
+			}));
+
+			expect(driveFilesRepository.findOneBy).not.toHaveBeenCalled();
+			expect(driveService.reuploadFile).toHaveBeenCalledWith(expect.objectContaining({
+				originalUrl: originalFile.url,
+				originalDriveFile: originalFile,
+			}));
+		});
+
+		test('add は reuseDriveFile が true でも driveFile が null なら URL 検索せず再アップロードする', async () => {
+			const { service, driveFilesRepository, driveService } = createService();
+			const copiedFile = createDriveFile({
+				id: 'copiedFileId',
+				url: 'https://example.com/copied.png',
+				userId: null,
+				userHost: null,
+			});
+
+			driveService.reuploadFile.mockResolvedValue(copiedFile);
+
+			await service.add(createAddData({
+				originalUrl: 'https://example.com/missing.png',
+				driveFile: null,
+				reuseDriveFile: true,
+			}));
+
+			expect(driveFilesRepository.findOneBy).not.toHaveBeenCalled();
+			expect(driveService.reuploadFile).toHaveBeenCalledWith({
+				originalUrl: 'https://example.com/missing.png',
+				originalDriveFile: null,
+			});
+			expect(driveFilesRepository.existsBy).not.toHaveBeenCalled();
+			expect(driveService.deleteFile).not.toHaveBeenCalled();
+		});
+
+		test('update は渡された元ファイルを使って再アップロードし、URL で検索しない', async () => {
+			const { service, emojisRepository, driveFilesRepository, driveService } = createService();
+			const existingEmoji = createEmoji({
+				id: 'emojiId',
+				name: 'emoji',
+				originalUrl: 'https://example.com/old.png',
+			});
+			const newFile = createDriveFile({
+				id: 'newFileId',
+				md5: 'fedcba9876543210fedcba9876543210',
+				url: 'https://example.com/new.png',
+				userId: 'userId',
+				userHost: null,
+			});
+			const copiedFile = createDriveFile({
+				id: 'copiedFileId',
+				url: 'https://example.com/copied.png',
+				userId: null,
+				userHost: null,
+			});
+
+			emojisRepository.findOneBy.mockResolvedValue(existingEmoji);
+			driveService.reuploadFile.mockResolvedValue(copiedFile);
+			driveFilesRepository.existsBy.mockResolvedValue(false);
+
+			const error = await service.update({
+				id: existingEmoji.id,
+				originalUrl: newFile.url,
+				publicUrl: newFile.url,
+				fileType: newFile.type,
+				driveFile: newFile,
+			});
+
+			expect(error).toBeNull();
+			expect(driveFilesRepository.findOneBy).not.toHaveBeenCalled();
+			expect(driveService.reuploadFile).toHaveBeenCalledWith({
+				originalUrl: newFile.url,
+				originalDriveFile: newFile,
+			});
+			expect(driveFilesRepository.existsBy).toHaveBeenCalledTimes(1);
+			expect(driveFilesRepository.existsBy.mock.calls[0][0].md5).toBe(newFile.md5);
+			expect(driveFilesRepository.existsBy.mock.calls[0][0].url).toBe(newFile.url);
+			expect(driveService.deleteFile).toHaveBeenCalledWith(newFile);
+			expect(emojisRepository.update).toHaveBeenCalledWith(existingEmoji.id, expect.objectContaining({
+				originalUrl: copiedFile.url,
+				publicUrl: copiedFile.url,
+				type: copiedFile.type,
+			}));
+		});
+
+		test('update はファイル変更がない場合は再アップロードも URL 検索もしない', async () => {
+			const { service, emojisRepository, driveFilesRepository, driveService } = createService();
+			const existingEmoji = createEmoji({
+				id: 'emojiId',
+				name: 'emoji',
+				originalUrl: 'https://example.com/same.png',
+			});
+
+			emojisRepository.findOneBy.mockResolvedValue(existingEmoji);
+
+			const errorWithoutUrl = await service.update({
+				id: existingEmoji.id,
+				category: 'updated-category',
+			});
+			const errorWithSameUrl = await service.update({
+				id: existingEmoji.id,
+				originalUrl: existingEmoji.originalUrl,
+			});
+
+			expect(errorWithoutUrl).toBeNull();
+			expect(errorWithSameUrl).toBeNull();
+			expect(driveService.reuploadFile).not.toHaveBeenCalled();
+			expect(driveFilesRepository.findOneBy).not.toHaveBeenCalled();
+			expect(driveFilesRepository.existsBy).not.toHaveBeenCalled();
+			expect(driveService.deleteFile).not.toHaveBeenCalled();
+		});
+
 		test('reuploadFileAndCleanup は originalDriveFile が null なら URL 検索しない', async () => {
 			const { service, driveFilesRepository, driveService } = createService();
 			const copiedFile = createDriveFile({
