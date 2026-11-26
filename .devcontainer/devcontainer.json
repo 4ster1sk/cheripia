@@ -12,6 +12,7 @@
 		}
 	},
 	"forwardPorts": [3000],
+	"onCreateCommand": "/bin/bash .devcontainer/install-toolchain.sh",
 	"postCreateCommand": "/bin/bash .devcontainer/init.sh",
 	"customizations": {
 		"vscode": {

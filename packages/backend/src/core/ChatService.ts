@@ -522,7 +522,7 @@ export class ChatService implements OnApplicationShutdown {
 
 			query.setParameters(mutingQuery.getParameters());
 
-			const message = await query.getOne();
+			const message = await query.limit(1).getOne();
 
 			if (message) {
 				history.push(message);
@@ -565,7 +565,7 @@ export class ChatService implements OnApplicationShutdown {
 				query.andWhere('message.toRoomId NOT IN (:...found)', { found: found });
 			}
 
-			const message = await query.getOne();
+			const message = await query.limit(1).getOne();
 
 			if (message) {
 				history.push(message);
