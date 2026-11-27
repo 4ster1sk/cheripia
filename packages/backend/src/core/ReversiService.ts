@@ -340,10 +340,21 @@ export class ReversiService implements OnApplicationShutdown, OnModuleInit {
 
 	@bindThis
 	public async matchSpecificUserCancel(user: MiUser, targetUser: MiUser, game_session_id:string | undefined = undefined) {
-		await this.redisClient.zrem(`reversi:matchSpecific:${targetUser.id}`, JSON.stringify({
-			from_user_id: user.id,
-			game_session_id,
-		}));
+		const key = `reversi:matchSpecific:${targetUser.id}`;
+		// zadd された member は host_user_id を含むため、JSON.stringify で再構築した値では
+		// zrem が一致しない。保存されている member を読み出して一致するものだけ削除する。
+		const invitations = await this.redisClient.zrange(key, '-inf', '+inf', 'BYSCORE');
+		const removes = invitations.filter(raw => {
+			try {
+				const invite = JSON.parse(raw) as { from_user_id?: unknown; game_session_id?: unknown; };
+				return invite.from_user_id === user.id && (game_session_id === undefined || invite.game_session_id === game_session_id);
+			} catch {
+				return false;
+			}
+		});
+		if (removes.length > 0) {
+			await this.redisClient.zrem(key, ...removes);
+		}
 	}
 
 	@bindThis
