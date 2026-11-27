@@ -162,6 +162,10 @@ export class ApOutboxFetchService implements OnModuleInit {
 							this.logger.info('skip: malformed createdAt');
 							continue;
 						}
+						if (renote.userHost === null && renote.localOnly) {
+							this.logger.info('skip: invalid actor for this activity');
+							continue;
+						}
 						if (!await this.noteEntityService.isVisibleForMe(renote, user.id)) {
 							this.logger.info('skip: invalid actor for this activity');
 							continue;
