@@ -95,7 +95,11 @@ export class ApGameService {
 	async reversiInboxJoin(local_user: MiUser, remote_user: MiRemoteUser, game: IApReversi) {
 		const targetUser = local_user;
 		const fromUser = remote_user;
-		if (!game.game_state.game_session_id) throw Error('bad session' + JSON.stringify(game));
+		const gameSessionId = this.getGameSessionId(game);
+		if (gameSessionId === null) {
+			this.logger.warn('skip ApReversi join with invalid game_session_id');
+			return;
+		}
 		if ((await this.reversiService.federationAvailable(remote_user.host)) === false) {
 			//確実に利用できない時
 			return;
@@ -107,23 +111,32 @@ export class ApGameService {
 		const redisPipeline = this.redisClient.pipeline();
 		redisPipeline.zadd(`reversi:matchSpecific:${targetUser.id}`, Date.now(), JSON.stringify( {
 			from_user_id: fromUser.id,
-			game_session_id: game.game_state.game_session_id,
+			game_session_id: gameSessionId,
 			host_user_id: local_user.id,
 		}));
 		redisPipeline.expire(`reversi:matchSpecific:${targetUser.id}`, 120, 'NX');
 		await redisPipeline.exec();
 	}
 	async reversiInboxUndoInvite(actor: MiRemoteUser, target_user:MiLocalUser, game: IApReversi) {
-		await this.reversiService.matchSpecificUserCancel(actor, target_user, game.game_state.game_session_id);
+		const gameSessionId = this.getGameSessionId(game);
+		if (gameSessionId === null) {
+			this.logger.warn('skip ApReversi undoinvite with invalid game_session_id');
+			return;
+		}
+		await this.reversiService.matchSpecificUserCancel(actor, target_user, gameSessionId);
 	}
 	async reversiInboxInvite(local_user: MiUser, remote_user: MiRemoteUser, game: IApReversi) {
 		const targetUser = local_user;
 		const fromUser = remote_user;
-		if (!game.game_state.game_session_id) throw Error('bad session' + JSON.stringify(game));
+		const gameSessionId = this.getGameSessionId(game);
+		if (gameSessionId === null) {
+			this.logger.warn('skip ApReversi invite with invalid game_session_id');
+			return;
+		}
 		const redisPipeline = this.redisClient.pipeline();
 		redisPipeline.zadd(`reversi:matchSpecific:${targetUser.id}`, Date.now(), JSON.stringify( {
 			from_user_id: fromUser.id,
-			game_session_id: game.game_state.game_session_id,
+			game_session_id: gameSessionId,
 			host_user_id: remote_user.id,
 		}));
 		redisPipeline.expire(`reversi:matchSpecific:${targetUser.id}`, 120, 'NX');
@@ -141,6 +154,12 @@ export class ApGameService {
 		}
 		this.reversiService.sendReaction(id, actor, emoji);
 	}
+	private getGameSessionId(game: IApReversi): string | null {
+		const id = game.game_state?.game_session_id;
+		// federationId は varchar(36)。空文字・長すぎる値は DB に入る前に拒否する。
+		return typeof id === 'string' && id.length > 0 && id.length <= 36 ? id : null;
+	}
+
 	public async reversiIdFromUUID(game_session_id: string): Promise<string | null> {
 		if (typeof game_session_id !== 'string' || game_session_id.length === 0) {
 			return null;
