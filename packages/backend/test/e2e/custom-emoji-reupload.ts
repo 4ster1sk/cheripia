@@ -347,8 +347,7 @@ describe('custom-emoji-reupload', () => {
 			licenseReadText: null,
 		}, root);
 		assert.strictEqual(stealRes.status, 200);
-		// misskey-js の定義では id のみだが、実際には EmojiDetailed が返る
-		const emoji = stealRes.body! as unknown as misskey.entities.EmojiDetailed;
+		const emoji = stealRes.body!;
 
 		assert.strictEqual(emoji.host, null);
 		assert.strictEqual(emoji.importFrom, remoteHost);
@@ -403,7 +402,7 @@ describe('custom-emoji-reupload', () => {
 			licenseReadText: null,
 		}, root);
 		assert.strictEqual(stealRes.status, 200);
-		const emoji = stealRes.body! as unknown as misskey.entities.EmojiDetailed;
+		const emoji = stealRes.body!;
 
 		// 絵文字用には一般ユーザーのファイルとは別のシステム所有ファイルが作られる
 		const emojiDriveFile = await assertSystemOwned(emoji.url);
@@ -453,8 +452,7 @@ describe('custom-emoji-reupload', () => {
 			licenseReadText: null,
 		}, root);
 		assert.strictEqual(copyRes.status, 200);
-		// misskey-js の定義では id のみだが、実際には EmojiDetailed が返る
-		const emoji = copyRes.body! as unknown as misskey.entities.EmojiDetailed;
+		const emoji = copyRes.body!;
 
 		assert.strictEqual(emoji.host, null);
 		assert.strictEqual(emoji.importFrom, remoteHost);
