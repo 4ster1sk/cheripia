@@ -9254,10 +9254,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    'application/json': {
-                        /** Format: id */
-                        id: string;
-                    };
+                    'application/json': components['schemas']['EmojiDetailed'];
                 };
             };
             /** @description Client error */
@@ -9920,10 +9917,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    'application/json': {
-                        /** Format: id */
-                        id: string;
-                    };
+                    'application/json': components['schemas']['EmojiDetailed'];
                 };
             };
             /** @description Client error */
