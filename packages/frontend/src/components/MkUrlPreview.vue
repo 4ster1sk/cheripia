@@ -26,32 +26,35 @@ SPDX-License-Identifier: AGPL-3.0-only
 		</MkButton>
 	</div>
 </template>
-<template v-else-if="tweetId && postExpanded">
-	<iframe
-		allow="fullscreen;web-share"
-		sandbox="allow-popups allow-popups-to-escape-sandbox allow-scripts allow-same-origin"
-		scrolling="no"
-		:style="{ position: 'relative', width: '100%', height: `${postHeight}px`, border: 0 }"
-		:src="`https://platform.twitter.com/embed/index.html?embedId=${embedId}&amp;hideCard=false&amp;hideThread=false&amp;lang=en&amp;theme=${store.s.darkMode ? 'dark' : 'light'}&amp;id=${tweetId}`"
-	></iframe>
+<template v-else-if="tweetId && tweetExpanded">
+	<div ref="twitter">
+		<iframe
+			ref="tweet"
+			allow="fullscreen;web-share"
+			sandbox="allow-popups allow-popups-to-escape-sandbox allow-scripts allow-same-origin"
+			scrolling="no"
+			:style="{ position: 'relative', width: '100%', height: `${tweetHeight}px`, border: 0 }"
+			:src="`https://platform.twitter.com/embed/index.html?embedId=${embedId}&amp;hideCard=false&amp;hideThread=false&amp;lang=en&amp;theme=${store.s.darkMode ? 'dark' : 'light'}&amp;id=${tweetId}`"
+		></iframe>
+	</div>
 	<div :class="$style.action">
-		<MkButton :small="true" inline @click.stop="postExpanded = false">
+		<MkButton :small="true" inline @click.stop="setTweetExpanded(false)">
 			<i class="ti ti-x"></i> {{ i18n.ts.close }}
 		</MkButton>
 	</div>
 </template>
-<template v-else-if="bskyDid && bskyPostRecordKey && postExpanded">
+<template v-else-if="bskyDid && bskyPostRecordKey && bskyExpanded">
 	<div>
 		<iframe
 			allow="fullscreen;web-share"
 			sandbox="allow-popups allow-popups-to-escape-sandbox allow-scripts allow-same-origin"
 			scrolling="no"
-			:style="{ position: 'relative', width: '100%', height: `${postHeight}px`, border: 0 }"
+			:style="{ position: 'relative', width: '100%', height: `${bskyHeight}px`, border: 0 }"
 			:src="`https://embed.bsky.app/embed/${bskyDid}/app.bsky.feed.post/${bskyPostRecordKey}?id=${embedId}`"
 		></iframe>
 	</div>
 	<div :class="$style.action">
-		<MkButton :small="true" inline @click.stop="postExpanded = false">
+		<MkButton :small="true" inline @click.stop="setBskyExpanded(false)">
 			<i class="ti ti-x"></i> {{ i18n.ts.close }}
 		</MkButton>
 	</div>
@@ -79,12 +82,12 @@ SPDX-License-Identifier: AGPL-3.0-only
 	</component>
 	<template v-if="showActions">
 		<div v-if="tweetId" :class="$style.action">
-			<MkButton :small="true" inline @click.stop="postExpanded = true">
+			<MkButton :small="true" inline @click.stop="setTweetExpanded(true)">
 				<i class="ti ti-brand-x"></i> {{ i18n.ts.expandPost }}
 			</MkButton>
 		</div>
-		<div v-if="bskyPostRecordKey" :class="$style.action">
-			<MkButton :small="true" inline @click.stop="openBskyEmbed">
+		<div v-if="bskyPostRecordKey && !bskyEmbedUnavailable" :class="$style.action">
+			<MkButton :small="true" inline @click.stop="setBskyExpanded(true)">
 				<i class="ti ti-brand-bluesky"></i> {{ i18n.ts.expandPost }}
 			</MkButton>
 		</div>
@@ -101,7 +104,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 </template>
 
 <script lang="ts" setup>
-import { computed, defineAsyncComponent, onDeactivated, onUnmounted, ref } from 'vue';
+import { computed, defineAsyncComponent, onActivated, onDeactivated, onUnmounted, ref } from 'vue';
 import { url as local } from '@@/js/config.js';
 import { versatileLang } from '@@/js/intl-const.js';
 import { maybeMakeRelative } from '@@/js/url.js';
@@ -135,10 +138,12 @@ const isMobile = ref(deviceKind === 'smartphone' || window.innerWidth <= MOBILE_
 
 const maybeRelativeUrl = maybeMakeRelative(props.url, local);
 let self = maybeRelativeUrl !== props.url;
+
+// このインスタンスのクリップおよび再生URLでは、@サフィックス付きのパスを有効なURLとして扱います。
 let requestUrl = new URL(props.url, window.location.href);
 let url_string: string;
 if (props.host === requestUrl.host && (requestUrl.pathname.startsWith('/clips/') || requestUrl.pathname.startsWith('/play/'))) {
-	let split = requestUrl.pathname.split('@');
+	const split = requestUrl.pathname.split('@');
 	requestUrl = new URL(local + split[0] + '@' + (split.length >= 2 ? split[1] : props.host));
 	self = true;
 	url_string = requestUrl.toString();
@@ -146,6 +151,7 @@ if (props.host === requestUrl.host && (requestUrl.pathname.startsWith('/clips/')
 } else {
 	url_string = requestUrl.toString();
 }
+
 const attr = self ? 'to' : 'href';
 const target = self ? null : '_blank';
 const fetching = ref(true);
@@ -157,25 +163,35 @@ const icon = computed(() => summalyResult.value?.icon ?? null);
 const sitename = computed(() => summalyResult.value?.sitename ?? null);
 const sensitive = computed(() => summalyResult.value?.sensitive ?? false);
 const player = computed(() => summalyResult.value?.player ?? { url: null, width: null, height: null });
-const playerEnabled = ref(false);
-const embedId = `embed${Math.random().toString().replace(/\D/, '')}`;
-
-const postExpanded = ref(props.detail);
-const postHeight = ref(150);
-
+const playerEnabled = ref(false); // 初期値はsummaly取り終わったあとに設定
 const tweetId = ref<string | null>(null);
+const tweetExpanded = ref(false); // 初期値はsummaly取り終わったあとに設定
+let tweetExpandedByUser = false;
+const embedId = `embed${Math.random().toString().replace(/\D/, '')}`;
+const tweetHeight = ref(150);
+const unknownUrl = ref(false);
+let isDeactivated = false;
 
+// CherryPick: Bluesky投稿の埋め込み。アップストリームの変更をクリーンにマージできるよう、状態をアップストリームのツイート埋め込みとは別に管理しています。
 const bskyHandleOrDid = ref<string | null>(null);
 const bskyDid = ref<string | null>(null);
+let bskyDidResolving = false;
 const bskyPostRecordKey = ref<string | null>(null);
+const bskyExpanded = ref(false);
+const bskyHeight = ref(150);
+let bskyExpandedByUser = false;
+// Cheripia: Bluesky埋め込みの恒久的な解決失敗を記録するステート
+const bskyEmbedUnavailable = ref(false);
 
-const unknownUrl = ref(false);
+onActivated(() => {
+	isDeactivated = false;
+});
 
 onDeactivated(() => {
+	isDeactivated = true;
 	playerEnabled.value = false;
 });
 
-//const requestUrl = new URL(props.url, window.location.href);
 if (!['http:', 'https:'].includes(requestUrl.protocol)) throw new Error('invalid url');
 
 if (requestUrl.hostname === 'twitter.com' || requestUrl.hostname === 'mobile.twitter.com' || requestUrl.hostname === 'x.com' || requestUrl.hostname === 'mobile.x.com') {
@@ -186,10 +202,12 @@ if (requestUrl.hostname === 'twitter.com' || requestUrl.hostname === 'mobile.twi
 if (requestUrl.hostname === 'bsky.app') {
 	const bskyPostPageUrl = requestUrl.pathname.slice(1).split('/');
 	if (bskyPostPageUrl[0] === 'profile' && bskyPostPageUrl[1] && bskyPostPageUrl[2] === 'post' && bskyPostPageUrl[3]) {
-		bskyHandleOrDid.value = bskyPostPageUrl[1];
-		bskyPostRecordKey.value = bskyPostPageUrl[3];
-		if (postExpanded.value) {
-			openBskyEmbed();
+		// Cheripia: 外部の投稿作成者が完全に制御するURL成分を、埋め込み展開で使用される前にホワイトリストで検証する
+		const validHandle = /^[a-zA-Z0-9._-]+$/.test(bskyPostPageUrl[1]) || /^did:[a-z0-9]+:[a-zA-Z0-9._:%-]+$/.test(bskyPostPageUrl[1]);
+		const validRecordKey = /^[a-zA-Z0-9_-]+$/.test(bskyPostPageUrl[3]);
+		if (validHandle && validRecordKey) {
+			bskyHandleOrDid.value = bskyPostPageUrl[1];
+			bskyPostRecordKey.value = bskyPostPageUrl[3];
 		}
 	}
 }
@@ -211,37 +229,113 @@ window.fetch(`${instance.urlPreviewEndpoint}?url=${encodeURIComponent(requestUrl
 
 		return res.json();
 	})
+	.catch(err => {
+		if (_DEV_) {
+			console.warn('Failed to fetch url preview', err);
+		}
+		return null;
+	})
 	.then((info: SummalyResult | null) => {
 		if (!info || info.url == null) {
 			fetching.value = false;
 			unknownUrl.value = true;
+			autoExpandTweet();
+			autoExpandBsky();
 			return;
 		}
 
 		fetching.value = false;
 		unknownUrl.value = false;
+
 		summalyResult.value = {
 			...info,
 			thumbnail: getProxiedImageUrlNullable(info.thumbnail, 'avatar', true),
 			icon: getProxiedImageUrlNullable(info.icon, 'emoji', true),
 		};
+
+		if (!info.sensitive) {
+			autoExpandTweet();
+			autoExpandBsky();
+			if (!isDeactivated) {
+				playerEnabled.value = (props.showActions && prefer.s.expandUrlPreviewAutomatically);
+			}
+		}
 	});
+
+function setTweetExpanded(expanded: boolean) {
+	tweetExpandedByUser = true;
+	tweetExpanded.value = expanded;
+}
+
+function autoExpandTweet() {
+	if (props.detail && !tweetExpandedByUser) tweetExpanded.value = true;
+}
+
+function adjustTweetHeight(message: MessageEvent) {
+	if (message.origin !== 'https://platform.twitter.com') return;
+	const embed = message.data?.['twttr.embed'];
+	if (embed?.method !== 'twttr.private.resize') return;
+	if (embed?.id !== embedId) return;
+	const height = embed?.params[0]?.height;
+	if (height) tweetHeight.value = height;
+}
+
+function setBskyExpanded(expanded: boolean) {
+	bskyExpandedByUser = true;
+	bskyExpanded.value = expanded;
+	if (expanded) openBskyEmbed();
+}
+
+function autoExpandBsky() {
+	if (!props.detail || bskyExpandedByUser) return;
+	bskyExpanded.value = true;
+	openBskyEmbed();
+}
 
 async function openBskyEmbed() {
 	if (bskyHandleOrDid.value == null || bskyPostRecordKey.value == null) return;
-	if (bskyDid.value == null) {
-		if (bskyHandleOrDid.value.startsWith('did:')) {
-			bskyDid.value = bskyHandleOrDid.value;
-		} else {
-			// handleで来ている場合はdidに変換
-			const bskyApiRes = await window.fetch(`https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle?handle=${bskyHandleOrDid.value}`);
+	// Cheripia: 解決失敗が記録済みならfetchを再発行しない
+	if (bskyDid.value != null || bskyDidResolving || bskyEmbedUnavailable.value) return;
+	if (bskyHandleOrDid.value.startsWith('did:')) {
+		bskyDid.value = bskyHandleOrDid.value;
+	} else {
+		// handleで来ている場合はdidに変換
+		bskyDidResolving = true;
+		try {
+			const bskyApiRes = await window.fetch(`https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(bskyHandleOrDid.value)}`);
 			if (bskyApiRes.ok) {
-				const bskyApiData = await bskyApiRes.json() as { did: string };
-				bskyDid.value = bskyApiData.did;
+				const bskyApiData = await bskyApiRes.json() as { did?: string };
+				// Cheripia: API応答のdidもW3C DID形式を検証してからiframe展開に使う
+				if (typeof bskyApiData.did === 'string' && /^did:[a-z0-9]+:[a-zA-Z0-9._:%-]+$/.test(bskyApiData.did)) {
+					bskyDid.value = bskyApiData.did;
+				} else {
+					bskyEmbedUnavailable.value = true;
+				}
+			} else {
+				// Cheripia: 恒久的なクライアントエラーのみ展開を無効にし、429および5xxでは再試行を許可する。
+				if (bskyApiRes.status >= 400 && bskyApiRes.status < 500 && bskyApiRes.status !== 429) {
+					bskyEmbedUnavailable.value = true;
+				}
+				if (_DEV_) {
+					console.warn(`[HTTP${bskyApiRes.status}] Failed to resolve bsky handle`);
+				}
 			}
+		} catch (err) {
+			// Cheripia: ネットワークエラーなどの一時的な障害が発生した場合でも、ボタンは表示されたままとなり、次回のクリックで再試行されます。
+			if (_DEV_) {
+				console.warn('Failed to resolve bsky handle', err);
+			}
+		} finally {
+			bskyDidResolving = false;
 		}
 	}
-	postExpanded.value = true;
+}
+
+function adjustBskyEmbedHeight(message: MessageEvent) {
+	if (message.origin !== 'https://embed.bsky.app') return;
+	if (message.data?.id !== embedId) return;
+	const height = message.data?.height;
+	if (height) bskyHeight.value = height;
 }
 
 function openPlayer(): void {
@@ -256,25 +350,12 @@ function openPlayer(): void {
 	});
 }
 
-function adjustSocialsEmbedHeight(message: MessageEvent) {
-	if (message.origin === 'https://platform.twitter.com') {
-		const embed = message.data?.['twttr.embed'];
-		if (embed?.method === 'twttr.private.resize' && embed?.id === embedId) {
-			const height = embed?.params[0]?.height;
-			if (height) postHeight.value = height;
-		}
-	} else if (message.origin === 'https://embed.bsky.app') {
-		if (message.data?.id === embedId) {
-			const height = message.data?.height;
-			if (height) postHeight.value = height;
-		}
-	}
-}
-
-window.addEventListener('message', adjustSocialsEmbedHeight);
+window.addEventListener('message', adjustTweetHeight);
+window.addEventListener('message', adjustBskyEmbedHeight);
 
 onUnmounted(() => {
-	window.removeEventListener('message', adjustSocialsEmbedHeight);
+	window.removeEventListener('message', adjustTweetHeight);
+	window.removeEventListener('message', adjustBskyEmbedHeight);
 });
 </script>
 
