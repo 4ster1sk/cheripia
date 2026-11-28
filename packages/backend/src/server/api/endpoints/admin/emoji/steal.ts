@@ -47,14 +47,7 @@ export const meta = {
 
 	res: {
 		type: 'object',
-		optional: false, nullable: false,
-		properties: {
-			id: {
-				type: 'string',
-				optional: false, nullable: false,
-				format: 'id',
-			},
-		},
+		ref: 'EmojiDetailed',
 	},
 } as const;
 

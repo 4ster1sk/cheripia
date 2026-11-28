@@ -313,7 +313,6 @@ describe('Emoji', () => {
 			name: emoji.name,
 			category: emoji.category,
 			host: null,
-			//@ts-expect-error urlが未定義といわれるため
 			url: res.url,
 			license: emoji.license,
 			isSensitive: false,
@@ -356,7 +355,6 @@ describe('Emoji', () => {
 			name: emoji.name,
 			category: emoji.category,
 			host: null,
-			//@ts-expect-error urlが未定義といわれるため
 			url: res.url,
 			license: emoji.license,
 			isSensitive: true,
@@ -476,7 +474,6 @@ describe('Emoji', () => {
 			name: emoji.name,
 			category: emoji.category,
 			host: null,
-			//@ts-expect-error urlが未定義といわれるため
 			url: res.url,
 			license: emoji.license,
 			isSensitive: false,
@@ -518,7 +515,6 @@ describe('Emoji', () => {
 			name: emoji.name,
 			category: emoji.category,
 			host: null,
-			//@ts-expect-error urlが未定義といわれるため
 			url: res.url,
 			license: emoji.license,
 			isSensitive: false,
