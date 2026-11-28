@@ -337,9 +337,12 @@ export class CustomEmojiService implements OnApplicationShutdown {
 	}, moderator: MiUser): Promise<MiEmoji> {
 		if ((!data.id && !data.name && !data.host)) throw new IdentifiableError('7884f9a9-878f-454c-af3a-f2a75ee59a57', 'InvalidData');
 
+		// Cheripia: hostがundefinedのときTypeORMがhost条件を省略するため、nameとhostを検証してから検索する
 		const remoteEmoji = data.id ?
 			await this.emojisRepository.findOneBy({ id: data.id }) :
-			await this.emojisRepository.findOneBy({ name: data.name, host: data.host });
+			(data.name != null && data.host != null) ?
+				await this.emojisRepository.findOneBy({ name: data.name, host: data.host }) :
+				null;
 
 		if (remoteEmoji === null) throw new IdentifiableError('1bdcb17b-76de-4a33-8b5e-2649f6fe3f1e', 'No such emoji');
 
@@ -563,7 +566,10 @@ export class CustomEmojiService implements OnApplicationShutdown {
 		const emoji = await this.emojisCache.fetch(`${name} ${host}`, queryOrNull);
 
 		if (emoji == null) return null;
-		return emoji.publicUrl || emoji.originalUrl; // || emoji.originalUrl してるのは後方互換性のため（publicUrlはstringなので??はだめ）
+		const url = emoji.publicUrl || emoji.originalUrl; // || emoji.originalUrl してるのは後方互換性のため（publicUrlはstringなので??はだめ）
+		// 過去に保存された相対URLなどはクライアントで自サーバーのパスとして解釈されてしまうため返さない
+		if (!/^https?:\/\//i.test(url)) return null;
+		return url;
 	}
 
 	/**

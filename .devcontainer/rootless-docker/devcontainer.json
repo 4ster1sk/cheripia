@@ -6,15 +6,8 @@
 	"remoteUser": "root",
 	"containerUser": "root",
 	"updateRemoteUserUID": false,
-	"features": {
-		"ghcr.io/devcontainers/features/node:1": {
-			"version": "24.18.0"
-		},
-		"ghcr.io/devcontainers-extra/features/pnpm:2": {
-			"version": "11.5.3"
-		}
-	},
 	"forwardPorts": [3000],
+	"onCreateCommand": "/bin/bash .devcontainer/install-toolchain.sh",
 	"postCreateCommand": "/bin/bash .devcontainer/init.sh",
 	"customizations": {
 		"vscode": {
@@ -22,7 +15,6 @@
 				"editorconfig.editorconfig",
 				"dbaeumer.vscode-eslint",
 				"Vue.volar",
-				"dbaeumer.vscode-eslint",
 				"mrmlnc.vscode-json5",
 				"eamodio.gitlens"
 			]
