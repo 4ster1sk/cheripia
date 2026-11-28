@@ -43,4 +43,17 @@ describe('API', () => {
 		const res2 = await cli.request('users/show', { userIds: ['xxxxxxxx'] });
 		expectType<Misskey.entities.UserDetailed[]>(res2);
 	});
+
+	test('emoji copy and steal response types', async () => {
+		const cli = new Misskey.api.APIClient({
+			origin: 'https://cherrypick.test',
+			credential: 'TOKEN',
+		});
+
+		const copied = await cli.request('admin/emoji/copy', { emojiId: 'xxxxxxxx' });
+		expectType<Misskey.entities.EmojiDetailed>(copied);
+
+		const stolen = await cli.request('admin/emoji/steal', { name: 'blobcat', host: 'example.test' });
+		expectType<Misskey.entities.EmojiDetailed>(stolen);
+	});
 });

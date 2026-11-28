@@ -28,26 +28,23 @@ export async function copyEmoji(emoji: EmojiData, showDialog = true): Promise<Em
 		return null;
 	}
 
-	let emojiInfo: any | null = null;
-
 	const promise = misskeyApi('admin/emoji/copy', {
 		emojiId: emoji.id,
 		...(readText === '' ? {} : { licenseReadText: readText }),
 	}, undefined);
 
-	await os.promiseDialog(promise, (res) => {
-		emojiInfo = res;
+	const imported = await os.promiseDialog(promise, () => {
 		if (showDialog) os.toast(i18n.ts._emoji.imported);
 	}, async (err) => {
 		await os.alert({ type: 'error', title: err.message, text: err.id });
 	});
 
-	if (!emojiInfo?.id) return null;
-	return showDialog ? importEmojiMeta(emojiInfo, emoji.host ?? '') : emojiInfo;
+	if (!imported.id) return null;
+	return showDialog ? importEmojiMeta(imported, emoji.host ?? '') : imported;
 }
 
-export async function stealEmoji(emojiName: string, host: string): Promise<any | null> {
-	let emoji: any | null = null;
+export async function stealEmoji(emojiName: string, host: string): Promise<EmojiData | null> {
+	let emoji: EmojiData | null = null;
 	const steal = misskeyApi('admin/emoji/steal', { name: emojiName, host: host }, undefined);
 	await os.promiseDialog(steal, (res) => {
 		emoji = res;
@@ -70,7 +67,8 @@ export async function stealEmoji(emojiName: string, host: string): Promise<any |
 		}
 		await os.alert({ type: 'error', title: err.message, text: err.id });
 	});
-	return emoji === null ? null : await importEmojiMeta(emoji, host);
+	const stolen = emoji as EmojiData | null;
+	return stolen === null ? null : await importEmojiMeta(stolen, host);
 }
 
 export async function importEmojiMeta(emoji: EmojiData, host:string) {
